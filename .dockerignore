@@ -1,0 +1,46 @@
+# ============================================================================
+# 构建上下文排除清单
+# 目的是缩小上下文体积、避免本地产物污染镜像
+# ============================================================================
+
+# ---- .NET ----
+**/bin/
+**/obj/
+*.user
+*.suo
+.vs/
+
+# 本地 SQLite 库（不要打进镜像，容器里用卷）
+*.db
+*.db-shm
+*.db-wal
+
+# ---- 前端 ----
+**/node_modules/
+short-drama-web/dist/
+short-drama-web/.vite/
+
+# 前端产物会由 web 阶段重新构建，本地 wwwroot 不要带进上下文
+ShortDrama.Api/wwwroot/
+
+# ---- 版本控制与编辑器 ----
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+*.swp
+
+# ---- 文档与杂项 ----
+*.md
+!README.md
+LICENSE
+*.log
+logs/
+
+# ---- Docker 自身 ----
+Dockerfile
+docker-compose*.yml
+.dockerignore
+deploy.ps1
+deploy.sh

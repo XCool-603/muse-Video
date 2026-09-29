@@ -1,0 +1,59 @@
+# ============================================================================
+# PostgreSQL 覆盖配置（可选）
+#
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+#
+# 会把 app 切到 PostgreSQL，并额外拉起 postgres 与 redis 两个容器。
+# 适合多实例部署或数据量较大的场景；个人自用直接用默认的 SQLite 即可。
+# ============================================================================
+
+services:
+  app:
+    environment:
+      Database__Provider: PostgreSql
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=shortdrama;Username=shortdrama;Password=${POSTGRES_PASSWORD:-shortdrama_pwd}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: shortdrama-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shortdrama
+      POSTGRES_USER: shortdrama
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-shortdrama_pwd}"
+      TZ: Asia/Shanghai
+      # 中文排序与大小写处理
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - shortdrama-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shortdrama -d shortdrama"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    # 默认不对外暴露端口；需要直连调试时取消注释
+    # ports:
+    #   - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: shortdrama-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - shortdrama-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  shortdrama-pgdata:
+    driver: local
+  shortdrama-redisdata:
+    driver: local

@@ -1,0 +1,38 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.db
+*.db-shm
+*.db-wal
+
+## Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+## 日志
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+## 环境变量
+.env
+.env.local
+.env.*.local
+
+## IDE / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+## 前端构建产物（由 npm run build 生成，发布时拷贝到 ShortDrama.Api/wwwroot）
+ShortDrama.Api/wwwroot/assets/
+ShortDrama.Api/wwwroot/index.html

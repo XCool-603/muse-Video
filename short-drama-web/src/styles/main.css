@@ -1,0 +1,145 @@
+:root {
+  --sd-bg: #0f0f12;
+  --sd-bg-elevated: #1a1a1f;
+  --sd-border: #2a2a32;
+  --sd-text: #e8e8ea;
+  --sd-text-secondary: #9a9aa3;
+  --sd-primary: #ff4d6d;
+  --sd-primary-hover: #ff6b85;
+  --sd-radius: 10px;
+  --sd-max-width: 1200px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--sd-bg);
+  color: var(--sd-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sd-container {
+  max-width: var(--sd-max-width);
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ---------- 短剧网格 ---------- */
+.drama-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .drama-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+  }
+}
+
+/* ---------- 滚动条 ---------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3a3a44;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- 暗色主题覆盖 Ant Design Vue ---------- */
+.ant-layout,
+.ant-layout-content,
+.ant-layout-header,
+.ant-layout-footer {
+  background: transparent !important;
+}
+
+.ant-card {
+  background: var(--sd-bg-elevated);
+  border-color: var(--sd-border);
+}
+
+.ant-card-body {
+  color: var(--sd-text);
+}
+
+.ant-empty-description {
+  color: var(--sd-text-secondary);
+}
+
+.ant-btn-primary {
+  background: var(--sd-primary);
+  border-color: var(--sd-primary);
+}
+
+.ant-btn-primary:not(:disabled):hover {
+  background: var(--sd-primary-hover);
+  border-color: var(--sd-primary-hover);
+}
+
+.ant-tabs-tab {
+  color: var(--sd-text-secondary);
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--sd-primary) !important;
+}
+
+.ant-tabs-ink-bar {
+  background: var(--sd-primary);
+}
+
+/* ---------- 页面标题 ---------- */
+.sd-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 24px 0 14px;
+}
+
+.sd-section-title h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--sd-text);
+}
+
+.sd-section-title h2::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 16px;
+  background: var(--sd-primary);
+  border-radius: 2px;
+  margin-right: 8px;
+  vertical-align: -2px;
+}
+
+.sd-muted {
+  color: var(--sd-text-secondary);
+  font-size: 12px;
+}

@@ -1,0 +1,104 @@
+{
+  "//": "===========================================================",
+  "//1": "苹果CMS V10 采集源配置",
+  "//2": "每个源 = 一个独立适配器，聚合搜索/榜单/上新会自动并行调度",
+  "//3": "接口协议: {api}?ac=detail&wd=关键词   {api}?ac=detail&ids=ID   {api}?ac=list(分类)",
+  "//4": "增删源只需改这个文件，不用动任何代码；改完重启后端即可生效",
+  "//5": "shortDramaTypeIds 填苹果CMS 的 type_id，用于榜单/上新只拉短剧分类",
+  "//6": "===========================================================",
+
+  "AppleCms": {
+    "enabled": true,
+    "timeoutSeconds": 12,
+
+    "//bootstrap": "初始入库用这些关键词走搜索接口播种（多数采集站的分类参数不可靠，实测 t/type_id 常被忽略）",
+    "bootstrapKeywords": ["短剧", "霸总", "重生", "穿越", "战神", "甜宠", "闪婚", "逆袭"],
+    "bootstrapLimitPerKeyword": 10,
+
+    "sources": [
+      {
+        "platformCode": "acms_bfzy",
+        "platformName": "暴风资源",
+        "api": "https://bfzyapi.com/api.php/provide/vod/",
+        "enabled": true,
+        "format": "json",
+        "shortDramaTypeIds": [58, 65, 66, 67, 68, 69, 70, 71, 72, 74],
+        "note": "短剧分类最全：58=短剧大全, 65=重生民国, 66=穿越年代, 67=现代言情, 68=反转爽文, 69=女恋总裁, 70=闪婚离婚, 71=都市脑洞, 72=古装仙侠, 74=AI漫剧。实测可用。"
+      },
+      {
+        "platformCode": "acms_lziapi",
+        "platformName": "量子资源",
+        "api": "https://cj.lziapi.com/api.php/provide/vod/",
+        "enabled": true,
+        "format": "json",
+        "shortDramaTypeIds": [46, 52],
+        "note": "46=短剧, 52=AI漫剧。老牌大源，稳定性较好。"
+      },
+      {
+        "platformCode": "acms_ffzy",
+        "platformName": "非凡资源",
+        "api": "https://cj.ffzyapi.com/api.php/provide/vod/",
+        "enabled": true,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "无独立短剧分类，走全站检索。老牌大源。"
+      },
+      {
+        "platformCode": "acms_dyttzy",
+        "platformName": "天堂资源",
+        "api": "http://caiji.dyttzyapi.com/api.php/provide/vod/",
+        "enabled": true,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "无独立短剧分类，走全站检索。注意是 http（非 https）。"
+      },
+      {
+        "platformCode": "acms_subocaiji",
+        "platformName": "速播资源",
+        "api": "https://subocaiji.com/api.php/provide/vod/",
+        "enabled": true,
+        "format": "json",
+        "shortDramaTypeIds": [27],
+        "note": "27=短剧。注意该源另有 44=擦边短剧，已刻意不纳入。"
+      },
+      {
+        "platformCode": "acms_jyzy",
+        "platformName": "金鹰资源",
+        "api": "https://jyzyapi.com/api.php/provide/vod/",
+        "enabled": true,
+        "format": "json",
+        "shortDramaTypeIds": [30],
+        "note": "30=短剧。注意该源另有 47=擦边短剧，已刻意不纳入。"
+      }
+    ]
+  },
+
+  "//7": "===========================================================",
+  "//8": "【已实测失效的源】2026-09 探测时无响应，保留备查，源站恢复后可把 enabled 改回 true：",
+  "//9": "  无尽  https://api.wujinapi.net/api.php/provide/vod/",
+  "//10": "  索尼  https://suoniapi.com/api.php/provide/vod/",
+  "//11": "  樱花  https://m3u8.apiyhzy.com/api.php/provide/vod/at/xml/   (format 需改为 xml)",
+  "//12": "  旺旺  https://api.wwzy.tv/api.php/provide/vod/",
+  "//13": "  155   https://155api.com/api.php/provide/vod/",
+  "//14": "  滴滴  https://api.ddapi.cc/api.php/provide/vod/",
+  "//15": "  嘿嘿  https://api.heiapi.cc/api.php/provide/vod/",
+  "//16": "  火速  https://api.huosuapi.cc/api.php/provide/vod/",
+  "//17": "  玉兔  https://apiyutu.com/api.php/provide/vod/",
+  "//18": "  乐播  https://lbapi9.com/api.php/provide/vod/",
+  "//19": "  鸡坤  https://jkunzyapi.com/api.php/provide/vod/",
+  "//20": "  鲨鱼  https://shayuapi.com/api.php/provide/vod/",
+  "//21": "  森林  https://slapibf.com/api.php/provide/vod/",
+  "//22": "  精品  https://www.jingpinx.com/api.php/provide/vod/",
+  "//23": "  探探  https://apittzy.com/api.php/provide/vod/",
+  "//24": "  芒果  https://mgzyz1.com/api.php/provide/vod/",
+  "//25": "  奶香  https://naixxzy.com/api.php/provide/vod/",
+  "//26": "  辣椒  https://apilj.com/api.php/provide/vod/",
+  "//27": "  易看  https://api.yikanapi.com/api.php/provide/vod/",
+  "//28": "  奥斯卡 https://aosikazy.com/api.php/provide/vod/",
+  "//29": "  523   https://523zyw.me/inc/apijson_vod.php",
+  "//30": "===========================================================",
+  "//31": "【关于源站内容】以上源均为第三方公开采集站，内容非本系统提供。",
+  "//32": "部分采集站混杂成人内容（实测：155/滴滴/嘿嘿/乐播/玉兔/鸡坤 等搜索短剧关键词会返回成人内容），",
+  "//33": "这些源已刻意排除在默认配置之外。若自行添加源，请先自行核验其内容范围。",
+  "//34": "==========================================================="
+}

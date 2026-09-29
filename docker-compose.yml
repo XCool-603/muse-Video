@@ -1,0 +1,69 @@
+# ============================================================================
+# 短剧聚合平台 —— 一键部署
+#
+#   docker compose up -d
+#
+# 默认使用 SQLite，数据落在命名卷 shortdrama-data，无需额外依赖。
+# 想换 PostgreSQL 见 docker-compose.postgres.yml。
+#
+# 访问： http://localhost:8080
+# ============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shortdrama:latest
+    container_name: shortdrama
+    restart: unless-stopped
+
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+      # ---- 数据库（默认 SQLite，零依赖）----
+      Database__Provider: Sqlite
+      ConnectionStrings__Default: "Data Source=/data/shortdrama.db"
+
+      # ---- 访问口令门 ----
+      # 未通过口令前整站不可访问。改这里即可，不用重建镜像。
+      AccessGate__Enabled: "${ACCESS_GATE_ENABLED:-true}"
+      AccessGate__Password: "${ACCESS_PASSWORD:-遵纪守法世界和平}"
+      AccessGate__ValidDays: "30"
+
+      # ---- JWT 密钥（生产务必替换）----
+      Jwt__Key: "${JWT_KEY:-please-change-this-secret-key-in-production-2025}"
+      Jwt__Issuer: ShortDrama
+      Jwt__Audience: ShortDramaClient
+
+      # ---- 演示数据（默认关闭，只用真实源）----
+      Demo__Enabled: "false"
+
+      # ---- 日志 ----
+      Logging__LogLevel__Default: Information
+      Logging__LogLevel__Microsoft.AspNetCore: Warning
+      Logging__LogLevel__System.Net.Http.HttpClient: Warning
+
+    volumes:
+      # SQLite 库文件 + 任何运行时数据
+      - shortdrama-data:/data
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  shortdrama-data:
+    driver: local

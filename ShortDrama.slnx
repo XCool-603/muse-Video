@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ShortDrama.Api/ShortDrama.Api.csproj" />
+  <Project Path="ShortDrama.Application/ShortDrama.Application.csproj" />
+  <Project Path="ShortDrama.Domain/ShortDrama.Domain.csproj" />
+  <Project Path="ShortDrama.Infrastructure/ShortDrama.Infrastructure.csproj" />
+  <Project Path="ShortDrama.Tests/ShortDrama.Tests.csproj" />
+</Solution>
