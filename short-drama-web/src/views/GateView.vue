@@ -8,10 +8,10 @@
 
       <p class="notice">本站为个人自用实例，请先输入访问口令</p>
 
-      <a-form @finish="handleSubmit">
+      <a-form :model="form" @finish="handleSubmit">
         <a-form-item :validate-status="error ? 'error' : ''" :help="error">
           <a-input-password
-            v-model:value="password"
+            v-model:value="form.password"
             size="large"
             placeholder="请输入访问口令"
             autofocus
@@ -27,7 +27,7 @@
           block
           html-type="submit"
           :loading="loading"
-          :disabled="!password"
+          :disabled="!form.password"
         >
           进入
         </a-button>
@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LockOutlined, SafetyCertificateOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
@@ -51,18 +51,20 @@ import { accessApi } from '@/api/access'
 const route = useRoute()
 const router = useRouter()
 
-const password = ref('')
+// a-form 必须绑定 :model，否则 ant-design-vue 的 handleSubmit 会直接跳过，
+// 既不校验也不 emit('finish')，点提交按钮就成了「没反应」（连请求都不会发）
+const form = reactive({ password: '' })
 const loading = ref(false)
 const error = ref('')
 
 async function handleSubmit() {
-  if (!password.value) return
+  if (!form.password) return
 
   loading.value = true
   error.value = ''
 
   try {
-    await accessApi.verify(password.value)
+    await accessApi.verify(form.password)
     message.success('验证通过')
 
     const redirect = (route.query.redirect as string) || '/'
@@ -70,7 +72,7 @@ async function handleSubmit() {
     window.location.replace(redirect)
   } catch (e) {
     error.value = (e as Error).message || '口令不正确'
-    password.value = ''
+    form.password = ''
   } finally {
     loading.value = false
   }
