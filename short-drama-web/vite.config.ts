@@ -22,6 +22,21 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    chunkSizeWarningLimit: 1500
+    chunkSizeWarningLimit: 1500,
+    // 跳过每个 chunk 的 gzip 体积计算。产物越大越明显，
+    // 容器里构建（CPU 弱）时这一段常常被误以为卡死
+    reportCompressedSize: false,
+    rollupOptions: {
+      output: {
+        // 把体积最大的依赖拆成独立 chunk：单块更小 => 压缩阶段峰值内存更低、
+        // 并行度更好，浏览器侧也能长期缓存这几个几乎不变的库
+        manualChunks: {
+          vue: ['vue', 'vue-router', 'pinia', 'pinia-plugin-persistedstate'],
+          antd: ['ant-design-vue', '@ant-design/icons-vue'],
+          hls: ['hls.js'],
+          vendor: ['axios', 'dayjs']
+        }
+      }
+    }
   }
 })
