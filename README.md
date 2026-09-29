@@ -54,13 +54,38 @@ cd .. && dotnet run --project ShortDrama.Api -c Release
 
 访问 <http://localhost:5080> 即可同时获得前端页面与 API。
 
-### 4. 容器化部署
+### 4. 容器化部署（推荐）
+
+三行跑起来：
 
 ```bash
+git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
+cp .env.example .env
 docker compose up -d --build
 ```
 
-启动后：前端 <http://localhost>，API <http://localhost:8080>，PostgreSQL + Redis 由 compose 一并拉起。
+或者用自带脚本（少一行，并且会自动生成随机 JWT 密钥、支持定时自动更新）：
+
+```bash
+./deploy.sh          # Linux / macOS
+.\deploy.ps1         # Windows
+```
+
+默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。内置**定时自动更新**：
+
+```bash
+./deploy.sh --install-cron        # Linux / macOS：每天 04:00 自动拉取最新代码并重建重启
+./deploy.sh --update              # 也可以随时手动更新一次
+```
+
+```powershell
+.\deploy.ps1 -InstallTask         # Windows
+.\deploy.ps1 -Update
+```
+
+启动后访问 <http://localhost:8080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
+
+> 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、PostgreSQL 切换、备份恢复、反向代理、故障排查。
 
 ---
 
@@ -86,7 +111,11 @@ docker compose up -d --build
 ```
 短剧聚合/
 ├── ShortDrama.slnx
-├── docker-compose.yml
+├── deploy.sh / deploy.ps1              # 一键部署 + 自动更新
+├── Dockerfile                          # 单镜像多阶段构建（前端 + 后端）
+├── docker-compose.yml                  # 默认：SQLite 单容器
+├── docker-compose.postgres.yml         # 可选：PostgreSQL + Redis
+├── docs/DOCKER.md                      # Docker 部署完整文档
 ├── ShortDrama.Domain/                  # 领域层：实体
 │   └── Entities/  Drama / Episode / User / PlayProgress / Favorite / PlatformSource
 ├── ShortDrama.Application/             # 应用层：接口、DTO、公共算法
@@ -743,4 +772,3 @@ GET /api/v1/drama/platforms
 4. 重启后端，管理后台即可看到新平台并触发同步
 
 聚合搜索、榜单、上新、去广告代理会自动纳入新平台，无需修改上层代码。
-
