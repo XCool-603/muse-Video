@@ -38,6 +38,13 @@ namespace ShortDrama.Application.Services
 
         /// <summary>把适配器返回的剧集详情落库（幂等 upsert）</summary>
         Task<long> UpsertFromPlatformAsync(string platformCode, string platformDramaId, CancellationToken ct = default);
+
+        /// <summary>
+        /// 按平台原始 ID 查本地库，返回本地 Id；库里没有则返回 0。
+        /// 用于「按需入库」：实时聚合搜索的结果（Id=0）在用户点开时先查这里，
+        /// 命中就直接播放，不命中才回源拉取，避免每次点开都打上游。
+        /// </summary>
+        Task<long> FindLocalIdAsync(string platformCode, string platformDramaId, CancellationToken ct = default);
     }
 
     public interface IPlayService

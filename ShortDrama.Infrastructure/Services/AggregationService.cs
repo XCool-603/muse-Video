@@ -77,13 +77,19 @@ namespace ShortDrama.Infrastructure.Services
             }
 
             // 3) 本地库补充（已同步入库的内容）
+            //    注意这里必须跟着 platformCode 过滤：早先漏了，导致按平台筛选时
+            //    本地结果会把其他平台的剧一起带出来（筛选形同虚设）。
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                var local = await _db.Dramas.AsNoTracking()
-                    .Where(d => EF.Functions.Like(d.Title, $"%{keyword}%") || EF.Functions.Like(d.Description, $"%{keyword}%"))
-                    .Take(pageSize * 2)
-                    .ToListAsync(ct);
+                var localQuery = _db.Dramas.AsNoTracking()
+                    .Where(d => EF.Functions.Like(d.Title, $"%{keyword}%") || EF.Functions.Like(d.Description, $"%{keyword}%"));
 
+                if (!string.IsNullOrWhiteSpace(platformCode) && platformCode != "all")
+                {
+                    localQuery = localQuery.Where(d => d.PlatformCode == platformCode);
+                }
+
+                var local = await localQuery.Take(pageSize * 2).ToListAsync(ct);
                 merged.AddRange(local.Select(d => Mapper.ToDto(d)));
             }
 

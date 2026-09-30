@@ -39,9 +39,18 @@ export const dramaApi = {
     return request<string[]>({ url: '/drama/categories', method: 'get' })
   },
 
-  /** 把平台原始剧集导入本地库 */
+  /** 把平台原始剧集导入本地库（管理员） */
   sync(platform: string, dramaId: string) {
     return request<number>({ url: '/drama/sync', method: 'post', params: { platform, dramaId } })
+  },
+
+  /**
+   * 按需入库：聚合搜索返回的实时结果还没落库（id=0），
+   * 点开时调这个把它落到本地库并拿到本地 Id，之后就能进播放页。
+   * 已在库中时后端直接返回本地 Id，不会再打上游。
+   */
+  resolve(platform: string, dramaId: string) {
+    return request<number>({ url: '/drama/resolve', method: 'post', params: { platform, dramaId } })
   }
 }
 

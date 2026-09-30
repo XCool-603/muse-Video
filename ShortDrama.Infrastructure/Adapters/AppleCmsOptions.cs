@@ -48,6 +48,14 @@ namespace ShortDrama.Infrastructure.Adapters
         /// <summary>单个源初始入库的候选上限（防止个别大源拖慢启动）</summary>
         public int BootstrapMaxPerSource { get; set; } = 80;
 
+        /// <summary>
+        /// 单个源最多收集多少候选。
+        /// 0 = 沿用旧算法 max(bootstrapMaxPerSource, maxCatalogPages × 20)。
+        /// 旧算法把「目录页数」当成「候选上限」来算，语义混乱，且实际只给到 600 部；
+        /// 实测 20 个关键词 × 5 页时单源可收集 1150~1684 部，600 会成为瓶颈，所以单独给一个显式开关。
+        /// </summary>
+        public int BootstrapMaxCandidatesPerSource { get; set; } = 0;
+
         /// <summary>播种时抓取详情的并发数（采集站多有频率限制，不宜过高）</summary>
         public int BootstrapConcurrency { get; set; } = 8;
 

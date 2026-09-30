@@ -223,9 +223,18 @@ namespace ShortDrama.Infrastructure.Services
         }
 
         /// <summary>单个源允许收集的候选上限</summary>
-        private int BootstrapCandidateCap() => _options.FullCatalogSync
-            ? Math.Max(_options.BootstrapMaxPerSource, _options.MaxCatalogPages * 20)
-            : _options.BootstrapMaxPerSource;
+        private int BootstrapCandidateCap()
+        {
+            // 显式配置优先；未配（0）时沿用旧算法保持兼容
+            if (_options.BootstrapMaxCandidatesPerSource > 0)
+            {
+                return _options.BootstrapMaxCandidatesPerSource;
+            }
+
+            return _options.FullCatalogSync
+                ? Math.Max(_options.BootstrapMaxPerSource, _options.MaxCatalogPages * 20)
+                : _options.BootstrapMaxPerSource;
+        }
 
         /// <summary>
         /// 逐页遍历全量目录。

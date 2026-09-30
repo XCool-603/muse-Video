@@ -288,6 +288,19 @@ namespace ShortDrama.Infrastructure.Services
             _ => "#8c8c8c"
         };
 
+        public async Task<long> FindLocalIdAsync(string platformCode, string platformDramaId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(platformCode) || string.IsNullOrWhiteSpace(platformDramaId))
+            {
+                return 0;
+            }
+
+            return await _db.Dramas.AsNoTracking()
+                .Where(d => d.PlatformCode == platformCode && d.PlatformDramaId == platformDramaId)
+                .Select(d => d.Id)
+                .FirstOrDefaultAsync(ct);
+        }
+
         public async Task<long> UpsertFromPlatformAsync(string platformCode, string platformDramaId, CancellationToken ct = default)
         {
             var adapter = _adapters.Get(platformCode)

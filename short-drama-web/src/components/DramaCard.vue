@@ -18,7 +18,8 @@
       </div>
 
       <div class="play-overlay">
-        <PlayCircleFilled class="play-icon" />
+        <LoadingOutlined v-if="resolving" class="play-icon" spin />
+        <PlayCircleFilled v-else class="play-icon" />
       </div>
     </div>
 
@@ -35,9 +36,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { PlayCircleFilled } from '@ant-design/icons-vue'
+import { LoadingOutlined, PlayCircleFilled } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
+import { dramaApi } from '@/api/drama'
 import type { Drama } from '@/api/types'
 import { usePlatformStore } from '@/stores/platform'
 
@@ -45,6 +48,9 @@ const props = defineProps<{ drama: Drama }>()
 
 const router = useRouter()
 const platformStore = usePlatformStore()
+
+// 实时聚合结果点开时要先回源落库，这期间给个加载态，避免重复点击
+const resolving = ref(false)
 
 const FALLBACK_COVER =
   'data:image/svg+xml;charset=utf-8,' +
@@ -81,16 +87,35 @@ function onCoverError(e: Event) {
 }
 
 function handleClick() {
-  // 未入库的聚合结果先落库再跳转播放页
+  // 已在本地库的直接进播放页
   if (props.drama.id && props.drama.id > 0) {
     router.push(`/play/${props.drama.id}`)
     return
   }
 
-  router.push({
-    path: '/search',
-    query: { q: props.drama.title, platform: props.drama.platformCode }
-  })
+  // 实时聚合结果（id=0）还没落库：先按需入库拿到本地 Id，再进播放页。
+  // 后端会先查本地，命中就直接返回，不会再打上游。
+  void resolveAndPlay()
+}
+
+async function resolveAndPlay() {
+  const { platformCode, platformDramaId } = props.drama
+  if (!platformCode || !platformDramaId) return
+  if (resolving.value) return
+
+  resolving.value = true
+  try {
+    const id = await dramaApi.resolve(platformCode, platformDramaId)
+    if (id > 0) {
+      router.push(`/play/${id}`)
+    } else {
+      message.error('该剧暂时无法入库')
+    }
+  } catch (e) {
+    message.error((e as Error).message || '该平台暂时无法播放这部剧')
+  } finally {
+    resolving.value = false
+  }
 }
 </script>
 
