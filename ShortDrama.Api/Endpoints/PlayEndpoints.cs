@@ -13,6 +13,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using ShortDrama.Application.DTOs;
 using ShortDrama.Application.Services;
+using ShortDrama.Infrastructure.Services;
 
 namespace ShortDrama.Api.Endpoints
 {
@@ -27,6 +28,7 @@ namespace ShortDrama.Api.Endpoints
                 long dramaId,
                 int episode,
                 IPlayService service,
+                PlaybackOptions playback,
                 HttpContext http,
                 CancellationToken ct) =>
             {
@@ -38,13 +40,21 @@ namespace ShortDrama.Api.Endpoints
                     return Results.NotFound(ApiResponse<PlayInfoDto>.Fail(404, "短剧或剧集不存在"));
                 }
 
-                // 播放地址一律走本机代理，让浏览器只跟自己的源说话，彻底不依赖源站的 CORS：
-                //   m3u8 → /play/stream/...  （去广告重写 + 分片代理）
-                //   mp4  → /play/segment?u=  （原先是源站直链，浏览器直连第三方 CDN，
-                //                            只有开了 CORS 的源能播，没开的必然被拦）
+                // 播放地址策略由 Playback 配置决定，默认「浏览器直连 CDN」：
+                //   m3u8 → /play/stream/...  后端只转发几十 KB 的播放列表（去广告重写），
+                //                            分片默认让浏览器直连 CDN，视频流量不经过服务器
+                //   mp4  → 默认给 CDN 直链；Playback:ProxyMp4=true 时改为 /play/segment?u=
+                //
+                // 实测主流采集源 CDN 都返回 Access-Control-Allow-Origin: *（它们本就是
+                // 给别人嵌播放器用的），所以直连通常没问题。遇到不发 CORS 头的源，
+                // 打开 ProxySegments / ProxyMp4 即可，代价是视频流量全部压在这台服务器上。
                 if (string.Equals(info.StreamType, "mp4", StringComparison.OrdinalIgnoreCase))
                 {
-                    info.PlayUrl = $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}";
+                    if (playback.ProxyMp4)
+                    {
+                        info.PlayUrl = $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}";
+                    }
+                    // 否则保持 CDN 直链
                 }
                 else
                 {
@@ -54,21 +64,29 @@ namespace ShortDrama.Api.Endpoints
                 return Results.Ok(ApiResponse<PlayInfoDto>.Success(info));
             })
             .WithName("GetPlayInfo")
-            .WithSummary("获取播放地址（后端代理 + 去广告）");
+            .WithSummary("获取播放地址（去广告；分片默认直连 CDN）");
 
             // 播放列表代理：拉取原始 m3u8 → 剔除广告分片 → 重写分片地址 → 返回干净列表
             group.MapGet("/stream/{dramaId:long}/{episode:int}.m3u8", async (
                 long dramaId,
                 int episode,
+                [FromQuery] bool? proxy,
                 IPlayService playService,
                 IAdFilterService adFilter,
                 IMemoryCache cache,
+                PlaybackOptions playback,
                 HttpContext http,
                 ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
             {
                 var logger = loggerFactory.CreateLogger("PlayStream");
-                var cacheKey = $"clean-m3u8:{dramaId}:{episode}";
+
+                // 分片是否经后端转发：
+                //   默认 false → 播放列表里写 CDN 绝对地址，浏览器直连，后端零视频带宽
+                //   配置开启或请求带 ?proxy=1 → 分片走后端代理（前端直连失败时的兜底）
+                var proxySegments = proxy == true || playback.ProxySegments;
+                // 两种模式的播放列表内容不同，缓存键必须区分，否则会互相串
+                var cacheKey = $"clean-m3u8:{dramaId}:{episode}:{(proxySegments ? "p" : "d")}";
 
                 if (cache.TryGetValue(cacheKey, out string? cached) && !string.IsNullOrWhiteSpace(cached))
                 {
@@ -81,21 +99,26 @@ namespace ShortDrama.Api.Endpoints
                     return Results.NotFound("播放源不可用");
                 }
 
-                // 明文 MP4 不是播放列表：转到本机的分片代理（同源），
-                // 不再重定向到源站——重定向会让浏览器直连第三方 CDN，没开 CORS 就必然被拦。
+                // 明文 MP4 不是播放列表。ProxyMp4 未开启时直接 302 到 CDN 直链
+                //（浏览器直连，零带宽；实测黄果的 CDN 开了 CORS）。
                 if (string.Equals(info.StreamType, "mp4", StringComparison.OrdinalIgnoreCase))
                 {
-                    return Results.Redirect(
-                        $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}");
+                    if (playback.ProxyMp4 || proxy == true)
+                    {
+                        return Results.Redirect(
+                            $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}");
+                    }
+
+                    return Results.Redirect(info.PlayUrl);
                 }
 
-                // 必须用相对路径，不能用 $"{Scheme}://{Request.Host}/..." 拼绝对地址。
+                // 用相对路径，不能用 $"{Scheme}://{Request.Host}/..." 拼绝对地址。
                 // 播放器会把 m3u8 里的相对地址按「播放列表自身的 URL」解析，因此始终与页面同源；
                 // 而用 Request.Host 拼绝对地址时，只要中间隔了一层代理就会出错：
                 // 前端 dev server 的 changeOrigin:true 会把 Host 改写成 localhost:5080，
                 // 于是页面在 127.0.0.1:5173、分片地址却是 localhost:5080 —— 浏览器判定为跨域。
                 // 反向代理（Nginx/Caddy）下同理。
-                var segmentProxy = "/api/v1/play/segment";
+                var segmentProxy = proxySegments ? "/api/v1/play/segment" : null;
                 var filtered = await adFilter.BuildCleanPlaylistAsync(info.PlayUrl, segmentProxy, ct);
 
                 if (!filtered.Success)

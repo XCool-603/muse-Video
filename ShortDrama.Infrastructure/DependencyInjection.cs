@@ -46,6 +46,12 @@ namespace ShortDrama.Infrastructure
                            ?? new AppleCmsOptions();
             services.AddSingleton(appleCms);
 
+            // 播放代理策略（appsettings.json 的 Playback 段）
+            // 默认直连 CDN，视频流量不经过服务器；遇到不发 CORS 头的源再打开代理
+            var playback = configuration.GetSection(PlaybackOptions.SectionName).Get<PlaybackOptions>()
+                           ?? new PlaybackOptions();
+            services.AddSingleton(playback);
+
             // 采集源抓取用的 HttpClient
             services.AddHttpClient("applecms", client =>
             {

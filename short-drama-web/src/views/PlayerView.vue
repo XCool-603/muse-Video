@@ -171,6 +171,8 @@ const drama = ref<DramaDetail | null>(null)
 const playInfo = ref<PlayInfo | null>(null)
 const playUrl = ref('')
 const streamType = ref<'hls' | 'mp4'>('hls')
+// 直连 CDN 失败后是否已改用后端代理重试过（每次换集重置）
+const triedProxyFallback = ref(false)
 const loading = ref(false)
 const currentEpisode = ref(1)
 const resumePosition = ref(0)
@@ -236,6 +238,8 @@ async function switchEpisode(episode: number, updateRoute = true) {
     streamType.value = (info.streamType as 'hls' | 'mp4') ?? 'hls'
     // 后端返回相对路径，直接交给播放器
     playUrl.value = info.playUrl
+    // 换集时重置代理兜底标记
+    triedProxyFallback.value = false
   } catch (error) {
     message.error((error as Error).message || '获取播放地址失败')
   }
@@ -269,6 +273,17 @@ function onTimeUpdate({ current }: { current: number; duration: number }) {
 }
 
 function onPlayError(msg: string) {
+  // 直连 CDN 失败（多半是该 CDN 不发 CORS 头）→ 自动改用后端代理重试一次。
+  // 这样默认「零带宽直连」对绝大多数源都成立，少数需要代理的源也不会播不了。
+  if (!triedProxyFallback.value && streamType.value === 'hls' && playUrl.value) {
+    triedProxyFallback.value = true
+    message.warning('直连播放源失败，改用服务器代理重试…')
+    const sep = playUrl.value.includes('?') ? '&' : '?'
+    // 必须写 true 而不是 1：.NET 的 bool 查询参数只接受 true/false
+    playUrl.value = `${playUrl.value}${sep}proxy=true`
+    return
+  }
+
   message.error(msg)
 }
 
