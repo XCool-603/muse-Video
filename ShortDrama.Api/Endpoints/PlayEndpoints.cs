@@ -38,9 +38,15 @@ namespace ShortDrama.Api.Endpoints
                     return Results.NotFound(ApiResponse<PlayInfoDto>.Fail(404, "短剧或剧集不存在"));
                 }
 
-                // 明文 MP4 直接给前端播（CDN 已开 CORS，省一次代理转发）；
-                // m3u8 统一走代理，由后端完成去广告重写
-                if (!string.Equals(info.StreamType, "mp4", StringComparison.OrdinalIgnoreCase))
+                // 播放地址一律走本机代理，让浏览器只跟自己的源说话，彻底不依赖源站的 CORS：
+                //   m3u8 → /play/stream/...  （去广告重写 + 分片代理）
+                //   mp4  → /play/segment?u=  （原先是源站直链，浏览器直连第三方 CDN，
+                //                            只有开了 CORS 的源能播，没开的必然被拦）
+                if (string.Equals(info.StreamType, "mp4", StringComparison.OrdinalIgnoreCase))
+                {
+                    info.PlayUrl = $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}";
+                }
+                else
                 {
                     info.PlayUrl = $"/api/v1/play/stream/{dramaId}/{episode}.m3u8";
                 }
@@ -75,10 +81,12 @@ namespace ShortDrama.Api.Endpoints
                     return Results.NotFound("播放源不可用");
                 }
 
-                // 明文 MP4 不是播放列表，直接重定向到源地址，不走去广告重写
+                // 明文 MP4 不是播放列表：转到本机的分片代理（同源），
+                // 不再重定向到源站——重定向会让浏览器直连第三方 CDN，没开 CORS 就必然被拦。
                 if (string.Equals(info.StreamType, "mp4", StringComparison.OrdinalIgnoreCase))
                 {
-                    return Results.Redirect(info.PlayUrl);
+                    return Results.Redirect(
+                        $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}");
                 }
 
                 var segmentProxy = $"{http.Request.Scheme}://{http.Request.Host}/api/v1/play/segment";
@@ -162,7 +170,9 @@ namespace ShortDrama.Api.Endpoints
                     return Results.Text(processed.Playlist, "application/vnd.apple.mpegurl", Encoding.UTF8);
                 }
 
-                return Results.File(bytes, contentType);
+                // 二进制内容（ts 分片 / mp4）：开启 Range 支持，
+                // 否则 MP4 走代理后浏览器无法拖动进度条
+                return Results.File(bytes, contentType, enableRangeProcessing: true);
             })
             .WithName("PlaySegment")
             .WithSummary("媒体分片 / 子播放列表代理");
