@@ -86,8 +86,18 @@ namespace ShortDrama.Api.Endpoints
 
                 if (!filtered.Success)
                 {
-                    logger.LogWarning("去广告失败，直连原始地址: {Error}", filtered.Error);
-                    return Results.Redirect(info.PlayUrl);
+                    // 这里绝不能重定向到源站原始地址。
+                    // 采集源的 CDN 基本都不发 Access-Control-Allow-Origin，
+                    // 浏览器必然以 CORS 拦下，用户只会看到一个看不懂的跨域报错
+                    // （实测 v5.ppqrrs.com 等：应用 403 拉不到 → 302 到源站 → 浏览器 CORS 拦截）。
+                    // 拉不到就如实返回 502，让前端给出可理解的提示。
+                    logger.LogWarning("拉取播放列表失败（Drama={DramaId}, Ep={Episode}）: {Error}",
+                        dramaId, episode, filtered.Error);
+
+                    return Results.Json(
+                        ApiResponse<string>.Fail(5020,
+                            "源站播放列表拉取失败：可能是该源在服务器所在地不可达，或被源站按地区拒绝"),
+                        statusCode: StatusCodes.Status502BadGateway);
                 }
 
                 if (filtered.RemovedSegmentCount > 0)

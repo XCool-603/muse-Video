@@ -165,6 +165,8 @@ const rateOptions = [0.75, 1, 1.25, 1.5, 2]
 let hls: Hls | null = null
 let hideTimer: number | undefined
 let resumeApplied = false
+// fatal 网络错误的重试次数（有上限，见 ERROR 处理）
+let networkRetries = 0
 
 const playedPercent = computed(() =>
   duration.value > 0 ? Math.min(100, (currentTime.value / duration.value) * 100) : 0
@@ -190,6 +192,8 @@ function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
   errorMessage.value = ''
   loading.value = true
   resumeApplied = false
+  // 换源时重置网络重试计数
+  networkRetries = 0
 
   // 明文 MP4：原生播放，不需要 hls.js
   if (streamType === 'mp4') {
@@ -223,8 +227,17 @@ function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
 
       switch (data.type) {
         case Hls.ErrorTypes.NETWORK_ERROR:
-          // 网络错误先尝试恢复，失败则提示
-          hls?.startLoad()
+          // 有上限地重试。源站被地区拒绝 / CORS / 404 这类错误重试多少次都不会好，
+          // 原先无上限 startLoad() 会让页面一直转圈、永远不给提示。
+          if (networkRetries < 2) {
+            networkRetries++
+            hls?.startLoad()
+          } else {
+            errorMessage.value = '播放失败：拉取不到源站播放列表（该源可能在服务器所在地不可达，或受地区限制）'
+            loading.value = false
+            destroyHls()
+            emit('error', errorMessage.value)
+          }
           break
         case Hls.ErrorTypes.MEDIA_ERROR:
           hls?.recoverMediaError()
