@@ -93,6 +93,10 @@ $script:Url            = ''
 $script:Ok             = $true
 # 更新锁持有的文件句柄（见 Enter-DeployLock）
 $script:LockStream     = $null
+# 部署模式：source = 本地构建；image = 拉 GHCR 预构建镜像
+$script:DeployMode     = 'source'
+$script:DeployImage    = ''
+$script:PullResult     = ''
 
 # ---------------------------------------------------------------- 输出工具
 function Write-Step($msg) { Write-Host "`n▶ $msg" -ForegroundColor Cyan }
@@ -393,9 +397,29 @@ function Invoke-PrepareEnv {
     if ($finalEnv['ACCESS_PASSWORD']) { $script:AccessPassword = $finalEnv['ACCESS_PASSWORD'] }
     if ($finalEnv['ACCESS_GATE_ENABLED']) { $script:GateEnabled = $finalEnv['ACCESS_GATE_ENABLED'] }
     $script:Url = "http://localhost:$Port"
+
+    # 部署模式：.env 里配了 SHORTDRAMA_IMAGE 就走镜像模式（只拉镜像，不本机编译）。
+    # 环境变量优先于 .env，与 docker compose 的取值规则一致。
+    $img = $env:SHORTDRAMA_IMAGE
+    if ([string]::IsNullOrWhiteSpace($img)) { $img = $finalEnv['SHORTDRAMA_IMAGE'] }
+    if (-not [string]::IsNullOrWhiteSpace($img)) {
+        $script:DeployImage = $img.Trim()
+        $script:DeployMode  = 'image'
+        Write-Ok "镜像模式：$($script:DeployImage)"
+    } else {
+        $script:DeployImage = ''
+        $script:DeployMode  = 'source'
+    }
 }
 
 function Invoke-BuildImage {
+    if ($script:DeployMode -eq 'image') {
+        Write-Err '当前是镜像模式，不会在本机构建'
+        Write-Err '要改回本地构建，把 .env 里的 SHORTDRAMA_IMAGE 清空即可'
+        $script:Ok = $false
+        return
+    }
+
     Write-Step '构建镜像（首次构建约 3-5 分钟，需要下载基础镜像）'
 
     $buildArgs = @('compose') + $ComposeFiles + @('build')
@@ -414,11 +438,45 @@ function Invoke-BuildImage {
     Write-Ok '镜像构建完成'
 }
 
+# 镜像模式：拉取预构建镜像。结果写在 $script:PullResult：
+#   'new' = 拉到新镜像，'same' = 已是最新，'fail' = 失败
+function Invoke-PullImage {
+    Write-Step "拉取预构建镜像（$($script:DeployImage)）"
+
+    $before = (& docker image inspect --format '{{.Id}}' $script:DeployImage 2>$null)
+    if ($LASTEXITCODE -ne 0) { $before = '' }
+
+    & docker compose @ComposeFiles pull app
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err '镜像拉取失败'
+        Write-Err '若是私有包，需要先登录： docker login ghcr.io'
+        $script:PullResult = 'fail'
+        return
+    }
+
+    $after = (& docker image inspect --format '{{.Id}}' $script:DeployImage 2>$null)
+    if ($LASTEXITCODE -ne 0) { $after = '' }
+
+    if (-not [string]::IsNullOrWhiteSpace($before) -and $before -eq $after) {
+        Write-Ok '镜像已是最新'
+        $script:PullResult = 'same'
+        return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($before)) { Write-Ok '已拉到新镜像' }
+    $script:PullResult = 'new'
+}
+
 function Invoke-StartServices {
     Write-Step '启动服务'
 
+    # 镜像模式下加 --no-build：compose 文件里仍有 build 段，
+    # 不加这个参数时 docker compose 可能在本机重新构建
+    $upArgs = @('compose') + $ComposeFiles + @('up', '-d')
+    if ($script:DeployMode -eq 'image') { $upArgs += '--no-build' }
+
     $script:Ok = $true
-    & docker compose @ComposeFiles up -d
+    & docker @upArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Err '启动失败'
         $script:Ok = $false
@@ -467,8 +525,12 @@ function Write-Summary {
         Write-Host "             （可在 .env 里改 ACCESS_PASSWORD，改完 docker compose up -d 生效）" -ForegroundColor DarkGray
     }
 
+    $deploy = '源码模式（本机构建）'
+    if ($script:DeployMode -eq 'image') { $deploy = "镜像模式（$($script:DeployImage)）" }
+
     Write-Host @"
 
+  部署方式   $deploy
   数据库     $mode
   管理后台   $($script:Url)/admin      （默认账号 admin / admin123）
 "@ -ForegroundColor Gray
@@ -481,8 +543,8 @@ function Write-Summary {
     Write-Host @"
 
   自动更新
-    .\deploy.ps1 -Update              立即拉取最新代码并重建重启
-    .\deploy.ps1 -Check               只检查有没有新版本
+    .\deploy.ps1 -Update              立即更新到最新版本
+    .\deploy.ps1 -Check               只检查有没有新版本（源码模式）
     .\deploy.ps1 -InstallTask         注册每天 04:00 定时自动更新
 
   常用命令
@@ -518,6 +580,21 @@ if ($UninstallTask) {
 # ---------------------------------------------------------------- 只检查更新
 # 也不依赖 Docker，可在没跑容器的机器上用来做版本巡检
 if ($Check) {
+    # 镜像模式不看 git：版本由镜像标签决定，直接 -Update 拉一次即可
+    $checkImage = $env:SHORTDRAMA_IMAGE
+    if ([string]::IsNullOrWhiteSpace($checkImage)) {
+        $envFile = Join-Path $PSScriptRoot '.env'
+        if (Test-Path $envFile) {
+            $hit = Select-String -Path $envFile -Pattern '^SHORTDRAMA_IMAGE=(.+)$' | Select-Object -First 1
+            if ($hit) { $checkImage = $hit.Matches[0].Groups[1].Value.Trim() }
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($checkImage)) {
+        Write-Warn '当前是镜像模式（.env 里配了 SHORTDRAMA_IMAGE）'
+        Write-Host "  镜像模式下直接执行 .\deploy.ps1 -Update，它只做 docker pull，很快`n" -ForegroundColor DarkGray
+        exit $ExitUpToDate
+    }
+
     $rc = Test-GitUpdate
 
     if ($rc -eq 10) {
@@ -600,6 +677,28 @@ if ($Update) {
     }
 
     try {
+        # 先读配置确定部署模式（Invoke-PrepareEnv 只动 .env，不构建）
+        Invoke-PrepareEnv
+
+        if ($script:DeployMode -eq 'image') {
+            # ---- 镜像模式：只拉镜像，不在本机编译 ----
+            Invoke-PullImage
+
+            if ($script:PullResult -eq 'fail') { exit 1 }
+            if ($script:PullResult -eq 'same') {
+                Write-Host "`n  已是最新版本，无需更新`n" -ForegroundColor Green
+                exit 0
+            }
+
+            Invoke-StartServices
+            if (-not $script:Ok) { exit 1 }
+            Wait-Health
+            & docker image prune -f *> $null
+            Write-Summary
+            exit 0
+        }
+
+        # ---- 源码模式：拉代码 + 本地构建 ----
         $rc = Update-FromGit
 
         if ($rc -eq 10) {
@@ -607,8 +706,6 @@ if ($Update) {
             exit 0
         }
         if ($rc -ne 0) { exit 1 }
-
-        Invoke-PrepareEnv
 
         # 先构建再切换：构建失败时旧容器仍在跑，站点不中断
         Invoke-BuildImage
@@ -635,8 +732,14 @@ if ($Update) {
 # ---------------------------------------------------------------- 首次部署 / 重新部署
 Invoke-PrepareEnv
 
-Invoke-BuildImage
-if (-not $script:Ok) { exit 1 }
+if ($script:DeployMode -eq 'image') {
+    # 镜像模式：拉镜像后直接起，不编译
+    Invoke-PullImage
+    if ($script:PullResult -eq 'fail') { exit 1 }
+} else {
+    Invoke-BuildImage
+    if (-not $script:Ok) { exit 1 }
+}
 
 Invoke-StartServices
 if (-not $script:Ok) { exit 1 }

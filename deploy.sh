@@ -33,6 +33,9 @@ GIT_UPSTREAM=""
 URL=""
 ACCESS_PASSWORD="遵纪守法世界和平"
 GATE_ENABLED="true"
+# 部署模式：source = 本地构建；image = 拉 GHCR 预构建镜像
+DEPLOY_MODE="source"
+DEPLOY_IMAGE=""
 
 # 定时自动更新写入 crontab 的标记，卸载时按它整行删除
 CRON_MARK="# shortdrama-auto-update"
@@ -247,6 +250,13 @@ uninstall_cron() {
 # 部署
 # ============================================================================
 
+# 读取 .env 里的变量值（文件不存在或变量未配置则返回空）
+env_var() {
+    if [[ -f "$ROOT/.env" ]]; then
+        grep -E "^$1=" "$ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2- || true
+    fi
+}
+
 prepare_env() {
     step '准备环境变量'
 
@@ -294,9 +304,25 @@ prepare_env() {
     GATE_ENABLED="$(grep -E '^ACCESS_GATE_ENABLED=' .env | head -1 | cut -d= -f2- || true)"
     GATE_ENABLED="${GATE_ENABLED:-true}"
     URL="http://localhost:${PORT}"
+
+    # 部署模式：.env 里配了 SHORTDRAMA_IMAGE 就走镜像模式。
+    # 环境变量优先于 .env，与 docker compose 的取值规则一致。
+    DEPLOY_IMAGE="${SHORTDRAMA_IMAGE:-$(env_var SHORTDRAMA_IMAGE)}"
+    if [[ -n "$DEPLOY_IMAGE" ]]; then
+        DEPLOY_MODE="image"
+        ok "镜像模式：$DEPLOY_IMAGE"
+    else
+        DEPLOY_MODE="source"
+    fi
 }
 
 build_image() {
+    if [[ "$DEPLOY_MODE" == "image" ]]; then
+        err '当前是镜像模式，不会在本机构建'
+        err '要改回本地构建，把 .env 里的 SHORTDRAMA_IMAGE 清空即可'
+        return 1
+    fi
+
     step '构建镜像（首次构建约 3-5 分钟，需要下载基础镜像）'
 
     local args=(compose "${COMPOSE_FILES[@]}" build)
@@ -320,11 +346,43 @@ EOF
 
 start_services() {
     step '启动服务'
-    if ! docker compose "${COMPOSE_FILES[@]}" up -d; then
+
+    # 镜像模式下加 --no-build：compose 文件里仍有 build 段，
+    # 不加这个参数时 docker compose 可能在本机重新构建
+    local args=(compose "${COMPOSE_FILES[@]}" up -d)
+    if [[ "$DEPLOY_MODE" == "image" ]]; then
+        args+=(--no-build)
+    fi
+
+    if ! docker "${args[@]}"; then
         err '启动失败'
         return 1
     fi
     ok '容器已启动'
+}
+
+# 镜像模式：拉取预构建镜像。返回 0 = 有新镜像，10 = 已是最新，1 = 失败
+pull_image() {
+    step "拉取预构建镜像（$DEPLOY_IMAGE）"
+
+    local before after
+    before="$(docker image inspect --format '{{.Id}}' "$DEPLOY_IMAGE" 2>/dev/null || true)"
+
+    if ! docker compose "${COMPOSE_FILES[@]}" pull app; then
+        err '镜像拉取失败'
+        err '若是私有包，需要先登录： docker login ghcr.io'
+        return 1
+    fi
+
+    after="$(docker image inspect --format '{{.Id}}' "$DEPLOY_IMAGE" 2>/dev/null || true)"
+
+    if [[ -n "$before" && "$before" == "$after" ]]; then
+        ok '镜像已是最新'
+        return 10
+    fi
+
+    [[ -n "$before" ]] && ok '已拉到新镜像'
+    return 0
 }
 
 wait_health() {
@@ -355,6 +413,11 @@ print_summary() {
         mode='PostgreSQL'
     fi
 
+    local deploy='源码模式（本机构建）'
+    if [[ "$DEPLOY_MODE" == "image" ]]; then
+        deploy="镜像模式（$DEPLOY_IMAGE）"
+    fi
+
     printf "\n${C_GREEN}"
     cat <<'EOF'
   ╔════════════════════════════════════════════╗
@@ -368,7 +431,8 @@ EOF
         printf "${C_GRAY}             （可在 .env 里改 ACCESS_PASSWORD，改完 docker compose up -d 生效）${C_RESET}\n"
     fi
 
-    printf "\n  数据库     %s\n" "$mode"
+    printf "\n  部署方式   %s\n" "$deploy"
+    printf "  数据库     %s\n" "$mode"
     printf "  管理后台   %s/admin      （默认账号 admin / admin123）\n" "$URL"
 
     if [[ -n "$UPDATED_FROM" ]]; then
@@ -377,8 +441,8 @@ EOF
     fi
 
     printf "\n${C_GRAY}  自动更新
-    ./deploy.sh --update              立即拉取最新代码并重建重启
-    ./deploy.sh --check               只检查有没有新版本
+    ./deploy.sh --update              立即更新到最新版本
+    ./deploy.sh --check               只检查有没有新版本（源码模式）
     ./deploy.sh --install-cron        安装每天 04:00 定时自动更新
 
   常用命令
@@ -435,6 +499,14 @@ fi
 # ---------------------------------------------------------------- 只检查更新
 # 也不依赖 Docker，可在没跑容器的机器上用来做版本巡检
 if [[ "$ACTION" == "check" ]]; then
+    # 镜像模式不看 git：版本由镜像标签决定，直接 --update 拉一次即可
+    check_image="${SHORTDRAMA_IMAGE:-$(env_var SHORTDRAMA_IMAGE)}"
+    if [[ -n "$check_image" ]]; then
+        warn '当前是镜像模式（.env 里配了 SHORTDRAMA_IMAGE）'
+        printf "${C_GRAY}  镜像模式下直接执行 ./deploy.sh --update，它只做 docker pull，很快${C_RESET}\n\n"
+        exit "$EXIT_UP_TO_DATE"
+    fi
+
     rc=0
     git_check_update || rc=$?
 
@@ -521,6 +593,30 @@ if [[ "$ACTION" == "update" ]]; then
         fi
     fi
 
+    # 先读配置确定部署模式（prepare_env 只动 .env，不构建）
+    prepare_env
+
+    if [[ "$DEPLOY_MODE" == "image" ]]; then
+        # ---- 镜像模式：只拉镜像，不在本机编译 ----
+        rc=0
+        pull_image || rc=$?
+
+        if [[ "$rc" -eq 10 ]]; then
+            printf "\n${C_GREEN}  已是最新版本，无需更新${C_RESET}\n\n"
+            exit 0
+        fi
+        if [[ "$rc" -ne 0 ]]; then
+            exit 1
+        fi
+
+        start_services || exit 1
+        wait_health || true
+        docker image prune -f >/dev/null 2>&1 || true
+        print_summary
+        exit 0
+    fi
+
+    # ---- 源码模式：拉代码 + 本地构建 ----
     rc=0
     git_pull_latest || rc=$?
 
@@ -531,8 +627,6 @@ if [[ "$ACTION" == "update" ]]; then
     if [[ "$rc" -ne 0 ]]; then
         exit 1
     fi
-
-    prepare_env
 
     # 先构建再切换：构建失败时旧容器仍在跑，站点不中断
     if ! build_image; then
@@ -553,7 +647,18 @@ fi
 
 # ---------------------------------------------------------------- 首次部署 / 重新部署
 prepare_env
-build_image
-start_services
+
+if [[ "$DEPLOY_MODE" == "image" ]]; then
+    # 镜像模式：拉镜像后直接起，不编译
+    rc=0
+    pull_image || rc=$?
+    if [[ "$rc" -ne 0 && "$rc" -ne 10 ]]; then
+        exit 1
+    fi
+else
+    build_image || exit 1
+fi
+
+start_services || exit 1
 wait_health || true
 print_summary

@@ -6,6 +6,10 @@
 # 默认使用 SQLite，数据落在命名卷 shortdrama-data，无需额外依赖。
 # 想换 PostgreSQL 见 docker-compose.postgres.yml。
 #
+# 部署模式由 .env 里的 SHORTDRAMA_IMAGE 决定：
+#   留空          源码模式：本地 docker compose build 构建（默认）
+#   填 GHCR 地址  镜像模式：直接拉预构建镜像，不在本机编译，更新只需几秒
+#
 # 访问： http://localhost:8080
 # ============================================================================
 
@@ -14,7 +18,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: shortdrama:latest
+    # 默认是本地构建的标签；设了 SHORTDRAMA_IMAGE 就换成远端镜像（见 docs/DOCKER.md）
+    image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}
     container_name: shortdrama
     restart: unless-stopped
 

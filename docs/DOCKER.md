@@ -257,6 +257,62 @@ git config --global --add safe.directory "<仓库绝对路径>"
 .\deploy.ps1 -UninstallTask      # Windows
 ```
 
+### 7. 构建太慢？改用预构建镜像
+
+源码模式每次更新都要在你机器上重新编译前端和后端，弱 VPS 上要几分钟且吃满 CPU。彻底的解法是让 GitHub Actions 构建好镜像，你这边只 `docker pull`。
+
+仓库里已经配好了工作流：[.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml)。推到 `main` 或打 `v*` 标签时自动构建并推到 GHCR。
+
+**启用方式**：在 `.env` 里填一行
+
+```bash
+SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
+```
+
+然后照常部署/更新：
+
+```bash
+./deploy.sh --update
+```
+
+此时脚本**不再拉代码、不再编译**，只做 `docker compose pull app` + `up -d --no-build`，几秒完成。镜像没有变化时会直接跳过重启。
+
+**两种模式对比**
+
+| | 源码模式（默认） | 镜像模式 |
+|---|---|---|
+| 触发条件 | `SHORTDRAMA_IMAGE` 留空 | `.env` 里填了镜像地址 |
+| 更新时做什么 | `git pull` + 编译前后端 + 重启 | 只 `docker pull` + 重启 |
+| 耗时 | 3-5 分钟（看 CPU） | 几秒 |
+| 服务器需要 git | 需要 | **不需要** |
+| 谁在构建 | 你的服务器 | GitHub Actions |
+
+**拉取私有包要先登录**
+
+GHCR 上的包默认是私有的。如果你没把包改成公开，拉取前需要在部署机上登录一次：
+
+```bash
+echo <你的PAT> | docker login ghcr.io -u <你的GitHub用户名> --password-stdin
+```
+
+PAT 需要 `read:packages` 权限。登录凭据存在 `~/.docker/config.json`，之后 `--update` 就不用再登了。
+
+嫌麻烦可以把包设为公开：GitHub → 你的头像 → Your packages → 选中该包 → Package settings → Change visibility → Public。公开后拉取无需任何认证。
+
+**ARM 机器**
+
+工作流默认只构建 `linux/amd64`。如果你的服务器是 ARM（Oracle 免费机、部分 ARM VPS 等），把工作流顶部的
+
+```yaml
+PLATFORMS: linux/amd64
+```
+
+改成 `linux/amd64,linux/arm64`。注意加 arm64 后 CI 构建时间会明显变长（QEMU 模拟）。架构不匹配的表现是容器起来就退出，日志里报 `exec format error`。
+
+**改回源码模式**
+
+把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，脚本会自动回到本地构建。
+
 ---
 
 ## 四、配置
@@ -266,6 +322,7 @@ git config --global --add safe.directory "<仓库绝对路径>"
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `APP_PORT` | `8080` | 对外端口 |
+| `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式（本机构建）；填镜像地址 = 镜像模式（拉预构建镜像，更新只要几秒）。见[第三节第 7 小节](#7-构建太慢改用预构建镜像) |
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
 | `JWT_KEY` | 占位值 | JWT 签名密钥，**首次运行脚本会自动替换为随机值** |
@@ -463,6 +520,10 @@ docker run -d --name shortdrama \
 | 自动更新没跑 | 看 `logs/auto-update.log`；`crontab -l \| grep shortdrama`（Linux）或 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate`（Windows）确认任务在 |
 | 自动更新报 `无法访问远端`（超过 300 秒无响应） | 网络不通或 SSH 的 22 端口被挡。改用 HTTPS 远端地址 |
 | 自动更新一直「跳过」 | 上一次更新卡死占着锁。Linux 上 `pkill -f 'deploy.sh --update'`；Windows 上结束对应进程。锁释放后即可恢复 |
+| 镜像模式报 `镜像拉取失败` | 包是私有的但没登录：`docker login ghcr.io`；或把包设为公开 |
+| 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（如 ARM 机器拉了 amd64 镜像）。改工作流的 `PLATFORMS` 重新构建 |
+| Actions 里没有自动构建 | 确认 `.github/workflows/docker-publish.yml` 已推送，且仓库 Settings → Actions 允许运行工作流 |
+| 想确认当前是哪种模式 | 看部署完成后打印的「部署方式」一行；或 `grep SHORTDRAMA_IMAGE .env` |
 | 端口被占用 | `./deploy.sh -p 8081` 换个端口，或找出占用 8080 的进程 |
 | 磁盘占用越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像） |
 

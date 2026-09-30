@@ -85,7 +85,7 @@ docker compose up -d --build
 
 启动后访问 <http://localhost:8080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
 
-> 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、PostgreSQL 切换、备份恢复、反向代理、故障排查。
+> 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
 
 ---
 
