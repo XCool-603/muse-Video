@@ -115,8 +115,34 @@ app.UseCors("frontend");
 app.UseRateLimiter();
 
 // 前端静态资源（发布时把 dist 拷贝到 wwwroot）
+//
+// 缓存策略必须区分对待，否则每次部署都会让用户撞上
+// 「Failed to fetch dynamically imported module」：
+//   index.html 引用的是带 hash 的 chunk 名，每次构建都变。浏览器一旦缓存了旧的
+//   index.html，就会去请求已经不存在的老 chunk（404），而用户只能靠硬刷新自救。
+//   所以 index.html 必须每次回源校验。
+//   /assets/* 文件名里带内容 hash，内容变了文件名就变，可以放心长期缓存。
+var spaStaticFiles = new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var headers = ctx.Context.Response.Headers;
+
+        if (ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            headers.CacheControl = "no-cache, no-store, must-revalidate";
+            headers.Pragma = "no-cache";
+            headers.Expires = "0";
+        }
+        else if (ctx.Context.Request.Path.StartsWithSegments("/assets"))
+        {
+            headers.CacheControl = "public, max-age=31536000, immutable";
+        }
+    }
+};
+
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(spaStaticFiles);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -142,7 +168,8 @@ app.MapUserEndpoints();
 app.MapAdminEndpoints();
 app.MapAccessGateEndpoints();
 
-// SPA 回退：非 API 路径交给前端路由处理
-app.MapFallbackToFile("index.html");
+// SPA 回退：非 API 路径交给前端路由处理。
+// 同样套用上面的缓存策略——回退返回的也是 index.html，不设 no-cache 一样会被缓存住。
+app.MapFallbackToFile("index.html", spaStaticFiles);
 
 app.Run();
