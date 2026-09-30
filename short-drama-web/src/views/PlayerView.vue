@@ -25,7 +25,10 @@
                     <div class="stage-titles">
                       <h3>{{ drama.title }}</h3>
                       <span class="sd-muted">
-                        第 {{ currentEpisode }} 集 / 共 {{ drama.totalEpisodes }} 集
+                        <template v-if="drama.totalEpisodes > 0">
+                          第 {{ currentEpisode }} 集 / 共 {{ drama.totalEpisodes }} 集
+                        </template>
+                        <template v-else>该源暂无正片</template>
                         <template v-if="playInfo"> · {{ playInfo.platformName }}</template>
                       </span>
                     </div>

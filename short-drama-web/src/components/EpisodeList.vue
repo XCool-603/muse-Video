@@ -11,19 +11,24 @@
     </div>
 
     <div class="episode-scroll">
-      <button
-        v-for="ep in orderedEpisodes"
-        :key="ep.id ?? ep.episodeNumber"
-        class="episode-btn"
-        :class="{
-          active: ep.episodeNumber === currentEpisode,
-          locked: ep.isLocked && !ep.isFree
-        }"
-        @click="handleSelect(ep)"
-      >
-        <span class="num">{{ ep.episodeNumber }}</span>
-        <LockFilled v-if="ep.isLocked && !ep.isFree" class="lock-icon" />
-      </button>
+      <p v-if="!episodes.length" class="empty-hint">
+        该平台此条目暂无正片剧集，站点只提供了片头或预告
+      </p>
+      <template v-else>
+        <button
+          v-for="ep in orderedEpisodes"
+          :key="ep.id ?? ep.episodeNumber"
+          class="episode-btn"
+          :class="{
+            active: ep.episodeNumber === currentEpisode,
+            locked: ep.isLocked && !ep.isFree
+          }"
+          @click="handleSelect(ep)"
+        >
+          <span class="num">{{ ep.episodeNumber }}</span>
+          <LockFilled v-if="ep.isLocked && !ep.isFree" class="lock-icon" />
+        </button>
+      </template>
     </div>
 
     <!-- 当前剧集信息 -->
@@ -97,6 +102,14 @@ function handleSelect(episode: Episode) {
   max-height: 208px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.empty-hint {
+  grid-column: 1 / -1;
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--sd-text-secondary);
 }
 
 .episode-btn {

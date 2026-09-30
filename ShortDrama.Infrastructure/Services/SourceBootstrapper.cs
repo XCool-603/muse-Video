@@ -60,9 +60,11 @@ namespace ShortDrama.Infrastructure.Services
             // 否则按关键词搜索；再不行回退到榜单/分类页。
             var candidates = new ConcurrentDictionary<string, PlatformSearchItem>(StringComparer.Ordinal);
 
-            if (_options.FullCatalogSync && adapter is IPagedCatalogAdapter paged)
+            var fromPagedCatalog = _options.FullCatalogSync && adapter is IPagedCatalogAdapter;
+
+            if (fromPagedCatalog)
             {
-                await CollectFromCatalogAsync(adapter, paged, candidates);
+                await CollectFromCatalogAsync(adapter, (IPagedCatalogAdapter)adapter, candidates);
             }
             else
             {
@@ -94,7 +96,7 @@ namespace ShortDrama.Infrastructure.Services
             // 分集留到用户真正打开详情页时再懒加载（见 DramaService.EnsureEpisodesAsync）。
             if (_options.CatalogOnlySync)
             {
-                var catalogSaved = await PersistCatalogOnlyAsync(platformCode, queue, ct);
+                var catalogSaved = await PersistCatalogOnlyAsync(platformCode, queue, fromPagedCatalog, ct);
 
                 var sourceRow = await _db.PlatformSources.FirstOrDefaultAsync(s => s.PlatformCode == platformCode, ct);
                 if (sourceRow is not null) sourceRow.LastSyncAt = DateTime.UtcNow;
@@ -312,9 +314,14 @@ namespace ShortDrama.Infrastructure.Services
         /// 只入库目录元数据（不抓分集）。用于全量目录快速同步。
         /// 分集由 DramaService 在用户打开详情页时懒加载补齐。
         /// </summary>
+        /// <param name="fromPagedCatalog">
+        /// 候选是否来自分页全量目录。来自目录时其集数是权威值，含 0 也要写入
+        /// ——「只有片头/预告」的剧正片集数就是 0，不写会让历史遗留的虚高集数留着不走。
+        /// </param>
         private async Task<int> PersistCatalogOnlyAsync(
             string platformCode,
             List<PlatformSearchItem> items,
+            bool fromPagedCatalog,
             CancellationToken ct)
         {
             var saved = 0;
@@ -343,7 +350,10 @@ namespace ShortDrama.Infrastructure.Services
                     if (string.IsNullOrWhiteSpace(drama.CoverUrl)) drama.CoverUrl = item.CoverUrl;
                     if (string.IsNullOrWhiteSpace(drama.Category)) drama.Category = item.Category;
 
-                    if (drama.TotalEpisodes == 0 && item.TotalEpisodes > 0)
+                    // 目录接口给的是真实正片集数，以它为准（含 0）。
+                    // 关键词/榜单兜底路径拿不到集数，只有拿到正值时才写，
+                    // 避免把已有集数覆盖成 0。
+                    if (fromPagedCatalog || item.TotalEpisodes > 0)
                     {
                         drama.TotalEpisodes = item.TotalEpisodes;
                     }

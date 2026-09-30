@@ -25,10 +25,12 @@ namespace ShortDrama.Tests
             {"request_id":"r1","items":[
               {"id":"110003","title":"My Sister's Boyfriend Arrested Me｜姐姐男友陷害我",
                "synopsis":"姐姐的男友设局让她锒铛入狱。","genres":[{"id":"dushi","label":"都市"},{"id":"xuanyi","label":"悬疑"}],
-               "published_episode_count":8,"catalog_episode_count":30,"completeness":"partial","media_types":["opening_clip"]},
+               "published_episode_count":8,"catalog_episode_count":30,"full_episode_count":3,
+               "completeness":"partial","media_types":["opening_clip","episode"]},
               {"id":"1085","title":"干妈的诱惑","synopsis":"一段禁忌的关系。",
                "genres":[{"id":"dushi","label":"都市"}],
-               "published_episode_count":12,"catalog_episode_count":12,"completeness":"complete","media_types":["opening_clip"]}
+               "published_episode_count":12,"catalog_episode_count":12,"full_episode_count":0,
+               "completeness":"complete","media_types":["opening_clip"]}
             ],"total":513,"page":1,"limit":20}
             """;
 
@@ -37,19 +39,23 @@ namespace ShortDrama.Tests
              "title":"My Sister's Boyfriend Arrested Me｜姐姐男友陷害我",
              "synopsis":"姐姐的男友设局让她锒铛入狱，出狱后她带着证据归来。",
              "genres":[{"id":"dushi","label":"都市"},{"id":"xuanyi","label":"悬疑"}],
-             "published_episode_count":8,"catalog_episode_count":30,"completeness":"partial"}
+             "published_episode_count":8,"catalog_episode_count":30,"full_episode_count":3,
+             "completeness":"partial"}
             """;
 
+        // 真实响应里 items 混着多种 media_type：片头 30 秒、正片 80-100 秒。
+        // 只有 media_type=episode 的才算正片。
         private const string EpisodesPage1 = """
-            {"request_id":"r3","id":"110003","total":3,"page":1,"limit":20,"items":[
+            {"request_id":"r3","id":"110003","total":4,"page":1,"limit":20,"items":[
               {"number":1,"media_type":"opening_clip","duration_seconds":30,"watch_url":"https://huangguodrama.ai/video/110003/"},
-              {"number":2,"media_type":"opening_clip","duration_seconds":30,"watch_url":"https://huangguodrama.ai/video/110003/ep-2/"}
+              {"number":2,"media_type":"opening_clip","duration_seconds":30,"watch_url":"https://huangguodrama.ai/video/110003/ep-2/"},
+              {"number":3,"media_type":"episode","duration_seconds":85,"watch_url":"https://huangguodrama.ai/video/110003/ep-3/"}
             ]}
             """;
 
         private const string EpisodesPage2 = """
-            {"request_id":"r4","id":"110003","total":3,"page":2,"limit":20,"items":[
-              {"number":3,"media_type":"opening_clip","duration_seconds":30,"watch_url":"https://huangguodrama.ai/video/110003/ep-3/"}
+            {"request_id":"r4","id":"110003","total":4,"page":2,"limit":20,"items":[
+              {"number":4,"media_type":"episode","duration_seconds":92,"watch_url":"https://huangguodrama.ai/video/110003/ep-4/"}
             ]}
             """;
 
@@ -147,8 +153,20 @@ namespace ShortDrama.Tests
             Assert.Equal("110003", result.Items[0].PlatformDramaId);
             Assert.Contains("姐姐男友陷害我", result.Items[0].Title);
             Assert.Equal("都市", result.Items[0].Category);
-            Assert.Equal(30, result.Items[0].TotalEpisodes);
+            // full_episode_count（真实正片集数）优先于 catalog_episode_count（声明集数 30）
+            Assert.Equal(3, result.Items[0].TotalEpisodes);
             Assert.Equal(513, result.Total);
+        }
+
+        [Fact]
+        public async Task SearchAsync_ClipOnlyTitle_ReportsZeroEpisodes()
+        {
+            // 只有片头/预告的剧，正片集数是 0；不能用声明集数 12 冒充
+            var (adapter, _) = CreateAdapter();
+            var result = await adapter.SearchAsync("干妈");
+
+            var item = result.Items.First(i => i.PlatformDramaId == "1085");
+            Assert.Equal(0, item.TotalEpisodes);
         }
 
         [Fact]
@@ -198,7 +216,8 @@ namespace ShortDrama.Tests
             var detail = await adapter.GetDramaDetailAsync("110003");
 
             Assert.NotNull(detail);
-            Assert.Equal(new[] { 1, 2, 3 }, detail!.Episodes.Select(e => e.EpisodeNumber).ToArray());
+            // 第 1、2 条是片头（opening_clip），只保留正片 3、4
+            Assert.Equal(new[] { 3, 4 }, detail!.Episodes.Select(e => e.EpisodeNumber).ToArray());
 
             var episodeRequests = handler.Requests.Where(r => r.Contains("/episodes/")).ToList();
             Assert.True(episodeRequests.Count >= 2, "应当翻页请求第二页");
@@ -207,6 +226,46 @@ namespace ShortDrama.Tests
                 var limit = int.Parse(Regex.Match(r, @"limit=(\d+)").Groups[1].Value);
                 Assert.True(limit <= 20);
             });
+        }
+
+        [Fact]
+        public async Task GetDramaDetailAsync_SkipsOpeningClipsAndTrailers()
+        {
+            // 回归：站点分集接口把 30 秒片头/预告混在 items 里返回。
+            // 早先不加区分，一部只有 106 条片头的剧会被展示成「106 集正片」。
+            var (adapter, _) = CreateAdapter();
+            var detail = await adapter.GetDramaDetailAsync("110003");
+
+            Assert.NotNull(detail);
+            Assert.DoesNotContain(detail!.Episodes, e => e.EpisodeNumber is 1 or 2);
+            Assert.All(detail.Episodes, e => Assert.True(e.DurationSeconds > 60, "只应保留正片（时长明显长于 30 秒片头）"));
+            Assert.Equal(2, detail.TotalEpisodes);   // 与 Episodes.Count 一致
+        }
+
+        [Fact]
+        public async Task GetDramaDetailAsync_KeepsEpisodeNumberUnchanged()
+        {
+            // 集号必须沿用接口原值：GetPlayUrlAsync 用它拼 /video/{id}/ep-{n}/
+            var (adapter, _) = CreateAdapter();
+            var detail = await adapter.GetDramaDetailAsync("110003");
+
+            Assert.NotNull(detail);
+            Assert.Equal(3, detail!.Episodes[0].EpisodeNumber);
+            Assert.Contains("/ep-3/", detail.Episodes[0].VideoUrl);
+        }
+
+        [Fact]
+        public async Task GetDramaDetailAsync_MissingMediaType_TreatedAsRealEpisode()
+        {
+            // 站点若去掉 media_type 字段，不能因此把内容全过滤掉
+            var options = new HuangGuoAiOptions { BaseUrl = "https://huangguodrama.ai", RequestsPerMinute = 0 };
+            var http = new HttpClient(new NoMediaTypeHandler());
+            var adapter = new HuangGuoAiAdapter(options, http, NullLogger.Instance);
+
+            var detail = await adapter.GetDramaDetailAsync("110003");
+
+            Assert.NotNull(detail);
+            Assert.Equal(new[] { 1, 2 }, detail!.Episodes.Select(e => e.EpisodeNumber).ToArray());
         }
 
         [Fact]
@@ -295,7 +354,8 @@ namespace ShortDrama.Tests
 
             Assert.Equal(2, page.Count);
             Assert.Equal("110003", page[0].PlatformDramaId);
-            Assert.Equal(30, page[0].TotalEpisodes);      // catalog_episode_count 要透传，否则列表显示 0 集
+            // 真实正片集数（full_episode_count），不是声明集数 30
+            Assert.Equal(3, page[0].TotalEpisodes);
             Assert.Equal("都市", page[0].Category);
         }
 
@@ -352,6 +412,28 @@ namespace ShortDrama.Tests
                 {
                     Content = new StringContent("<html><body>no video here</body></html>", Encoding.UTF8, "text/html")
                 });
+        }
+
+        /// <summary>分集响应里没有 media_type 字段（模拟站点改字段，此时应按正片处理）</summary>
+        private sealed class NoMediaTypeHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                var url = request.RequestUri!.ToString();
+                var body = url.Contains("/episodes/")
+                    ? """
+                      {"request_id":"r","id":"110003","total":2,"page":1,"limit":20,"items":[
+                        {"number":1,"duration_seconds":85,"watch_url":"https://huangguodrama.ai/video/110003/"},
+                        {"number":2,"duration_seconds":90,"watch_url":"https://huangguodrama.ai/video/110003/ep-2/"}]}
+                      """
+                    : TitleJson;
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json")
+                });
+            }
         }
 
         private sealed class FailingHandler : HttpMessageHandler

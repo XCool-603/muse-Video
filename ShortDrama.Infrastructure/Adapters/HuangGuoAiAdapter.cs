@@ -128,6 +128,18 @@ namespace ShortDrama.Infrastructure.Adapters
                     var number = ReadInt(item, "number");
                     if (number <= 0 || !seen.Add(number)) continue;
 
+                    // 只收真正的正片。该接口的 items 里混着多种媒体（实测）：
+                    //   episode      正片，平均约 85 秒
+                    //   opening_clip 片头，每条正好 30 秒
+                    //   trailer      预告，约 33 秒
+                    //   short_film   短片
+                    // 不加区分的话，一部只有 106 条 30 秒片头的剧会被展示成「106 集正片」，
+                    // 用户点进去发现全是片段。站点 513 部里约 326 部只有片头/预告。
+                    //
+                    // 集号必须沿用接口原值，不能重排：GetPlayUrlAsync 用它拼
+                    // /video/{id}/ep-{n}/ 来定位真实视频。
+                    if (!IsRealEpisode(item)) continue;
+
                     detail.Episodes.Add(new PlatformEpisodeItem
                     {
                         EpisodeNumber = number,
@@ -280,10 +292,26 @@ namespace ShortDrama.Infrastructure.Adapters
             Description = ReadString(e, "synopsis"),
             CoverUrl = string.Empty,
             Category = ReadGenres(e).FirstOrDefault() ?? "短剧",
-            TotalEpisodes = ReadInt(e, "catalog_episode_count"),
+            // full_episode_count = 真正的正片集数（实测与 media_type=episode 的条数完全一致）。
+            // 不能用 catalog_episode_count：那是站点声明的集数，把片头/预告也算进去，
+            // 会让「只有 106 条 30 秒片头」的剧在列表上显示成 106 集。
+            TotalEpisodes = ReadInt(e, "full_episode_count"),
             Status = ReadString(e, "completeness") == "complete" ? "completed" : "ongoing",
             Rating = 0
         };
+
+        /// <summary>
+        /// 是否为正片。分集接口里 media_type 为 episode 的才是正片；
+        /// opening_clip（片头）/ trailer（预告）/ short_film（短片）都不算。
+        /// 字段缺失时按正片处理，避免站点改字段后把内容全部过滤掉。
+        /// </summary>
+        private static bool IsRealEpisode(JsonElement item)
+        {
+            var mediaType = ReadString(item, "media_type");
+            if (string.IsNullOrWhiteSpace(mediaType)) return true;
+
+            return string.Equals(mediaType, "episode", StringComparison.OrdinalIgnoreCase);
+        }
 
         /// <summary>成人内容过滤（按标题关键词）</summary>
         private bool PassesFilter(PlatformSearchItem item)
