@@ -153,7 +153,7 @@ namespace ShortDrama.Infrastructure
                         var factory = sp.GetRequiredService<IHttpClientFactory>();
                         var logger = sp.GetRequiredService<ILoggerFactory>()
                             .CreateLogger($"AppleCms.{captured.PlatformCode}");
-                        return new AppleCmsAdapter(captured, factory.CreateClient("applecms"), logger);
+                        return new AppleCmsAdapter(captured, appleCms, factory.CreateClient("applecms"), logger);
                     });
                 }
             }

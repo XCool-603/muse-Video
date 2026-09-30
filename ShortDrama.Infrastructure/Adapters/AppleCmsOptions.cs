@@ -13,6 +13,28 @@ namespace ShortDrama.Infrastructure.Adapters
         /// <summary>是否启用苹果CMS 采集源</summary>
         public bool Enabled { get; set; } = true;
 
+        /// <summary>
+        /// 是否过滤成人内容（按标题/简介关键词）。**默认开启。**
+        /// 实测部分采集源在短剧关键词下会返回成人厂牌内容（例如「麻豆」系列），
+        /// 关掉这个开关就会原样返回、原样入库。
+        /// </summary>
+        public bool ExcludeAdult { get; set; } = true;
+
+        /// <summary>
+        /// 成人内容过滤关键词（仅在 <see cref="ExcludeAdult"/> = true 时生效）。
+        /// 命中标题或简介任一关键词即剔除该条。
+        /// 默认列表刻意只收「厂牌名 + 明确露骨词」，避免误伤正常剧名——
+        /// 例如没有收「探花」（科举称谓）、「蜜桃」「果冻」（正常剧名常用词）。
+        /// </summary>
+        public List<string> AdultKeywords { get; set; } = new()
+        {
+            // 成人厂牌 / 工作室
+            "麻豆", "天美", "精东", "皇家华人", "星空无限", "swag", "91制片", "国产传媒", "秀人", "尤物",
+            // 明确露骨词
+            "无码", "情色", "色情", "淫", "乱伦", "强干", "强暴", "强奸", "轮奸",
+            "巨乳", "爆乳", "做爱", "性爱", "母狗", "荡妇", "自慰", "抽插"
+        };
+
         /// <summary>单次请求超时（秒）</summary>
         public int TimeoutSeconds { get; set; } = 12;
 

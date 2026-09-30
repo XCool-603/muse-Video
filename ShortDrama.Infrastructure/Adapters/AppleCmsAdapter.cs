@@ -31,6 +31,7 @@ namespace ShortDrama.Infrastructure.Adapters
     public class AppleCmsAdapter : IPlatformAdapter
     {
         private readonly AppleCmsSource _source;
+        private readonly AppleCmsOptions _options;
         private readonly HttpClient _http;
         private readonly ILogger _logger;
 
@@ -41,9 +42,10 @@ namespace ShortDrama.Infrastructure.Adapters
         public string PlatformName => _source.PlatformName;
         public string PlatformCode => _source.PlatformCode;
 
-        public AppleCmsAdapter(AppleCmsSource source, HttpClient http, ILogger logger)
+        public AppleCmsAdapter(AppleCmsSource source, AppleCmsOptions options, HttpClient http, ILogger logger)
         {
             _source = source;
+            _options = options;
             _http = http;
             _logger = logger;
         }
@@ -65,7 +67,7 @@ namespace ShortDrama.Infrastructure.Adapters
 
             return new PlatformSearchResult
             {
-                Items = items.Select(ToSearchItem).ToList(),
+                Items = items.Where(PassesFilter).Select(ToSearchItem).ToList(),
                 Total = items.Count
             };
         }
@@ -125,6 +127,7 @@ namespace ShortDrama.Infrastructure.Adapters
             var items = await FetchListAsync(order, limit);
 
             return items
+                .Where(PassesFilter)
                 .OrderByDescending(i => GetLong(i, "vod_hits"))
                 .Take(limit)
                 .Select(i => new PlatformRankItem
@@ -173,6 +176,7 @@ namespace ShortDrama.Infrastructure.Adapters
             }
 
             return items
+                .Where(PassesFilter)
                 .GroupBy(i => GetString(i, "vod_id"))
                 .Select(g => g.First())
                 .Take(limit)
@@ -383,9 +387,40 @@ namespace ShortDrama.Infrastructure.Adapters
             return "ongoing";
         }
 
-        /// <summary>把采集源的分类名归一到站内分类</summary>
-        private static string MapCategory(string typeName)
+        /// <summary>
+        /// 成人内容过滤：标题或简介命中任一关键词即剔除。
+        /// 默认开启（<see cref="AppleCmsOptions.ExcludeAdult"/>），可在配置里关掉；
+        /// 与黄果适配器的 ExcludeAdult 是同一套思路。
+        /// </summary>
+        private bool PassesFilter(string title, string description)
         {
+            if (!_options.ExcludeAdult) return true;
+
+            var keywords = _options.AdultKeywords;
+            if (keywords is null || keywords.Count == 0) return true;
+
+            foreach (var keyword in keywords)
+            {
+                if (string.IsNullOrWhiteSpace(keyword)) continue;
+
+                if (title.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                    description.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>按原始条目过滤（取 vod_name / vod_blurb / vod_content）</summary>
+        private bool PassesFilter(Dictionary<string, JsonElement> raw)
+            => PassesFilter(
+                GetString(raw, "vod_name"),
+                FirstNonEmpty(GetString(raw, "vod_blurb"), GetString(raw, "vod_content")));
+
+        /// <summary>把采集源的分类名归一到站内分类</summary>
+        private static string MapCategory(string typeName)        {
             if (string.IsNullOrWhiteSpace(typeName)) return "剧情";
 
             if (typeName.Contains('短')) return "短剧";

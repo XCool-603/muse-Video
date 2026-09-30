@@ -17,7 +17,7 @@ namespace ShortDrama.Tests
     public class AppleCmsAdapterTests
     {
         /// <summary>构造一个返回固定 JSON 的适配器</summary>
-        private static AppleCmsAdapter CreateAdapter(string json, string format = "json")
+        private static AppleCmsAdapter CreateAdapter(string json, string format = "json", bool excludeAdult = false)
         {
             var source = new AppleCmsSource
             {
@@ -27,8 +27,12 @@ namespace ShortDrama.Tests
                 Format = format
             };
 
+            // 默认关掉过滤，避免既有用例的桩数据被误伤；
+            // 过滤行为由专门的用例覆盖
+            var options = new AppleCmsOptions { ExcludeAdult = excludeAdult };
+
             var http = new HttpClient(new StubHandler(json));
-            return new AppleCmsAdapter(source, http, NullLogger.Instance);
+            return new AppleCmsAdapter(source, options, http, NullLogger.Instance);
         }
 
         private static string BuildResponse(params (string Id, string Name, string PlayUrl)[] items)
@@ -171,6 +175,88 @@ namespace ShortDrama.Tests
 
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => adapter.GetPlayUrlAsync("1", 99));
+        }
+
+        // ==================== 成人内容过滤 ====================
+
+        [Fact]
+        public async Task SearchAsync_ExcludeAdultEnabled_DropsAdultTitles()
+        {
+            // 默认开启过滤：命中厂牌名/露骨词即剔除
+            var json = BuildResponse(
+                ("1", "霸总剧一", "第1集$https://c/1.m3u8"),
+                ("2", "【麻豆CP003】玉女神医之官人我要仙儿媛", "第1集$https://c/2.m3u8"),
+                ("3", "穿越剧三", "第1集$https://c/3.m3u8"));
+
+            var adapter = CreateAdapter(json, excludeAdult: true);
+            var result = await adapter.SearchAsync("短剧");
+
+            Assert.Equal(2, result.Items.Count);
+            Assert.DoesNotContain(result.Items, i => i.Title.Contains("麻豆"));
+            Assert.Contains(result.Items, i => i.Title == "霸总剧一");
+        }
+
+        [Fact]
+        public async Task SearchAsync_ExcludeAdultDisabled_KeepsEverything()
+        {
+            var json = BuildResponse(
+                ("1", "霸总剧一", "第1集$https://c/1.m3u8"),
+                ("2", "【麻豆CP003】玉女神医之官人我要仙儿媛", "第1集$https://c/2.m3u8"));
+
+            var adapter = CreateAdapter(json, excludeAdult: false);
+            var result = await adapter.SearchAsync("短剧");
+
+            Assert.Equal(2, result.Items.Count);
+            Assert.Contains(result.Items, i => i.Title.Contains("麻豆"));
+        }
+
+        [Fact]
+        public async Task SearchAsync_DefaultOptions_ExcludesAdult()
+        {
+            // 配置项默认值必须是「过滤」，否则新部署会默认放进成人内容
+            Assert.True(new AppleCmsOptions().ExcludeAdult);
+
+            var json = BuildResponse(("1", "麻豆传媒出品", "第1集$https://c/1.m3u8"));
+
+            var source = new AppleCmsSource
+            {
+                PlatformCode = "test_acms",
+                PlatformName = "测试采集源",
+                Api = "https://example.com/api.php/provide/vod/"
+            };
+            var adapter = new AppleCmsAdapter(
+                source, new AppleCmsOptions(), new HttpClient(new StubHandler(json)), NullLogger.Instance);
+
+            var result = await adapter.SearchAsync("短剧");
+
+            Assert.Empty(result.Items);
+        }
+
+        [Fact]
+        public async Task SearchAsync_AdultWordInDescription_AlsoFiltered()
+        {
+            // 简介命中同样要剔除，不能只看标题。
+            // 注意：这里不能用字符串替换构造 JSON —— System.Text.Json 默认把非 ASCII 转义成 \uXXXX
+            var list = new List<Dictionary<string, object>>
+            {
+                new()
+                {
+                    ["vod_id"] = "1",
+                    ["vod_name"] = "正常剧名",
+                    ["vod_blurb"] = "本片含无码内容",
+                    ["vod_play_url"] = "第1集$https://c/1.m3u8"
+                }
+            };
+            var json = JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["code"] = 1,
+                ["list"] = list
+            });
+
+            var adapter = CreateAdapter(json, excludeAdult: true);
+            var result = await adapter.SearchAsync("短剧");
+
+            Assert.Empty(result.Items);
         }
 
         /// <summary>返回固定响应的 HttpMessageHandler</summary>
