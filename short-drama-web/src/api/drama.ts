@@ -7,7 +7,11 @@ export const dramaApi = {
     return request<PagedResult<Drama>>({ url: '/drama/search', method: 'get', params })
   },
 
-  /** 本地库列表 */
+  /**
+   * 短剧列表。
+   * live=true 时后端会把分类/关键词交给聚合搜索，并行打各平台接口，
+   * 返回「实时结果 + 本地库」的合集；不传则只查本地库。
+   */
   list(params: {
     keyword?: string
     category?: string
@@ -15,6 +19,7 @@ export const dramaApi = {
     sortBy?: string
     page?: number
     pageSize?: number
+    live?: boolean
   }) {
     return request<PagedResult<Drama>>({ url: '/drama/list', method: 'get', params })
   },

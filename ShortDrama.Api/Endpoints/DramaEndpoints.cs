@@ -83,6 +83,8 @@ namespace ShortDrama.Api.Endpoints
             .WithSummary("平台筛选列表");
 
             // 本地库列表（支持关键词/分类/平台/排序/分页）
+            // live=true 时把分类/关键词交给聚合搜索，会并行打各平台接口，
+            // 返回「实时结果 + 本地库」去重后的合集；否则只查本地库。
             group.MapGet("/list", async (
                 [FromQuery] string? keyword,
                 [FromQuery] string? category,
@@ -90,14 +92,66 @@ namespace ShortDrama.Api.Endpoints
                 [FromQuery] string? sortBy,
                 [FromQuery] int page,
                 [FromQuery] int pageSize,
+                // 用可空 bool 而不是 bool + 默认值：C# 要求可选参数排在必填参数之后，
+                // 而这里后面还有 service/aggregation/ct，带默认值会编译不过（CS1737）。
+                // 可空类型天然可选，不传就是 null。
+                [FromQuery] bool? live,
                 IDramaService service,
+                IAggregationService aggregation,
                 CancellationToken ct) =>
             {
+                page = page <= 0 ? 1 : page;
+                pageSize = pageSize <= 0 ? 12 : pageSize;
+
+                // 实时模式：分类即搜索词。
+                // 采集源没有可靠的分类查询接口（实测 t/type_id 常被忽略），
+                // 但把分类名当关键词搜索是有效的（「霸总」「穿越」这类词命中率很高）。
+                if (live == true)
+                {
+                    var q = !string.IsNullOrWhiteSpace(keyword) ? keyword : category;
+                    if (!string.IsNullOrWhiteSpace(q) && q != "全部")
+                    {
+                        // 必须「合并」而不是「替换」：
+                        //   本地是按 Category 字段查（权威，例如「穿越」有 626 部）
+                        //   实时是按标题关键词查（只能命中标题里带该词的）
+                        // 直接替换会让本地那批分类正确、标题不含关键词的剧凭空消失。
+                        var take = Math.Clamp(page * pageSize, pageSize, 100);
+
+                        var local = await service.QueryAsync(keyword, category, platform,
+                            sortBy ?? "hot", 1, take, ct);
+                        var liveResult = await aggregation.SearchAsync(q, 1, take, platform, ct);
+
+                        // 本地结果排在前面（分类字段权威，且已在库、可直接播）
+                        var merged = new List<DramaDto>(local.Items);
+                        var seen = new HashSet<string>(merged.Select(d => d.Title), StringComparer.Ordinal);
+                        var liveOnly = 0;
+                        foreach (var item in liveResult.Items)
+                        {
+                            if (seen.Add(item.Title))
+                            {
+                                merged.Add(item);
+                                liveOnly++;
+                            }
+                        }
+
+                        // 总数不能用 merged.Count（那只是本次取到的条数，会把 63 报成 18）。
+                        // 本地有内容 → 本地总数 + 实时新增；本地为空 → 以实时总数为准（它才是能翻页的那个）。
+                        var total = local.Total > 0
+                            ? local.Total + liveOnly
+                            : Math.Max(liveResult.Total, merged.Count);
+
+                        var paged = merged.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+                        return Results.Ok(ApiResponse<PagedResult<DramaDto>>.Success(
+                            PagedResult<DramaDto>.Create(paged, total, page, pageSize)));
+                    }
+                }
+
                 var result = await service.QueryAsync(keyword, category, platform, sortBy ?? "hot",
-                    page <= 0 ? 1 : page, pageSize <= 0 ? 12 : pageSize, ct);
+                    page, pageSize, ct);
                 return Results.Ok(ApiResponse<PagedResult<DramaDto>>.Success(result));
             })
-            .WithName("ListDrama");
+            .WithName("ListDrama")
+            .RequireRateLimiting("api");
 
             // 短剧详情
             group.MapGet("/{id:long}", async (long id, IDramaService service, CancellationToken ct) =>

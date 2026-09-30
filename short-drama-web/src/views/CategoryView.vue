@@ -79,7 +79,10 @@ async function load(reset = true) {
       platform: platform.value,
       sortBy: sortBy.value,
       page: page.value,
-      pageSize
+      pageSize,
+      // 实时模式：选了具体分类时，后端会把分类当关键词并行打各平台接口，
+      // 再和本地库合并去重 —— 否则分类浏览只能看到已入库的那部分
+      live: true
     })
 
     list.value = reset ? result.items : [...list.value, ...result.items]
