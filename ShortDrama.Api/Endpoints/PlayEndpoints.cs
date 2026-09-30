@@ -109,7 +109,8 @@ namespace ShortDrama.Api.Endpoints
                             $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}");
                     }
 
-                    return Results.Redirect(info.PlayUrl);
+                    // 同样要转成 ASCII：MP4 地址里也可能带未编码中文
+                    return Results.Redirect(ToAsciiUrl(info.PlayUrl));
                 }
 
                 // 用相对路径，不能用 $"{Scheme}://{Request.Host}/..." 拼绝对地址。
@@ -123,17 +124,28 @@ namespace ShortDrama.Api.Endpoints
 
                 if (!filtered.Success)
                 {
-                    // 这里绝不能重定向到源站原始地址。
-                    // 采集源的 CDN 基本都不发 Access-Control-Allow-Origin，
-                    // 浏览器必然以 CORS 拦下，用户只会看到一个看不懂的跨域报错
-                    // （实测 v5.ppqrrs.com 等：应用 403 拉不到 → 302 到源站 → 浏览器 CORS 拦截）。
-                    // 拉不到就如实返回 502，让前端给出可理解的提示。
-                    logger.LogWarning("拉取播放列表失败（Drama={DramaId}, Ep={Episode}）: {Error}",
-                        dramaId, episode, filtered.Error);
+                    // 错误信息里带上源名和上游状态码，否则用户只看到「502」无从判断是哪个源坏了
+                    logger.LogWarning("拉取播放列表失败（Drama={DramaId}, Ep={Episode}, 源={Platform}）: {Error}",
+                        dramaId, episode, info.PlatformName, filtered.Error);
+
+                    // 兜底：后端拉不到，改让浏览器自己去拉。
+                    // 后端多在机房，IP 常被源站按地区拒绝；用户浏览器的 IP 往往没被拒。
+                    // 分片本来就直连 CDN，所以不会引入新的跨域风险，代价是这条路径不做去广告。
+                    //
+                    // 但调用方已经显式要求代理时（?proxy=true，说明前端直连也失败了）不再兜底，
+                    // 否则会在「直连失败 → 代理失败 → 又转回直连」之间绕圈。
+                    if (playback.FallbackToDirectPlaylist && proxy != true)
+                    {
+                        // 地址里可能带未编码中文，必须先转成 ASCII 才能放进 Location 头
+                        var directUrl = ToAsciiUrl(info.PlayUrl);
+                        logger.LogInformation("改由浏览器直连源站播放列表（不去广告）：{Url}", directUrl);
+                        return Results.Redirect(directUrl);
+                    }
 
                     return Results.Json(
                         ApiResponse<string>.Fail(5020,
-                            "源站播放列表拉取失败：可能是该源在服务器所在地不可达，或被源站按地区拒绝"),
+                            $"源站播放列表拉取失败（{info.PlatformName}）：{filtered.Error}。" +
+                            "可能是该源在服务器所在地不可达，或被源站按地区拒绝"),
                         statusCode: StatusCodes.Status502BadGateway);
                 }
 
@@ -257,6 +269,33 @@ namespace ShortDrama.Api.Endpoints
             })
             .WithName("PlayHistory")
             .RequireAuthorization();
+        }
+
+        /// <summary>
+        /// 把 URL 里的非 ASCII 字符按 UTF-8 做百分号编码，使其能放进 HTTP 头。
+        ///
+        /// HTTP 头（Location）只允许 ASCII，而部分采集源给的地址里带未编码的中文，
+        /// 实测暴风资源：https://v.fengbao8.com/video/nvzhanshenlailin/第1集/index.m3u8
+        /// 直接塞进 Location 会让 Kestrel 抛 InvalidOperationException
+        /// （Invalid non-ASCII or control character in header: 0x7B2C）→ 500。
+        ///
+        /// 注意不能用 Uri.AbsoluteUri：它会「双向归一化」，把已经编码的
+        /// %E7%AC%AC 反向解回中文，等于没修。这里按 UTF-8 字节逐个处理，
+        /// 只转义 >= 0x80 的字节，已有的 %XX 原样保留。
+        /// </summary>
+        private static string ToAsciiUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return url;
+
+            var bytes = Encoding.UTF8.GetBytes(url);
+            var sb = new StringBuilder(bytes.Length);
+            foreach (var b in bytes)
+            {
+                if (b < 0x80) sb.Append((char)b);
+                else sb.Append('%').Append(b.ToString("X2"));
+            }
+
+            return sb.ToString();
         }
     }
 }

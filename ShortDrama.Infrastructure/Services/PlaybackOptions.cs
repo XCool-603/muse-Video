@@ -30,5 +30,18 @@ namespace ShortDrama.Infrastructure.Services
         /// false（默认）= 前端直接用 CDN 直链播放。
         /// </summary>
         public bool ProxyMp4 { get; set; } = false;
+
+        /// <summary>
+        /// 后端拉不到播放列表时，是否改让浏览器自己去拉。
+        ///
+        /// 实测有相当一部分采集源 CDN 会按 IP/地区拒绝（无尽 403、最大 403、
+        /// 百度 403、暴风 404、量子 404 …），而后端所在机房 IP 往往正是被拒的那类；
+        /// 用户浏览器的 IP（家庭宽带等）却常常能正常访问。
+        ///
+        /// 分片本来就默认直连 CDN，所以这条兜底不会引入新的跨域风险。
+        /// 代价：这条路径不做去广告（因为没经过后端清洗）。
+        /// 只有后端已经失败时才会走到，所以打开它只会「多一次机会」，不会让情况变差。
+        /// </summary>
+        public bool FallbackToDirectPlaylist { get; set; } = true;
     }
 }
