@@ -89,7 +89,13 @@ namespace ShortDrama.Api.Endpoints
                         $"/api/v1/play/segment?u={Uri.EscapeDataString(info.PlayUrl)}");
                 }
 
-                var segmentProxy = $"{http.Request.Scheme}://{http.Request.Host}/api/v1/play/segment";
+                // 必须用相对路径，不能用 $"{Scheme}://{Request.Host}/..." 拼绝对地址。
+                // 播放器会把 m3u8 里的相对地址按「播放列表自身的 URL」解析，因此始终与页面同源；
+                // 而用 Request.Host 拼绝对地址时，只要中间隔了一层代理就会出错：
+                // 前端 dev server 的 changeOrigin:true 会把 Host 改写成 localhost:5080，
+                // 于是页面在 127.0.0.1:5173、分片地址却是 localhost:5080 —— 浏览器判定为跨域。
+                // 反向代理（Nginx/Caddy）下同理。
+                var segmentProxy = "/api/v1/play/segment";
                 var filtered = await adFilter.BuildCleanPlaylistAsync(info.PlayUrl, segmentProxy, ct);
 
                 if (!filtered.Success)
@@ -163,7 +169,8 @@ namespace ShortDrama.Api.Endpoints
                     }
 
                     var text = Encoding.UTF8.GetString(bytes);
-                    var segmentProxy = $"{http.Request.Scheme}://{http.Request.Host}/api/v1/play/segment";
+                    // 同上：相对路径，避免代理改写 Host 后生成跨域地址
+                    var segmentProxy = "/api/v1/play/segment";
                     var processed = adFilter.ProcessPlaylist(text, uri.ToString(), segmentProxy);
 
                     cache.Set(cacheKey, processed.Playlist, TimeSpan.FromMinutes(5));
