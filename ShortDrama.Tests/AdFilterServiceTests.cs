@@ -184,5 +184,123 @@ namespace ShortDrama.Tests
             Assert.NotNull(seqLine);
             Assert.Equal("#EXT-X-MEDIA-SEQUENCE:100", seqLine);
         }
+
+        // ==================== 带 URI 属性的标签（加密密钥等） ====================
+
+        [Fact]
+        public void ProcessPlaylist_RewritesEncryptionKeyUriToAbsolute()
+        {
+            // 加密流的密钥地址不重写就会被解析成
+            // /api/v1/play/stream/{id}/enc.key → 404，直接无法解密
+            var service = CreateService();
+
+            const string playlist = """
+                #EXTM3U
+                #EXT-X-VERSION:3
+                #EXT-X-KEY:METHOD=AES-128,URI="enc.key",IV=0x1234567890ABCDEF1234567890ABCDEF
+                #EXTINF:4.000,
+                seg_1.ts
+                """;
+
+            var result = service.ProcessPlaylist(playlist, "https://cdn.example.com/hls/index.m3u8");
+
+            Assert.True(result.Success);
+            Assert.Contains("URI=\"https://cdn.example.com/hls/enc.key\"", result.Playlist);
+            Assert.DoesNotContain("URI=\"enc.key\"", result.Playlist);
+            // IV 等其它属性必须原样保留
+            Assert.Contains("IV=0x1234567890ABCDEF1234567890ABCDEF", result.Playlist);
+            Assert.Contains("METHOD=AES-128", result.Playlist);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_RewritesEncryptionKeyUriToProxyWhenProvided()
+        {
+            var service = CreateService();
+            const string proxy = "http://localhost:5080/api/v1/play/segment";
+
+            const string playlist = """
+                #EXTM3U
+                #EXT-X-KEY:METHOD=AES-128,URI="enc.key"
+                #EXTINF:4.000,
+                seg_1.ts
+                """;
+
+            var result = service.ProcessPlaylist(playlist, "https://cdn.example.com/hls/index.m3u8", proxy);
+
+            Assert.Contains($"{proxy}?u={Uri.EscapeDataString("https://cdn.example.com/hls/enc.key")}", result.Playlist);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_KeepsAlreadyAbsoluteKeyUriUsable()
+        {
+            // 已是绝对地址时不能把它改坏（例如二次编码）
+            var service = CreateService();
+
+            const string playlist = """
+                #EXTM3U
+                #EXT-X-KEY:METHOD=AES-128,URI="https://keys.example.com/abc.key"
+                #EXTINF:4.000,
+                seg_1.ts
+                """;
+
+            var result = service.ProcessPlaylist(playlist, "https://cdn.example.com/hls/index.m3u8");
+
+            Assert.Contains("URI=\"https://keys.example.com/abc.key\"", result.Playlist);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_RewritesMapUri()
+        {
+            // fMP4 的初始化分片同样带 URI 属性
+            var service = CreateService();
+
+            const string playlist = """
+                #EXTM3U
+                #EXT-X-MAP:URI="init.mp4"
+                #EXTINF:4.000,
+                seg_1.m4s
+                """;
+
+            var result = service.ProcessPlaylist(playlist, "https://cdn.example.com/hls/index.m3u8");
+
+            Assert.Contains("URI=\"https://cdn.example.com/hls/init.mp4\"", result.Playlist);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_MasterPlaylist_RewritesMediaUri()
+        {
+            // 主列表里的备用音轨/字幕轨同样带 URI 属性
+            var service = CreateService();
+
+            const string master = """
+                #EXTM3U
+                #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="中文",URI="audio/index.m3u8"
+                #EXT-X-STREAM-INF:BANDWIDTH=1000000,AUDIO="aud"
+                video/index.m3u8
+                """;
+
+            var result = service.ProcessPlaylist(master, "https://cdn.example.com/hls/master.m3u8");
+
+            Assert.Contains("URI=\"https://cdn.example.com/hls/audio/index.m3u8\"", result.Playlist);
+            Assert.Contains("https://cdn.example.com/hls/video/index.m3u8", result.Playlist);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_RewritesSingleQuotedKeyUri()
+        {
+            // 规范要求双引号，但实测有源用单引号，一并处理
+            var service = CreateService();
+
+            const string playlist = """
+                #EXTM3U
+                #EXT-X-KEY:METHOD=AES-128,URI='enc.key'
+                #EXTINF:4.000,
+                seg_1.ts
+                """;
+
+            var result = service.ProcessPlaylist(playlist, "https://cdn.example.com/hls/index.m3u8");
+
+            Assert.Contains("URI='https://cdn.example.com/hls/enc.key'", result.Playlist);
+        }
     }
 }

@@ -38,6 +38,12 @@ namespace ShortDrama.Infrastructure.Services
 
         private static readonly Regex ExtInfRegex = new(@"^#EXTINF:\s*(?<dur>[0-9.]+)\s*(?<title>,.*)?$", RegexOptions.Compiled);
 
+        // 带 URI 属性的标签（#EXT-X-KEY / #EXT-X-MAP / #EXT-X-MEDIA /
+        // #EXT-X-I-FRAME-STREAM-INF / #EXT-X-SESSION-KEY / #EXT-X-PART 等）
+        private static readonly Regex UriAttrRegex = new(
+            "URI\\s*=\\s*(?<q>[\"'])(?<uri>[^\"']*)\\k<q>",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         public AdFilterService(IHttpClientFactory httpClientFactory, ILogger<AdFilterService> logger)
         {
             _httpClientFactory = httpClientFactory;
@@ -98,7 +104,11 @@ namespace ShortDrama.Infrastructure.Services
                 var line = rawLine.TrimEnd('\r');
                 if (line.Length == 0 || line.StartsWith('#'))
                 {
-                    sb.AppendLine(line);
+                    // 主列表里也有带 URI 的标签，例如
+                    //   #EXT-X-MEDIA:TYPE=AUDIO,...,URI="audio.m3u8"
+                    //   #EXT-X-I-FRAME-STREAM-INF:...,URI="iframe.m3u8"
+                    // 不重写的话播放器会按本列表的 URL 去解析，直接 404
+                    sb.AppendLine(RewriteUriAttributes(line, baseUrl, segmentProxyBase));
                 }
                 else
                 {
@@ -183,7 +193,12 @@ namespace ShortDrama.Infrastructure.Services
                     }
                     else
                     {
-                        output.Add(line);
+                        // 标签行也要重写 URI 属性。最容易漏、后果最严重的是加密密钥：
+                        //   #EXT-X-KEY:METHOD=AES-128,URI="enc.key"
+                        // 不重写会被解析成 /api/v1/play/stream/{id}/enc.key → 404，
+                        // 加密流无法解密，而且 hls.js 会对每个分片反复重试取密钥，
+                        // 控制台刷出一整屏 404。实测 3113 就是这样。
+                        output.Add(RewriteUriAttributes(line, baseUrl, segmentProxyBase));
                     }
                     continue;
                 }
@@ -257,6 +272,39 @@ namespace ShortDrama.Infrastructure.Services
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 重写标签里 URI 属性的地址（#EXT-X-KEY / #EXT-X-MAP / #EXT-X-MEDIA /
+        /// #EXT-X-I-FRAME-STREAM-INF / #EXT-X-SESSION-KEY / #EXT-X-PART 等）。
+        ///
+        /// 为什么必须做：播放器把列表里的相对地址按「列表自身的 URL」解析。
+        /// 列表是从 /api/v1/play/stream/{id}/{ep}.m3u8 返回的，所以
+        /// #EXT-X-KEY:URI="enc.key" 会变成请求 /api/v1/play/stream/{id}/enc.key → 404。
+        /// 后果是加密流完全无法解密，且 hls.js 会为每个分片反复重试取密钥，刷屏 404。
+        /// 分片行有重写而标签行没有，是最容易漏掉的一类 bug。
+        /// </summary>
+        private string RewriteUriAttributes(string line, string baseUrl, string? segmentProxyBase)
+        {
+            if (line.Length == 0 || !line.Contains("URI=", StringComparison.OrdinalIgnoreCase))
+            {
+                return line;
+            }
+
+            return UriAttrRegex.Replace(line, m =>
+            {
+                var raw = m.Groups["uri"].Value;
+                if (string.IsNullOrWhiteSpace(raw)) return m.Value;
+
+                // ResolveUrl 对已是绝对地址的输入原样返回
+                var absolute = ResolveUrl(baseUrl, raw);
+                var rewritten = segmentProxyBase is null
+                    ? absolute
+                    : $"{segmentProxyBase}?u={Uri.EscapeDataString(absolute)}";
+
+                var quote = m.Groups["q"].Value;
+                return $"URI={quote}{rewritten}{quote}";
+            });
         }
 
         public string ResolveUrl(string baseUrl, string relative)
