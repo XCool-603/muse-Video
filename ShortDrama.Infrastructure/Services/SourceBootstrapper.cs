@@ -85,9 +85,7 @@ namespace ShortDrama.Infrastructure.Services
             }
 
             // 全量目录模式下不设 80 部的小上限，按目录实际规模入库
-            var cap = _options.FullCatalogSync
-                ? Math.Max(_options.BootstrapMaxPerSource, _options.MaxCatalogPages * 20)
-                : _options.BootstrapMaxPerSource;
+            var cap = BootstrapCandidateCap();
 
             var queue = candidates.Values.Take(Math.Max(1, cap)).ToList();
 
@@ -163,34 +161,71 @@ namespace ShortDrama.Infrastructure.Services
             return saved;
         }
 
-        /// <summary>按关键词搜索收集候选</summary>
+        /// <summary>
+        /// 按关键词搜索收集候选，并逐页翻到底。
+        ///
+        /// 采集接口每页固定返回约 20 条，只读第 1 页会严重漏内容：实测「短剧」这一个词，
+        /// 无尽有 648 部、暴风 546 部、最大 492 部，而原先每个源只取到约 20 部。
+        /// </summary>
         private async Task CollectFromKeywordsAsync(
             IPlatformAdapter adapter,
             List<string> keywords,
             ConcurrentDictionary<string, PlatformSearchItem> candidates)
         {
+            var maxPages = Math.Clamp(_options.BootstrapPagesPerKeyword, 1, 50);
+            var pageDelay = TimeSpan.FromMilliseconds(Math.Clamp(_options.BootstrapPageDelayMs, 0, 10000));
+            var cap = BootstrapCandidateCap();
+
+            // 每个关键词一条独立的分页链，链之间并行；链内部必须串行（要按页推进）
             var searchTasks = keywords.Select(async keyword =>
             {
-                try
+                for (var page = 1; page <= maxPages; page++)
                 {
-                    var result = await adapter.SearchAsync(keyword, 1, _options.BootstrapLimitPerKeyword);
+                    if (candidates.Count >= cap) return;
+
+                    // 翻页之间留间隔：8 条链并行翻 5 页会在短时间内对同一源打出约 40 个请求，
+                    // 实测会被限流（429 / 超时），把该源整轮播种打废
+                    if (page > 1 && pageDelay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(pageDelay);
+                    }
+
+                    PlatformSearchResult result;
+                    try
+                    {
+                        result = await adapter.SearchAsync(keyword, page, _options.BootstrapLimitPerKeyword);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("播种关键词 \"{Keyword}\" 第 {Page} 页失败（{Platform}，{Reason}）",
+                            keyword, page, adapter.PlatformName, ex.GetBaseException().Message);
+                        return;
+                    }
+
+                    if (result.Items.Count == 0) return;
+
+                    var added = 0;
                     foreach (var item in result.Items)
                     {
-                        if (!string.IsNullOrWhiteSpace(item.PlatformDramaId))
+                        if (!string.IsNullOrWhiteSpace(item.PlatformDramaId) &&
+                            candidates.TryAdd(item.PlatformDramaId, item))
                         {
-                            candidates.TryAdd(item.PlatformDramaId, item);
+                            added++;
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning("播种关键词 \"{Keyword}\" 失败（{Platform}，{Reason}）",
-                        keyword, adapter.PlatformName, ex.GetBaseException().Message);
+
+                    // 整页都是已经见过的：后续页大概率也重复，提前收手，避免白跑请求
+                    if (added == 0) return;
                 }
             });
 
             await Task.WhenAll(searchTasks);
         }
+
+        /// <summary>单个源允许收集的候选上限</summary>
+        private int BootstrapCandidateCap() => _options.FullCatalogSync
+            ? Math.Max(_options.BootstrapMaxPerSource, _options.MaxCatalogPages * 20)
+            : _options.BootstrapMaxPerSource;
 
         /// <summary>
         /// 逐页遍历全量目录。

@@ -57,8 +57,11 @@ namespace ShortDrama.Infrastructure.Adapters
                 return new PlatformSearchResult();
             }
 
+            // 每页条数由源站决定（苹果CMS 一般固定 20 条），请求方只能裁剪。
+            // 这里必须真的按 pageSize 裁：早先没传 take，导致 BootstrapLimitPerKeyword
+            // 这个配置项对苹果CMS 源完全不起作用（写了但不做事）。
             var query = $"ac=detail&wd={Uri.EscapeDataString(keyword)}&pg={Math.Max(1, page)}";
-            var items = await FetchListAsync(query);
+            var items = await FetchListAsync(query, Math.Clamp(pageSize, 1, 100));
 
             return new PlatformSearchResult
             {

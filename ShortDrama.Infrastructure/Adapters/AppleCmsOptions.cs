@@ -26,8 +26,24 @@ namespace ShortDrama.Infrastructure.Adapters
             "短剧", "霸总", "重生", "穿越", "战神", "甜宠", "闪婚", "逆袭"
         };
 
-        /// <summary>每个关键词每源最多入库多少部</summary>
+        /// <summary>每个关键词每源最多入库多少部（每页上限）</summary>
         public int BootstrapLimitPerKeyword { get; set; } = 10;
+
+        /// <summary>
+        /// 每个播种关键词翻多少页。
+        /// 采集接口每页固定返回约 20 条，只读第 1 页会严重漏内容：
+        /// 实测「短剧」一个词，无尽 648 部、暴风 546 部、最大 492 部，原先每个源只取到约 20 部。
+        /// 翻页会让首次播种的请求数与耗时成倍增加，按需调整。
+        /// </summary>
+        public int BootstrapPagesPerKeyword { get; set; } = 5;
+
+        /// <summary>
+        /// 翻页时每页之间的间隔（毫秒）。
+        /// 8 个关键词并行翻 5 页会在短时间内对同一源打出约 40 个请求，
+        /// 实测会触发限流：暴风返回 429，无尽直接超时并把该源整轮播种打废。
+        /// 加间隔是为了把请求摊开，别把源惹毛。
+        /// </summary>
+        public int BootstrapPageDelayMs { get; set; } = 300;
 
         /// <summary>单个源初始入库的候选上限（防止个别大源拖慢启动）</summary>
         public int BootstrapMaxPerSource { get; set; } = 80;
