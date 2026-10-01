@@ -38,7 +38,7 @@
           :drama="item"
         />
       </div>
-      <a-empty v-else description="该分类下暂时取不到内容（部分源站的分类翻页本身就不全，可试试「全部」）" />
+      <a-empty v-else description="暂时取不到内容：可能是源站这个分类翻页不全，也可能是内容被过滤规则剔除，或该源本身没有内容" />
     </a-spin>
 
     <div v-if="hasMore" class="load-more">
