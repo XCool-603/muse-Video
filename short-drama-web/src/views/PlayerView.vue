@@ -6,7 +6,28 @@
           <!-- 播放器区域（竖屏沉浸式） -->
           <div class="stage">
             <div class="stage-inner">
+              <!-- 平台本身不可播（例如红果短剧是 DRM 加密，密钥不下发到网页端）：
+                   给出原因和官方入口，而不是让播放器空转、什么都不说 -->
+              <div v-if="notPlayable" class="not-playable">
+                <ExclamationCircleOutlined class="np-icon" />
+                <h3 class="np-title">该平台无法在这里播放</h3>
+                <p class="np-reason">{{ notPlayable.reason }}</p>
+                <a
+                  v-if="notPlayable.officialUrl"
+                  :href="notPlayable.officialUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <a-button type="primary" size="large">
+                    <template #icon><ExportOutlined /></template>
+                    去官方观看
+                  </a-button>
+                </a>
+                <p class="np-hint">也可以在右侧切换其他平台源试试</p>
+              </div>
+
               <VideoPlayer
+                v-else
                 ref="playerRef"
                 :src="playUrl"
                 :stream-type="streamType"
@@ -147,6 +168,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
+  ExclamationCircleOutlined,
+  ExportOutlined,
   HeartFilled,
   HeartOutlined,
   SafetyCertificateOutlined,
@@ -173,6 +196,8 @@ const playUrl = ref('')
 const streamType = ref<'hls' | 'mp4'>('hls')
 // 直连 CDN 失败后是否已改用后端代理重试过（每次换集重置）
 const triedProxyFallback = ref(false)
+// 平台本身不可播时的说明（例如红果的 DRM 加密）：非空则用提示卡片替代播放器
+const notPlayable = ref<{ reason: string; officialUrl: string | null } | null>(null)
 const loading = ref(false)
 const currentEpisode = ref(1)
 const resumePosition = ref(0)
@@ -225,6 +250,8 @@ async function switchEpisode(episode: number, updateRoute = true) {
   currentEpisode.value = episode
   playUrl.value = ''
   removedSegments.value = 0
+  // 换集时先清掉「不可播」提示，否则会一直盖住播放器
+  notPlayable.value = null
 
   if (updateRoute) {
     router.replace(`/play/${dramaId.value}/${episode}`)
@@ -241,6 +268,14 @@ async function switchEpisode(episode: number, updateRoute = true) {
     // 换集时重置代理兜底标记
     triedProxyFallback.value = false
   } catch (error) {
+    // 平台本身不可播（后端 4090，例如红果的 DRM 加密）→ 用提示卡片代替播放器，
+    // 并把后端附带的官方播放页地址做成可点的按钮
+    const np = parseNotPlayable(error)
+    if (np) {
+      notPlayable.value = np
+      playUrl.value = ''
+      return
+    }
     message.error((error as Error).message || '获取播放地址失败')
   }
 }
@@ -270,6 +305,27 @@ function onTimeUpdate({ current }: { current: number; duration: number }) {
       })
       .catch(() => undefined)
   }
+}
+
+/**
+ * 识别「平台本身不可播」的响应（后端 4090，例如红果短剧的 DRM 加密）。
+ * 后端把官方播放页地址附在消息里，这里抽出来做成可点的按钮。
+ */
+function parseNotPlayable(err: unknown): { reason: string; officialUrl: string | null } | null {
+  const body = (err as { response?: { data?: { code?: number; message?: string } } })?.response?.data
+  if (!body || body.code !== 4090) return null
+
+  const msg = body.message || '该平台无法在服务端播放'
+  const url = msg.match(/https?:\/\/\S+/)
+  if (!url) return { reason: msg, officialUrl: null }
+
+  // 去掉地址本身，以及「可跳转官方播放页观看：」这类引导语，只留原因
+  const reason = msg
+    .replace(url[0], '')
+    .replace(/[，,]?\s*可跳转[^：:]*[：:]\s*$/, '')
+    .trim()
+
+  return { reason: reason || msg, officialUrl: url[0] }
 }
 
 function onPlayError(msg: string) {
@@ -421,6 +477,47 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #000;
   border: 1px solid var(--sd-border);
+}
+
+/* 平台本身不可播时的提示卡片（替代播放器） */
+.not-playable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--sd-bg-elevated);
+}
+
+.not-playable .np-icon {
+  font-size: 38px;
+  color: #faad14;
+}
+
+.not-playable .np-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--sd-text);
+}
+
+.not-playable .np-reason {
+  margin: 0;
+  max-width: 460px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--sd-text-secondary);
+}
+
+.not-playable .np-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sd-text-secondary);
+  opacity: 0.75;
 }
 
 .stage-top-info {

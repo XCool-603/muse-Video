@@ -53,6 +53,9 @@ http.interceptors.response.use(
       message.error('登录已过期，请重新登录')
     } else if (status === 429) {
       message.warning('请求过于频繁，请稍后再试')
+    } else if (code === 4090) {
+      // 平台本身不可播（例如红果短剧的 DRM 加密）：播放页会渲染专门的提示卡片
+      // 并给出官方入口，这里不再弹一个重复的 toast
     } else if (body?.message) {
       message.error(body.message)
     } else if (status >= 500) {

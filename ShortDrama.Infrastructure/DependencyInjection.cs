@@ -52,6 +52,14 @@ namespace ShortDrama.Infrastructure
                            ?? new PlaybackOptions();
             services.AddSingleton(playback);
 
+            // 聚合搜索的性能与容错策略（appsettings.json 的 Aggregation 段）
+            var aggregation = configuration.GetSection(AggregationOptions.SectionName).Get<AggregationOptions>()
+                              ?? new AggregationOptions();
+            services.AddSingleton(aggregation);
+
+            // 平台健康状态：跨请求共享，用于跳过已知失败/超时的源
+            services.AddSingleton<SourceHealthTracker>();
+
             // 采集源抓取用的 HttpClient
             services.AddHttpClient("applecms", client =>
             {
