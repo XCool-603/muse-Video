@@ -5,7 +5,7 @@
       <div class="sd-container hero-inner">
         <h1 class="hero-title">聚合全网短剧，一站搜索观看</h1>
         <p class="hero-sub">
-          {{ platformStore.withContent().length }} 个采集源 · 按平台浏览（一次只查一个源），搜索仍可全网检索
+          {{ platformStore.all().length }} 个平台 · 按平台浏览（一次只查一个源），搜索仍可全网检索
         </p>
 
         <div class="search-box">
@@ -28,7 +28,7 @@
           <span class="sd-muted">平台：</span>
           <div class="platform-tabs">
             <button
-              v-for="p in platformStore.withContent()"
+              v-for="p in platformStore.all()"
               :key="p.platformCode"
               class="platform-tab"
               :class="{ active: p.platformCode === platform }"
@@ -71,7 +71,7 @@
         <div v-if="dramaList.length" class="drama-grid">
           <DramaCard v-for="item in dramaList" :key="item.id" :drama="item" />
         </div>
-        <a-empty v-else description="该平台暂无内容" />
+        <a-empty v-else description="该平台的内容还没同步到本地库：下面的实时榜单/上新仍然可用，也可以在管理后台对它点「同步」" />
       </a-spin>
 
       <div v-if="hasMore" class="load-more">

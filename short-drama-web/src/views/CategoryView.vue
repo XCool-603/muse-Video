@@ -16,7 +16,7 @@
         <span class="filter-label">平台</span>
         <!-- 没有「全部」：全平台意味着并行打十几个源，是这一页之前卡的原因 -->
         <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="onPlatformChange">
-          <a-radio-button v-for="p in platformStore.withContent()" :key="p.platformCode" :value="p.platformCode">
+          <a-radio-button v-for="p in platformStore.all()" :key="p.platformCode" :value="p.platformCode">
             {{ p.platformName }}
           </a-radio-button>
         </a-radio-group>
@@ -36,7 +36,7 @@
       <div v-if="list.length" class="drama-grid">
         <DramaCard v-for="item in list" :key="item.id" :drama="item" />
       </div>
-      <a-empty v-else description="该分类下暂无内容" />
+      <a-empty v-else description="该分类下暂无内容；若刚打开的平台本地库还没同步，可在管理后台对它点「同步」" />
     </a-spin>
 
     <div v-if="hasMore" class="load-more">

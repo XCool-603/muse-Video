@@ -49,9 +49,13 @@ export const usePlatformStore = defineStore('platform', () => {
     return platforms.value
   }
 
-  /** 只保留有内容的平台，用于筛选器 */
-  function withContent() {
-    return platforms.value.filter((p) => p.dramaCount > 0)
+  /**
+   * 全部已注册平台，按内容量从多到少。
+   * 刻意不按「本地库有没有内容」过滤：刚打开的源本地库还是空的，
+   * 但它的实时榜单/上新是可用的，过滤掉就等于平台凭空消失。
+   */
+  function all() {
+    return [...platforms.value].sort((a, b) => b.dramaCount - a.dramaCount)
   }
 
   /** 切平台：同时记住，刷新后还停在这个平台 */
@@ -70,12 +74,12 @@ export const usePlatformStore = defineStore('platform', () => {
    * 平台列表是异步加载的，所以要在 load() 之后再调。
    */
   function ensureSelected() {
-    const list = withContent()
+    const list = all()
     if (!list.length) return selected.value
     if (selected.value && list.some((p) => p.platformCode === selected.value)) return selected.value
 
-    const best = [...list].sort((a, b) => b.dramaCount - a.dramaCount)[0]
-    select(best.platformCode)
+    // all() 已按内容量排序，第一个就是内容最多的那个
+    select(list[0].platformCode)
     return selected.value
   }
 
@@ -87,5 +91,5 @@ export const usePlatformStore = defineStore('platform', () => {
     return platforms.value.find((p) => p.platformCode === code)?.color ?? '#8c8c8c'
   }
 
-  return { platforms, loaded, loading, selected, load, withContent, select, ensureSelected, nameOf, colorOf }
+  return { platforms, loaded, loading, selected, load, all, select, ensureSelected, nameOf, colorOf }
 })

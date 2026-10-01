@@ -15,7 +15,7 @@
     <div class="filters">
       <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="handleSearch">
         <a-radio-button value="all">全部平台</a-radio-button>
-        <a-radio-button v-for="p in platformStore.withContent()" :key="p.platformCode" :value="p.platformCode">
+        <a-radio-button v-for="p in platformStore.all()" :key="p.platformCode" :value="p.platformCode">
           {{ p.platformName }}
         </a-radio-button>
       </a-radio-group>
