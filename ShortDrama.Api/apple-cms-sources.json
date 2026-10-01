@@ -144,6 +144,97 @@
         "format": "json",
         "shortDramaTypeIds": [],
         "note": "2026-09-30 实测新增。分类参数被忽略，留空走关键词。播种去重 86 部，新增约 80 部；「霸总/甜宠」返回 0，靠重生/穿越/战神/逆袭贡献。"
+      },
+
+      {
+        "platformCode": "acms_155",
+        "platformName": "155",
+        "api": "https://155api.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "2026-10-01 恢复为「可配置但默认关闭」。接口本身可用，但用短剧关键词搜索会直接返回色情内容（证据见文件末尾 //44~//59 与 docs/SOURCES.md 5.5）。要启用请先自行核验内容合规性。"
+      },
+      {
+        "platformCode": "acms_didi",
+        "platformName": "滴滴",
+        "api": "https://api.ddapi.cc/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_heihei",
+        "platformName": "嘿嘿",
+        "api": "https://api.heiapi.cc/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_lebo",
+        "platformName": "乐播",
+        "api": "https://lbapi9.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_senlin",
+        "platformName": "森林",
+        "api": "https://slapibf.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_naixiang",
+        "platformName": "奶香",
+        "api": "https://naixxzy.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_shayu",
+        "platformName": "鲨鱼",
+        "api": "https://shayuapi.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_lajiao",
+        "platformName": "辣椒",
+        "api": "https://apilj.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_jingpin",
+        "platformName": "精品",
+        "api": "https://www.jingpinx.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
+      },
+      {
+        "platformCode": "acms_yutu",
+        "platformName": "玉兔",
+        "api": "https://apiyutu.com/api.php/provide/vod/",
+        "enabled": false,
+        "format": "json",
+        "shortDramaTypeIds": [],
+        "note": "同上：接口可用、内容不合规，默认关闭。"
       }
     ]
   },
@@ -186,7 +277,7 @@
   "//42": "  火速  https://api.huosuapi.cc/api.php/provide/vod/     → 可连但搜索恒为 0 条",
   "//43": "===========================================================",
   "//44": "【关于源站内容】以上源均为第三方公开采集站，内容非本系统提供。",
-  "//45": "2026-09-30 复测：以下 10 个源用短剧相关关键词搜索会直接返回色情内容，已刻意排除在配置之外。2026-10-01 处置：已从上面的 sources 数组移除（此前误留在数组里且 enabled=true，与本说明自相矛盾）；域名留在此处作为审计痕迹。",
+  "//45": "2026-09-30 复测：以下 10 个源用短剧相关关键词搜索会直接返回色情内容（含乱伦、性侵类描述）。2026-10-01 处置：它们在上面的 sources 里保留、但 enabled=false —— 配置里看得见、后台能单独开关，默认不参与聚合。要启用请先自行核验内容合规性；域名与证据留在此处作为审计痕迹。",
   "//46": "实测「短剧」一词的结果里命中露骨特征词的比例（抽样 60-70 条标题）：",
   "//47": "  155   https://155api.com/api.php/provide/vod/           → 17 条命中，含乱伦、性侵类描述",
   "//48": "  滴滴  https://api.ddapi.cc/api.php/provide/vod/",
