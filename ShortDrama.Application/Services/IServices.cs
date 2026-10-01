@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ShortDrama.Application.Adapters;
 using ShortDrama.Application.DTOs;
 
 namespace ShortDrama.Application.Services
@@ -21,6 +22,19 @@ namespace ShortDrama.Application.Services
 
         /// <summary>把某平台的短剧数据同步入库（用于本地化与加速后续查询）</summary>
         Task<int> SyncPlatformAsync(string platformCode, CancellationToken ct = default);
+
+        /// <summary>
+        /// 某个平台自己的分类表，直接读源站接口（苹果CMS 的 ac=list → class）。
+        /// 不依赖本地库：新开的源本地是空的，本地统计出来的分类只剩「全部」。
+        /// </summary>
+        Task<List<PlatformCategoryItem>> GetLiveCategoriesAsync(string platformCode, CancellationToken ct = default);
+
+        /// <summary>
+        /// 某个平台的源站目录分页，直接读源站接口（ac=detail[&amp;t=分类]&amp;pg=页码）。
+        /// typeId 为空 = 该源的全站目录。同样不经过本地库。
+        /// </summary>
+        Task<PagedResult<DramaDto>> GetLiveCatalogAsync(
+            string platformCode, string? typeId, int page, int pageSize, CancellationToken ct = default);
     }
 
     public interface IDramaService

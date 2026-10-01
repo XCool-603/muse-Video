@@ -1,6 +1,12 @@
 import { request, type PagedResult } from './request'
 import type { Drama, DramaDetail, Episode, PlayInfo, PlayProgress } from './types'
 
+/** 源站自己的分类（苹果CMS 的 class：type_id / type_name） */
+export interface PlatformCategory {
+  typeId: string
+  typeName: string
+}
+
 export const dramaApi = {
   /** 聚合搜索：跨平台并行 + 去重合并 */
   search(params: { q: string; page?: number; pageSize?: number; platform?: string }) {
@@ -51,6 +57,24 @@ export const dramaApi = {
    */
   categories(platform?: string) {
     return request<string[]>({ url: '/drama/categories', method: 'get', params: { platform } })
+  },
+
+  /**
+   * 该平台自己的分类表，直接读源站接口（苹果CMS 的 ac=list）。
+   * 与 categories() 的区别：那个是「本地库统计出来的」，新开的源本地是空的；
+   * 这个是源站真实分类，任何已启用的源都能拿到。
+   */
+  liveCategories(platform: string) {
+    return request<PlatformCategory[]>({ url: `/drama/live/${platform}/categories`, method: 'get' })
+  },
+
+  /**
+   * 该平台的目录分页，直接读源站接口（ac=detail[&t=分类]&pg=页码）。
+   * typeId 不传 = 该源的全站目录（最新在前）。
+   */
+  liveCatalog(params: { platform: string; typeId?: string; page?: number; pageSize?: number }) {
+    const { platform, ...rest } = params
+    return request<PagedResult<Drama>>({ url: `/drama/live/${platform}/catalog`, method: 'get', params: rest })
   },
 
   /** 把平台原始剧集导入本地库（管理员） */

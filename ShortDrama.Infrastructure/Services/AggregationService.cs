@@ -307,6 +307,130 @@ namespace ShortDrama.Infrastructure.Services
             return _bootstrapper.BootstrapAsync(platformCode, ct);
         }
 
+        /// <summary>
+        /// 某个平台可浏览的分类。
+        /// 优先读源站自己的分类表（苹果CMS 的 ac=list → class）；
+        /// 不支持目录直读的源（黄果/红果/黄豆不是苹果CMS）退回本地库统计出来的分类 ——
+        /// 这些源的本地库本来就有内容，退回本地是它们唯一能给的分类。
+        /// </summary>
+        public async Task<List<PlatformCategoryItem>> GetLiveCategoriesAsync(
+            string platformCode, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(platformCode)) return new List<PlatformCategoryItem>();
+
+            var cacheKey = $"live-cats:{platformCode}";
+            if (_cache.TryGetValue(cacheKey, out List<PlatformCategoryItem>? cached) && cached is not null)
+            {
+                return cached;
+            }
+
+            if (_adapters.Get(platformCode) is ILiveCatalogAdapter live)
+            {
+                var categories = await live.GetCategoriesAsync(ct);
+                if (categories.Count > 0)
+                {
+                    // 分类表变动很慢，缓存 10 分钟：切平台来回点不该每次都问源站
+                    _cache.Set(cacheKey, categories, TimeSpan.FromMinutes(10));
+                    return categories;
+                }
+            }
+
+            var local = await _db.Dramas.AsNoTracking()
+                .Where(d => d.PlatformCode == platformCode && d.Category != null && d.Category != "")
+                .GroupBy(d => d.Category)
+                .Select(g => new { Name = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .ThenBy(x => x.Name)
+                .Select(x => x.Name)
+                .ToListAsync(ct);
+
+            // 本地回退时，分类的「键」就是分类名本身
+            var fallback = local
+                .Select(n => new PlatformCategoryItem { TypeId = n, TypeName = n })
+                .ToList();
+
+            if (fallback.Count > 0)
+            {
+                _cache.Set(cacheKey, fallback, TimeSpan.FromMinutes(10));
+            }
+
+            return fallback;
+        }
+
+        /// <summary>
+        /// 某个平台的可浏览内容（按平台浏览的数据来源）。
+        /// 支持目录直读的源直接打源站（ac=detail[&amp;t=分类]&amp;pg=页码）；
+        /// 其余源退回本地库 —— 此时 typeId 是本地分类名。
+        /// </summary>
+        public async Task<PagedResult<DramaDto>> GetLiveCatalogAsync(
+            string platformCode, string? typeId, int page, int pageSize, CancellationToken ct = default)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 50);
+
+            var adapter = _adapters.Get(platformCode);
+
+            if (adapter is ILiveCatalogAdapter live)
+            {
+                var cacheKey = $"live-cat:{platformCode}|{typeId}|{page}|{pageSize}";
+                if (_options.CacheSeconds > 0 &&
+                    _cache.TryGetValue(cacheKey, out PagedResult<DramaDto>? cached) && cached is not null)
+                {
+                    return cached;
+                }
+
+                var result = await live.GetCatalogPageAsync(typeId, page, pageSize, ct);
+
+                var liveItems = result.Items.Select(i => new DramaDto
+                {
+                    // Id = 0：这些条目还没落库。前端点开时会走 /drama/resolve 按需入库，
+                    // 之后播放页拿到的才是本地 Id。
+                    Id = 0,
+                    Title = i.Title,
+                    Description = i.Description,
+                    CoverUrl = i.CoverUrl,
+                    Category = i.Category,
+                    TotalEpisodes = i.TotalEpisodes,
+                    Status = string.IsNullOrWhiteSpace(i.Status) ? "ongoing" : i.Status,
+                    Rating = i.Rating,
+                    PlatformCode = adapter.PlatformCode,
+                    PlatformDramaId = i.PlatformDramaId,
+                    PlatformName = adapter.PlatformName,
+                    Sources = new List<string> { adapter.PlatformCode },
+                    UpdatedAt = DateTime.UtcNow
+                }).ToList();
+
+                var livePage = PagedResult<DramaDto>.Create(liveItems, result.Total, page, pageSize);
+
+                // 列表内容变动快，缓存 2 分钟；源站抽风时不至于每次刷新都空
+                if (_options.CacheSeconds > 0 && liveItems.Count > 0)
+                {
+                    _cache.Set(cacheKey, livePage, TimeSpan.FromSeconds(Math.Max(120, _options.CacheSeconds)));
+                }
+
+                return livePage;
+            }
+
+            // 本地回退（黄果/红果/黄豆等非苹果CMS 源）
+            var query = _db.Dramas.AsNoTracking().Where(d => d.PlatformCode == platformCode);
+            if (!string.IsNullOrWhiteSpace(typeId))
+            {
+                query = query.Where(d => d.Category == typeId);
+            }
+
+            var total = await query.CountAsync(ct);
+            var rows = await query
+                .OrderByDescending(d => d.UpdatedAt)
+                .ThenByDescending(d => d.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+
+            return PagedResult<DramaDto>.Create(
+                rows.Select(d => Mapper.ToDto(d, adapter?.PlatformName ?? string.Empty)).ToList(),
+                total, page, pageSize);
+        }
+
         /// <summary>是否点名要了某一个具体平台（不是「全部」）</summary>
         private static bool IsExplicitPlatform(string? platformCode)
             => !string.IsNullOrWhiteSpace(platformCode) &&

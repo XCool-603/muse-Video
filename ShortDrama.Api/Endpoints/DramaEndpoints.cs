@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using ShortDrama.Application.Adapters;
 using ShortDrama.Application.DTOs;
 using ShortDrama.Application.Services;
 
@@ -86,6 +87,41 @@ namespace ShortDrama.Api.Endpoints
             })
             .WithName("GetPlatforms")
             .WithSummary("平台筛选列表");
+
+            // ===== 按平台浏览：直接读源站接口，不经过本地库 =====
+            // 本地库是按关键词播种出来的，只能看到「已入库的那部分」；
+            // 新开的源在同步之前本地是空的（分类只剩「全部」、列表 0~1 条）。
+            // 这两个接口让平台页永远有内容，而且是最新的。
+
+            // 该平台自己的分类表（苹果CMS 的 ac=list → class）
+            group.MapGet("/live/{platform}/categories", async (
+                string platform,
+                IAggregationService service,
+                CancellationToken ct) =>
+            {
+                var categories = await service.GetLiveCategoriesAsync(platform, ct);
+                return Results.Ok(ApiResponse<System.Collections.Generic.List<PlatformCategoryItem>>.Success(categories));
+            })
+            .WithName("GetLiveCategories")
+            .WithSummary("某平台自己的分类表（读源站接口）")
+            .RequireRateLimiting("api");
+
+            // 该平台的目录分页（ac=detail[&t=分类]&pg=页码）
+            group.MapGet("/live/{platform}/catalog", async (
+                string platform,
+                [FromQuery] string? typeId,
+                [FromQuery] int page,
+                [FromQuery] int pageSize,
+                IAggregationService service,
+                CancellationToken ct) =>
+            {
+                var result = await service.GetLiveCatalogAsync(
+                    platform, typeId, page <= 0 ? 1 : page, pageSize <= 0 ? 18 : pageSize, ct);
+                return Results.Ok(ApiResponse<PagedResult<DramaDto>>.Success(result));
+            })
+            .WithName("GetLiveCatalog")
+            .WithSummary("某平台的目录分页（读源站接口）")
+            .RequireRateLimiting("api");
 
             // 本地库列表（支持关键词/分类/平台/排序/分页）
             // live=true 时把分类/关键词交给聚合搜索，会并行打各平台接口，

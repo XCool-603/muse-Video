@@ -5,7 +5,7 @@
       <div class="sd-container hero-inner">
         <h1 class="hero-title">聚合全网短剧，一站搜索观看</h1>
         <p class="hero-sub">
-          {{ platformStore.all().length }} 个平台 · 按平台浏览（一次只查一个源），搜索仍可全网检索
+          {{ platformStore.all().length }} 个平台 · 按平台浏览（内容实时取自各平台接口），搜索仍可全网检索
         </p>
 
         <div class="search-box">
@@ -19,11 +19,7 @@
           />
         </div>
 
-        <!--
-          平台优先：浏览路径上不再有「全部」。
-          「全部」意味着并行打十几个源、等最慢的那个，这正是之前首页卡的原因；
-          选定一个平台后，下面的榜单/上新/列表都只查这一个源。
-        -->
+        <!-- 平台优先：浏览路径上没有「全部」，一次只打一个源 -->
         <div class="hero-platforms">
           <span class="sd-muted">平台：</span>
           <div class="platform-tabs">
@@ -44,41 +40,48 @@
     </section>
 
     <div class="sd-container">
-      <!-- 分类快捷入口。本地库为空的平台只剩「全部」一条，那种时候整行没有意义，直接不显示 -->
-      <div v-if="categories.length > 1" class="category-chips">
+      <!--
+        分类来自源站自己的分类表（ac=list），不再从本地库统计：
+        本地库是按关键词播种出来的，新开的源本地是空的，统计出来只剩「全部」一条。
+      -->
+      <div v-if="sortedCategories.length" class="category-chips">
+        <button class="chip" :class="{ active: typeId === '' }" @click="selectType('')">全部</button>
         <button
-          v-for="cat in categories"
-          :key="cat"
+          v-for="c in visibleCategories"
+          :key="c.typeId"
           class="chip"
-          :class="{ active: activeCategory === cat }"
-          @click="selectCategory(cat)"
+          :class="{ active: typeId === c.typeId, short: isShortCategory(c) }"
+          @click="selectType(c.typeId)"
         >
-          {{ cat }}
+          {{ c.typeName }}
+        </button>
+        <button v-if="sortedCategories.length > CHIP_LIMIT" class="chip chip-more" @click="chipsExpanded = !chipsExpanded">
+          {{ chipsExpanded ? '收起' : `更多分类 +${sortedCategories.length - CHIP_LIMIT}` }}
         </button>
       </div>
 
-      <!--
-        本地库放最前面：它只查本地（实测 16ms），切平台/翻页都是瞬时的。
-        榜单和上新要打源站（单平台 0.5~2 秒），放后面让它们各自转圈，
-        不要挡住首屏 —— 之前首屏是两个全平台聚合区块，用户要等 3 秒才看到东西。
-      -->
+      <!-- 该平台的内容：源站目录分页 -->
       <div class="sd-section-title">
-        <h2>{{ platformName }} · {{ activeCategory === '全部' ? '全部内容' : activeCategory }}</h2>
-        <span class="sd-muted">{{ total }} 部</span>
+        <h2>{{ platformName }} · {{ currentTypeName }}</h2>
+        <span class="sd-muted">{{ total > 0 ? `共 ${total} 部 · ` : '' }}实时取自该平台接口</span>
       </div>
 
       <a-spin :spinning="listLoading">
-        <div v-if="dramaList.length" class="drama-grid">
-          <DramaCard v-for="item in dramaList" :key="item.id" :drama="item" />
+        <div v-if="list.length" class="drama-grid">
+          <DramaCard
+            v-for="item in list"
+            :key="`${item.platformCode}-${item.platformDramaId}`"
+            :drama="item"
+          />
         </div>
-        <a-empty v-else description="该平台的内容还没同步到本地库：下面的实时榜单/上新仍然可用，也可以在管理后台对它点「同步」" />
+        <a-empty v-else description="该分类下暂时取不到内容（部分源站的分类翻页本身就不全，可试试「全部」）" />
       </a-spin>
 
       <div v-if="hasMore" class="load-more">
         <a-button :loading="listLoading" @click="loadMore">加载更多</a-button>
       </div>
 
-      <!-- 榜单 -->
+      <!-- 榜单：同样是实时打该平台 -->
       <div class="sd-section-title">
         <h2>{{ platformName }} · 榜单</h2>
       </div>
@@ -95,23 +98,6 @@
         </div>
         <a-empty v-else description="该平台暂无榜单数据" />
       </a-spin>
-
-      <!-- 今日上新 -->
-      <div class="sd-section-title">
-        <h2>{{ platformName }} · 今日上新</h2>
-        <a-button type="link" @click="router.push('/category')">查看更多</a-button>
-      </div>
-
-      <a-spin :spinning="latestLoading">
-        <div v-if="latestList.length" class="drama-grid">
-          <DramaCard
-            v-for="item in latestList"
-            :key="`latest-${item.platformCode}-${item.platformDramaId}`"
-            :drama="item"
-          />
-        </div>
-        <a-empty v-else description="该平台暂无上新内容" />
-      </a-spin>
     </div>
   </div>
 </template>
@@ -119,7 +105,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { dramaApi } from '@/api/drama'
+import { dramaApi, type PlatformCategory } from '@/api/drama'
 import type { Drama } from '@/api/types'
 import { usePlatformStore } from '@/stores/platform'
 import DramaCard from '@/components/DramaCard.vue'
@@ -127,26 +113,55 @@ import DramaCard from '@/components/DramaCard.vue'
 const router = useRouter()
 const platformStore = usePlatformStore()
 
+/** 分类一多就是一整面墙，先显示这么多个，其余折起来 */
+const CHIP_LIMIT = 14
+
+/** 这些词出现在源站分类名里，说明是短剧相关的分类，排到前面去 */
+const SHORT_DRAMA_HINTS = ['短剧', '爽剧', '逆袭', '重生', '霸总', '穿越', '甜宠', '闪婚', '漫剧']
+
 const keyword = ref('')
 /** 当前浏览的平台。始终是某一个具体平台，没有「全部」 */
 const platform = ref('')
 const platformName = computed(() => platformStore.nameOf(platform.value) || '该平台')
-const activeCategory = ref('全部')
-const rankType = ref('hot')
 
-const categories = ref<string[]>(['全部'])
+const categories = ref<PlatformCategory[]>([])
+/** 当前选中的源站分类；空 = 该源的全站目录 */
+const typeId = ref('')
+const chipsExpanded = ref(false)
 
-const rankList = ref<Drama[]>([])
-const latestList = ref<Drama[]>([])
-const dramaList = ref<Drama[]>([])
-const rankLoading = ref(false)
-const latestLoading = ref(false)
+const list = ref<Drama[]>([])
 const listLoading = ref(false)
-
 const page = ref(1)
-const pageSize = 12
+const pageSize = 18
 const total = ref(0)
 const hasMore = ref(false)
+
+const rankType = ref('hot')
+const rankList = ref<Drama[]>([])
+const rankLoading = ref(false)
+
+function isShortCategory(c: PlatformCategory) {
+  return SHORT_DRAMA_HINTS.some((h) => c.typeName.includes(h))
+}
+
+/** 短剧相关分类排前面，其余按源站顺序 */
+const sortedCategories = computed(() => {
+  return [...categories.value].sort((a, b) => {
+    const sa = isShortCategory(a) ? 0 : 1
+    const sb = isShortCategory(b) ? 0 : 1
+    if (sa !== sb) return sa - sb
+    return (Number(a.typeId) || 0) - (Number(b.typeId) || 0)
+  })
+})
+
+const visibleCategories = computed(() =>
+  chipsExpanded.value ? sortedCategories.value : sortedCategories.value.slice(0, CHIP_LIMIT)
+)
+
+const currentTypeName = computed(() => {
+  if (!typeId.value) return '全部内容'
+  return categories.value.find((c) => c.typeId === typeId.value)?.typeName ?? '全部内容'
+})
 
 function handleSearch() {
   if (!keyword.value.trim()) return
@@ -159,30 +174,53 @@ function selectPlatform(code: string) {
   platform.value = code
   platformStore.select(code)
 
-  // 分类是各采集源自己的字段：换平台后原来的分类可能在新平台里根本不存在，
-  // 所以先按新平台重取分类（选中的那个不在其中就退回「全部」），再刷新各区块
-  loadCategories().then(() => {
-    loadRank()
-    loadLatest()
-    loadList(true)
-  })
+  // 换平台后原来的分类在新区里多半不存在，直接回到「全部」
+  typeId.value = ''
+  chipsExpanded.value = false
+
+  loadCategories()
+  loadList(true)
+  loadRank()
 }
 
-/**
- * 按当前平台取分类。分类列表必须跟着平台走 ——
- * 全平台去重能出上百个分类，而其中绝大多数在某个具体源里是空的，
- * 用户点下去只会看到「暂无内容」。
- * 换平台后原来选中的分类可能在新平台里不存在，就退回「全部」。
- */
+function selectType(id: string) {
+  if (id === typeId.value) return
+  typeId.value = id
+  loadList(true)
+}
+
 async function loadCategories() {
   try {
-    categories.value = await dramaApi.categories(platform.value)
+    categories.value = await dramaApi.liveCategories(platform.value)
   } catch {
-    categories.value = ['全部']
+    categories.value = []
+  }
+}
+
+async function loadList(reset = true) {
+  listLoading.value = true
+  if (reset) {
+    page.value = 1
+    list.value = []
   }
 
-  if (!categories.value.includes(activeCategory.value)) {
-    activeCategory.value = '全部'
+  try {
+    const result = await dramaApi.liveCatalog({
+      platform: platform.value,
+      typeId: typeId.value || undefined,
+      page: page.value,
+      pageSize
+    })
+
+    list.value = reset ? result.items : [...list.value, ...result.items]
+    total.value = result.total
+    // 源站声明的 total 常常远大于它真正肯给的页数（有的源翻到第 2 页就是空的），
+    // 所以「还有更多」要看这一页到底有没有拿到东西。
+    hasMore.value = result.items.length > 0 && list.value.length < result.total
+  } catch {
+    hasMore.value = false
+  } finally {
+    listLoading.value = false
   }
 }
 
@@ -197,63 +235,19 @@ async function loadRank() {
   }
 }
 
-async function loadLatest() {
-  latestLoading.value = true
-  try {
-    latestList.value = await dramaApi.latest(activeCategory.value, 10, platform.value)
-  } catch {
-    latestList.value = []
-  } finally {
-    latestLoading.value = false
-  }
-}
-
-async function loadList(reset = true) {
-  listLoading.value = true
-  if (reset) {
-    page.value = 1
-    dramaList.value = []
-  }
-
-  try {
-    const result = await dramaApi.list({
-      category: activeCategory.value,
-      platform: platform.value,
-      sortBy: 'hot',
-      page: page.value,
-      pageSize
-    })
-
-    dramaList.value = reset ? result.items : [...dramaList.value, ...result.items]
-    total.value = result.total
-    hasMore.value = dramaList.value.length < result.total
-  } catch {
-    hasMore.value = false
-  } finally {
-    listLoading.value = false
-  }
-}
-
 function loadMore() {
   page.value += 1
   loadList(false)
 }
 
-function selectCategory(cat: string) {
-  activeCategory.value = cat
-  loadLatest()
-  loadList(true)
-}
-
 onMounted(async () => {
   await platformStore.load()
-  // 平台列表拿到之后才能落定默认平台（上次选的，或剧数最多的那个）
+  // 平台列表拿到之后才能落定默认平台（上次选的，或内容最多的那个）
   platform.value = platformStore.ensureSelected()
 
-  await loadCategories()
-  loadRank()
-  loadLatest()
+  loadCategories()
   loadList(true)
+  loadRank()
 })
 </script>
 
@@ -305,7 +299,7 @@ onMounted(async () => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  max-width: 860px;
+  max-width: 900px;
 }
 
 .platform-tab {
@@ -365,6 +359,16 @@ onMounted(async () => {
   color: #fff;
   background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
   border-color: transparent;
+}
+
+/* 源站分类名里带「短剧」等词的，描边highlight一下，方便一眼找到 */
+.chip.short:not(.active) {
+  color: #ffb3c1;
+  border-color: rgba(255, 77, 109, 0.5);
+}
+
+.chip-more {
+  border-style: dashed;
 }
 
 .load-more {

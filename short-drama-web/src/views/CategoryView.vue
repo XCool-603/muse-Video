@@ -2,20 +2,12 @@
   <div class="category-view sd-container">
     <div class="sd-section-title">
       <h2>分类浏览</h2>
+      <span class="sd-muted">内容实时取自该平台接口</span>
     </div>
 
     <div class="filter-bar">
-      <!-- 本地库为空的平台只剩「全部」一个分类，这行筛选就没意义了 -->
-      <div v-if="categories.length > 1" class="filter-group">
-        <span class="filter-label">分类</span>
-        <a-radio-group v-model:value="category" size="small" button-style="solid" @change="reload">
-          <a-radio-button v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</a-radio-button>
-        </a-radio-group>
-      </div>
-
       <div class="filter-group">
         <span class="filter-label">平台</span>
-        <!-- 没有「全部」：全平台意味着并行打十几个源，是这一页之前卡的原因 -->
         <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="onPlatformChange">
           <a-radio-button v-for="p in platformStore.all()" :key="p.platformCode" :value="p.platformCode">
             {{ p.platformName }}
@@ -23,21 +15,30 @@
         </a-radio-group>
       </div>
 
-      <div class="filter-group">
-        <span class="filter-label">排序</span>
-        <a-radio-group v-model:value="sortBy" size="small" button-style="solid" @change="reload">
-          <a-radio-button value="hot">最热</a-radio-button>
-          <a-radio-button value="new">最新</a-radio-button>
-          <a-radio-button value="rating">高分</a-radio-button>
+      <!--
+        分类来自源站自己的分类表（ac=list）。本地库统计出来的那套只覆盖「已入库的部分」，
+        新开的源本地是空的，统计出来只剩「全部」一条。
+      -->
+      <div v-if="categories.length" class="filter-group">
+        <span class="filter-label">分类</span>
+        <a-radio-group v-model:value="typeId" size="small" button-style="solid" @change="load(true)">
+          <a-radio-button value="">全部</a-radio-button>
+          <a-radio-button v-for="c in categories" :key="c.typeId" :value="c.typeId">
+            {{ c.typeName }}
+          </a-radio-button>
         </a-radio-group>
       </div>
     </div>
 
     <a-spin :spinning="loading">
       <div v-if="list.length" class="drama-grid">
-        <DramaCard v-for="item in list" :key="item.id" :drama="item" />
+        <DramaCard
+          v-for="item in list"
+          :key="`${item.platformCode}-${item.platformDramaId}`"
+          :drama="item"
+        />
       </div>
-      <a-empty v-else description="该分类下暂无内容；若刚打开的平台本地库还没同步，可在管理后台对它点「同步」" />
+      <a-empty v-else description="该分类下暂时取不到内容（部分源站的分类翻页本身就不全，可试试「全部」）" />
     </a-spin>
 
     <div v-if="hasMore" class="load-more">
@@ -48,18 +49,18 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { dramaApi } from '@/api/drama'
+import { dramaApi, type PlatformCategory } from '@/api/drama'
 import type { Drama } from '@/api/types'
 import { usePlatformStore } from '@/stores/platform'
 import DramaCard from '@/components/DramaCard.vue'
 
 const platformStore = usePlatformStore()
 
-const categories = ref<string[]>(['全部'])
-const category = ref('全部')
-/** 当前平台。没有「全部」，始终是一个具体平台，所以实时补充只打一个源 */
+/** 当前平台。没有「全部」，始终是一个具体平台 */
 const platform = ref('')
-const sortBy = ref('hot')
+/** 源站分类；空 = 该源全站目录 */
+const typeId = ref('')
+const categories = ref<PlatformCategory[]>([])
 
 const list = ref<Drama[]>([])
 const loading = ref(false)
@@ -67,6 +68,14 @@ const page = ref(1)
 const pageSize = 18
 const total = ref(0)
 const hasMore = ref(false)
+
+async function loadCategories() {
+  try {
+    categories.value = await dramaApi.liveCategories(platform.value)
+  } catch {
+    categories.value = []
+  }
+}
 
 async function load(reset = true) {
   loading.value = true
@@ -76,21 +85,17 @@ async function load(reset = true) {
   }
 
   try {
-    const result = await dramaApi.list({
-      category: category.value,
+    const result = await dramaApi.liveCatalog({
       platform: platform.value,
-      sortBy: sortBy.value,
+      typeId: typeId.value || undefined,
       page: page.value,
-      pageSize,
-      // 实时模式：选了具体分类时，后端会把分类当关键词去该平台搜一遍，
-      // 再和本地库合并去重 —— 否则分类浏览只能看到已入库的那部分。
-      // 因为平台是确定的，这里只打一个源，不再有全平台并行那种等待。
-      live: true
+      pageSize
     })
 
     list.value = reset ? result.items : [...list.value, ...result.items]
     total.value = result.total
-    hasMore.value = list.value.length < result.total
+    // 有的源翻到第 2 页就是空的，所以「还有更多」要看这一页实际拿到了什么
+    hasMore.value = result.items.length > 0 && list.value.length < result.total
   } catch {
     hasMore.value = false
   } finally {
@@ -98,37 +103,17 @@ async function load(reset = true) {
   }
 }
 
-function reload() {
-  load(true)
-}
-
-/**
- * 按当前平台取分类。分类是各采集源自己的字段：不跟平台走的话，
- * 全平台去重能出上百个分类，而其中绝大多数在某个具体源里是空的，
- * 选出来点进去就是「暂无内容」。
- */
-async function loadCategories() {
-  try {
-    categories.value = await dramaApi.categories(platform.value)
-  } catch {
-    categories.value = ['全部']
-  }
-
-  if (!categories.value.includes(category.value)) {
-    category.value = '全部'
-  }
+function loadMore() {
+  page.value += 1
+  load(false)
 }
 
 async function onPlatformChange() {
   // 切平台同时记住，回首页也停在这个平台
   platformStore.select(platform.value)
+  typeId.value = ''
   await loadCategories()
   load(true)
-}
-
-function loadMore() {
-  page.value += 1
-  load(false)
 }
 
 onMounted(async () => {

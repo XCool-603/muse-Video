@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ namespace ShortDrama.Infrastructure.Adapters
     ///
     /// 只需在配置里填一个 api 地址即可接入一个新源，无需改动任何上层代码。
     /// </summary>
-    public class AppleCmsAdapter : IPlatformAdapter
+    public class AppleCmsAdapter : IPlatformAdapter, ILiveCatalogAdapter
     {
         private readonly AppleCmsSource _source;
         private readonly AppleCmsOptions _options;
@@ -190,28 +191,139 @@ namespace ShortDrama.Infrastructure.Adapters
                 .ToList();
         }
 
+        // ==================== 源站目录直读（ILiveCatalogAdapter）====================
+
+        /// <summary>
+        /// 源站自己的分类表。苹果CMS 的 ac=list 会在 class 字段里返回全部分类，
+        /// 这是「按平台浏览」时分类的来源 —— 不再依赖本地库统计。
+        /// </summary>
+        public async Task<List<PlatformCategoryItem>> GetCategoriesAsync(CancellationToken ct = default)
+        {
+            var envelope = await FetchEnvelopeAsync("ac=list", 0, ct);
+            return envelope.Classes;
+        }
+
+        /// <summary>
+        /// 按源站分类翻页取目录。typeId 为空 = 该源的全站目录。
+        /// 过滤规则与搜索/榜单/上新一致（成人内容开关对目录同样生效）。
+        /// </summary>
+        public async Task<PlatformCatalogPage> GetCatalogPageAsync(
+            string? typeId, int page, int pageSize, CancellationToken ct = default)
+        {
+            page = Math.Max(1, page);
+            var query = string.IsNullOrWhiteSpace(typeId)
+                ? $"ac=detail&pg={page}"
+                : $"ac=detail&t={Uri.EscapeDataString(typeId)}&pg={page}";
+
+            var envelope = await FetchEnvelopeAsync(query, Math.Clamp(pageSize, 1, 100), ct);
+
+            return new PlatformCatalogPage
+            {
+                Total = envelope.Total,
+                Items = envelope.Items
+                    .Where(PassesFilter)
+                    .GroupBy(i => GetString(i, "vod_id"))
+                    .Select(g => g.First())
+                    .Select(i => new PlatformNewItem
+                    {
+                        PlatformDramaId = GetString(i, "vod_id"),
+                        Title = GetString(i, "vod_name"),
+                        CoverUrl = GetString(i, "vod_pic"),
+                        Category = MapCategory(GetString(i, "type_name")),
+                        Description = FirstNonEmpty(GetString(i, "vod_blurb"), GetString(i, "vod_content")),
+                        Status = GetString(i, "vod_remarks")
+                    })
+                    .ToList()
+            };
+        }
+
         // ==================== 内部实现 ====================
+
+        /// <summary>接口返回的信封：list（条目）、total（总数）、class（分类表）</summary>
+        private sealed class CmsEnvelope
+        {
+            public List<Dictionary<string, JsonElement>> Items { get; } = new();
+            public int Total { get; set; }
+            public List<PlatformCategoryItem> Classes { get; } = new();
+        }
 
         /// <summary>拉取列表；失败返回空集合，绝不抛出（聚合搜索不能因单源失败而整体失败）</summary>
         private async Task<List<Dictionary<string, JsonElement>>> FetchListAsync(string query, int take = 0)
         {
+            var envelope = await FetchEnvelopeAsync(query, take, default);
+            return envelope.Items;
+        }
+
+        /// <summary>
+        /// 取接口原始信封。比 FetchListAsync 多带出 total 与 class ——
+        /// 「按平台浏览」需要总数（分页）和分类表（筛选项）。
+        /// </summary>
+        private async Task<CmsEnvelope> FetchEnvelopeAsync(string query, int take, CancellationToken ct)
+        {
+            var envelope = new CmsEnvelope();
             var url = BuildUrl(query);
             try
             {
-                using var response = await _http.GetAsync(url);
+                using var response = await _http.GetAsync(url, ct);
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogWarning("采集源 {Platform} 返回 {Status}: {Url}", PlatformName, (int)response.StatusCode, url);
-                    return new List<Dictionary<string, JsonElement>>();
+                    return envelope;
                 }
 
-                var body = await response.Content.ReadAsStringAsync();
+                var body = await response.Content.ReadAsStringAsync(ct);
 
-                var list = _source.Format.Equals("xml", StringComparison.OrdinalIgnoreCase)
-                    ? ParseXml(body)
-                    : ParseJson(body, url);
+                if (_source.Format.Equals("xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    envelope.Items.AddRange(ParseXml(body));
+                    return envelope;
+                }
 
-                return take > 0 && list.Count > take ? list.Take(take).ToList() : list;
+                if (string.IsNullOrWhiteSpace(body) || body.TrimStart().StartsWith('<'))
+                {
+                    _logger.LogDebug("采集源 {Platform} 返回非 JSON 内容: {Url}", PlatformName, url);
+                    return envelope;
+                }
+
+                using var doc = JsonDocument.Parse(body);
+
+                if (doc.RootElement.TryGetProperty("list", out var list) && list.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var element in list.EnumerateArray())
+                    {
+                        if (element.ValueKind != JsonValueKind.Object) continue;
+                        if (take > 0 && envelope.Items.Count >= take) break;
+
+                        var dict = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var prop in element.EnumerateObject())
+                        {
+                            dict[prop.Name] = prop.Value.Clone();
+                        }
+                        envelope.Items.Add(dict);
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("total", out var total) &&
+                    total.ValueKind == JsonValueKind.Number && total.TryGetInt32(out var totalValue))
+                {
+                    envelope.Total = totalValue;
+                }
+
+                if (doc.RootElement.TryGetProperty("class", out var classes) && classes.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var element in classes.EnumerateArray())
+                    {
+                        if (element.ValueKind != JsonValueKind.Object) continue;
+
+                        var id = element.TryGetProperty("type_id", out var tid) ? tid.ToString() : string.Empty;
+                        var name = element.TryGetProperty("type_name", out var tname) ? tname.ToString() : string.Empty;
+                        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name)) continue;
+
+                        envelope.Classes.Add(new PlatformCategoryItem { TypeId = id, TypeName = name });
+                    }
+                }
+
+                return envelope;
             }
             catch (Exception ex)
             {
@@ -219,7 +331,7 @@ namespace ShortDrama.Infrastructure.Adapters
                 // 不打完整堆栈，否则日志会被单个坏源淹没。
                 _logger.LogWarning("采集源 {Platform} 请求失败（{Reason}）: {Url}",
                     PlatformName, ex.GetBaseException().Message, url);
-                return new List<Dictionary<string, JsonElement>>();
+                return envelope;
             }
         }
 
@@ -228,38 +340,6 @@ namespace ShortDrama.Infrastructure.Adapters
             var api = _source.Api;
             var separator = api.Contains('?') ? '&' : '?';
             return $"{api}{separator}{query}";
-        }
-
-        private List<Dictionary<string, JsonElement>> ParseJson(string body, string url)
-        {
-            var result = new List<Dictionary<string, JsonElement>>();
-
-            if (string.IsNullOrWhiteSpace(body) || body.TrimStart().StartsWith('<'))
-            {
-                _logger.LogDebug("采集源 {Platform} 返回非 JSON 内容: {Url}", PlatformName, url);
-                return result;
-            }
-
-            using var doc = JsonDocument.Parse(body);
-            if (!doc.RootElement.TryGetProperty("list", out var list) ||
-                list.ValueKind != JsonValueKind.Array)
-            {
-                return result;
-            }
-
-            foreach (var element in list.EnumerateArray())
-            {
-                if (element.ValueKind != JsonValueKind.Object) continue;
-
-                var dict = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-                foreach (var prop in element.EnumerateObject())
-                {
-                    dict[prop.Name] = prop.Value.Clone();
-                }
-                result.Add(dict);
-            }
-
-            return result;
         }
 
         /// <summary>兼容 /at/xml/ 接口格式</summary>
