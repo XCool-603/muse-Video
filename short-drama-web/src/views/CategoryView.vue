@@ -5,7 +5,8 @@
     </div>
 
     <div class="filter-bar">
-      <div class="filter-group">
+      <!-- 本地库为空的平台只剩「全部」一个分类，这行筛选就没意义了 -->
+      <div v-if="categories.length > 1" class="filter-group">
         <span class="filter-label">分类</span>
         <a-radio-group v-model:value="category" size="small" button-style="solid" @change="reload">
           <a-radio-button v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</a-radio-button>

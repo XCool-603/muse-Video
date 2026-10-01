@@ -132,7 +132,14 @@ namespace ShortDrama.Infrastructure.Services
                 }
             }).ToList();
 
-            if (hard > 0 && tasks.Count > 0)
+            if (explicitPlatform)
+            {
+                // 点名要一个平台：这次请求就是这一个源，不该再被「并行打十几个源」调出来的
+                // 预算砍掉。实测量子资源的榜单接口要 6.7 秒，一到 5 秒硬上限就被取消，
+                // 页面上就成了「榜单 0 条」。等它自己超时（HttpClient 12 秒）即可。
+                await Task.WhenAll(tasks);
+            }
+            else if (hard > 0 && tasks.Count > 0)
             {
                 while (true)
                 {
@@ -247,7 +254,8 @@ namespace ShortDrama.Infrastructure.Services
             });
 
             // 受预算约束：实测等齐所有平台要 12 秒，而首页挂载时就要用
-            var all = (await AwaitWithBudget(tasks, ct, minReadyOverride: 6)).SelectMany(x => x).ToList();
+            var all = (await AwaitWithBudget(tasks, ct, minReadyOverride: 6, waitForAll: IsExplicitPlatform(platformCode)))
+                .SelectMany(x => x).ToList();
 
             return DeduplicateAndMerge(all)
                 .OrderByDescending(d => d.PlayCount)
@@ -284,7 +292,8 @@ namespace ShortDrama.Infrastructure.Services
             });
 
             // 受预算约束：实测等齐所有平台要 17 秒，而首页挂载时就要用
-            var all = (await AwaitWithBudget(tasks, ct, minReadyOverride: 6)).SelectMany(x => x).ToList();
+            var all = (await AwaitWithBudget(tasks, ct, minReadyOverride: 6, waitForAll: IsExplicitPlatform(platformCode)))
+                .SelectMany(x => x).ToList();
             return DeduplicateAndMerge(all)
                 .GroupBy(d => d.PlatformDramaId)
                 .Select(g => g.First())
@@ -298,6 +307,11 @@ namespace ShortDrama.Infrastructure.Services
             return _bootstrapper.BootstrapAsync(platformCode, ct);
         }
 
+        /// <summary>是否点名要了某一个具体平台（不是「全部」）</summary>
+        private static bool IsExplicitPlatform(string? platformCode)
+            => !string.IsNullOrWhiteSpace(platformCode) &&
+               !platformCode.Equals("all", StringComparison.OrdinalIgnoreCase);
+
         /// <summary>
         /// 按平台筛选要查询的适配器。
         /// 不传（或传 "all"）= 全部平台；传具体平台只打那一个源 ——
@@ -306,7 +320,7 @@ namespace ShortDrama.Infrastructure.Services
         private List<IPlatformAdapter> SelectAdapters(string? platformCode)
         {
             var all = _adapters.GetAll();
-            if (string.IsNullOrWhiteSpace(platformCode) || platformCode.Equals("all", StringComparison.OrdinalIgnoreCase))
+            if (!IsExplicitPlatform(platformCode))
             {
                 return all.ToList();
             }
@@ -326,10 +340,18 @@ namespace ShortDrama.Infrastructure.Services
         /// 平台之间的差异是「快的一秒内返回、慢的十几秒」，等齐没有任何意义。
         /// </summary>
         private async Task<List<T>> AwaitWithBudget<T>(
-            IEnumerable<Task<T>> pending, CancellationToken ct, int? minReadyOverride = null)
+            IEnumerable<Task<T>> pending, CancellationToken ct, int? minReadyOverride = null, bool waitForAll = false)
         {
             var tasks = pending.ToList();
             if (tasks.Count == 0) return new List<T>();
+
+            // 点名要一个平台：等它自己返回（或它自己超时），不套用全平台那套预算。
+            // 实测量子资源的榜单要 6.7 秒，硬上限 5 秒会把它取消成「0 条」。
+            if (waitForAll)
+            {
+                await Task.WhenAll(tasks);
+                return tasks.Where(t => t.IsCompletedSuccessfully).Select(t => t.Result).ToList();
+            }
 
             var hard = _options.SearchBudgetMs;
             if (hard <= 0)

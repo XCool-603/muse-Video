@@ -44,8 +44,8 @@
     </section>
 
     <div class="sd-container">
-      <!-- 分类快捷入口 -->
-      <div class="category-chips">
+      <!-- 分类快捷入口。本地库为空的平台只剩「全部」一条，那种时候整行没有意义，直接不显示 -->
+      <div v-if="categories.length > 1" class="category-chips">
         <button
           v-for="cat in categories"
           :key="cat"
