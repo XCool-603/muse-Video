@@ -82,6 +82,13 @@ namespace ShortDrama.Api.Endpoints
             {
                 var logger = loggerFactory.CreateLogger("PlayStream");
 
+                // 播放列表是动态生成的（去广告、分片直连/代理两种模式），绝不能进浏览器缓存。
+                // 不设这个头时浏览器会按启发式规则缓存，于是修好之后用户仍然拿到旧内容：
+                // 实测出现过「服务端已返回绝对密钥地址，浏览器却还在请求旧的相对地址 enc.key → 404」，
+                // 以及「服务端已改为 502，浏览器仍在重放旧的 302 到源站 → 跨域报错」。
+                http.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+                http.Response.Headers.Pragma = "no-cache";
+
                 // 分片是否经后端转发：
                 //   默认 false → 播放列表里写 CDN 绝对地址，浏览器直连，后端零视频带宽
                 //   配置开启或请求带 ?proxy=1 → 分片走后端代理（前端直连失败时的兜底）
@@ -209,6 +216,9 @@ namespace ShortDrama.Api.Endpoints
 
                 if (isPlaylist)
                 {
+                    // 子播放列表同样不能进浏览器缓存（原因同主列表）
+                    http.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+
                     var cacheKey = $"clean-seg:{u}";
                     if (cache.TryGetValue(cacheKey, out string? cachedText) && !string.IsNullOrWhiteSpace(cachedText))
                     {
