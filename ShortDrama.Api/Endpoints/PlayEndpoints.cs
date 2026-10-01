@@ -185,7 +185,7 @@ namespace ShortDrama.Api.Endpoints
                     }
 
                     // 异常消息本身带英文句号，去掉避免出现「(Not Found).。」
-                    var reason = filtered.Error.TrimEnd('.', '。', ' ');
+                    var reason = (filtered.Error ?? "未知原因").TrimEnd('.', '。', ' ');
                     return Results.Json(
                         ApiResponse<string>.Fail(5020,
                             $"源站播放列表拉取失败（{info.PlatformName}）：{reason}。" +
