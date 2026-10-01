@@ -75,6 +75,7 @@ namespace ShortDrama.Api.Endpoints
                 IAdFilterService adFilter,
                 IMemoryCache cache,
                 PlaybackOptions playback,
+                IHttpClientFactory httpClientFactory,
                 HttpContext http,
                 ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
@@ -136,15 +137,26 @@ namespace ShortDrama.Api.Endpoints
                     // 否则会在「直连失败 → 代理失败 → 又转回直连」之间绕圈。
                     if (playback.FallbackToDirectPlaylist && proxy != true)
                     {
-                        // 地址里可能带未编码中文，必须先转成 ASCII 才能放进 Location 头
-                        var directUrl = ToAsciiUrl(info.PlayUrl);
-                        logger.LogInformation("改由浏览器直连源站播放列表（不去广告）：{Url}", directUrl);
-                        return Results.Redirect(directUrl);
+                        // 兜底前先探一下源站到底允不允许浏览器直连。
+                        // 不发 Access-Control-Allow-Origin 的源，重定向过去只会让浏览器
+                        // 报一个看不懂的跨域错误（用户反馈过），还不如直接给出带源名的 502。
+                        if (await AllowsBrowserDirectAsync(httpClientFactory, info.PlayUrl, ct))
+                        {
+                            // 地址里可能带未编码中文，必须先转成 ASCII 才能放进 Location 头
+                            var directUrl = ToAsciiUrl(info.PlayUrl);
+                            logger.LogInformation("改由浏览器直连源站播放列表（不去广告）：{Url}", directUrl);
+                            return Results.Redirect(directUrl);
+                        }
+
+                        logger.LogInformation("源站未返回 CORS 头，浏览器直连也会被拦，不做兜底：{Url}",
+                            info.PlayUrl);
                     }
 
+                    // 异常消息本身带英文句号，去掉避免出现「(Not Found).。」
+                    var reason = filtered.Error.TrimEnd('.', '。', ' ');
                     return Results.Json(
                         ApiResponse<string>.Fail(5020,
-                            $"源站播放列表拉取失败（{info.PlatformName}）：{filtered.Error}。" +
+                            $"源站播放列表拉取失败（{info.PlatformName}）：{reason}。" +
                             "可能是该源在服务器所在地不可达，或被源站按地区拒绝"),
                         statusCode: StatusCodes.Status502BadGateway);
                 }
@@ -269,6 +281,32 @@ namespace ShortDrama.Api.Endpoints
             })
             .WithName("PlayHistory")
             .RequireAuthorization();
+        }
+
+        /// <summary>
+        /// 探测源站是否允许浏览器跨域直连：带 Origin 头请求一次，看响应里有没有
+        /// Access-Control-Allow-Origin。
+        ///
+        /// 注意要看「即使是 4xx/5xx 的响应」的头 —— 有些 CDN 在错误响应上也会带 ACAO，
+        /// 那说明浏览器至少能拿到响应，重定向过去是有意义的。
+        /// 完全不带的（例如 bfeng10.com）重定向过去只会得到跨域报错，就不该兜底。
+        /// </summary>
+        private static async Task<bool> AllowsBrowserDirectAsync(
+            IHttpClientFactory factory, string url, CancellationToken ct)
+        {
+            try
+            {
+                var client = factory.CreateClient("stream");
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.TryAddWithoutValidation("Origin", "http://localhost");
+                using var response = await client.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, ct);
+                return response.Headers.Contains("Access-Control-Allow-Origin");
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
