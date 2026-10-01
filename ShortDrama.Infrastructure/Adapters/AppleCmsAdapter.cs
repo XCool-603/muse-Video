@@ -127,6 +127,13 @@ namespace ShortDrama.Infrastructure.Adapters
 
             var items = await FetchListAsync(order, limit);
 
+            // 有的源站根本不支持 h 排序参数：实测辣椒资源 h=9 / h=8 都直接返回空列表，
+            // 于是热播榜、推荐榜整块是空的。退化成「该源最新」，总比空着强。
+            if (items.Count == 0 && order.Contains("&h=", StringComparison.Ordinal))
+            {
+                items = await FetchListAsync("ac=detail&pg=1", limit);
+            }
+
             return items
                 .Where(PassesFilter)
                 .OrderByDescending(i => GetLong(i, "vod_hits"))
