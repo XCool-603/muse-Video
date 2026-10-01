@@ -4,7 +4,9 @@
     <section class="hero">
       <div class="sd-container hero-inner">
         <h1 class="hero-title">聚合全网短剧，一站搜索观看</h1>
-        <p class="hero-sub">红果 · 黄豆 · 剧果 · 野果 · 帝果 —— 多平台内容统一检索与播放</p>
+        <p class="hero-sub">
+          {{ platformStore.withContent().length }} 个采集源 · 按平台浏览（一次只查一个源），搜索仍可全网检索
+        </p>
 
         <div class="search-box">
           <a-input-search
@@ -17,14 +19,26 @@
           />
         </div>
 
+        <!--
+          平台优先：浏览路径上不再有「全部」。
+          「全部」意味着并行打十几个源、等最慢的那个，这正是之前首页卡的原因；
+          选定一个平台后，下面的榜单/上新/列表都只查这一个源。
+        -->
         <div class="hero-platforms">
-          <span class="sd-muted">平台筛选：</span>
-          <a-radio-group v-model:value="platform" size="small" button-style="solid">
-            <a-radio-button value="all">全部</a-radio-button>
-            <a-radio-button v-for="p in platformStore.withContent()" :key="p.platformCode" :value="p.platformCode">
+          <span class="sd-muted">平台：</span>
+          <div class="platform-tabs">
+            <button
+              v-for="p in platformStore.withContent()"
+              :key="p.platformCode"
+              class="platform-tab"
+              :class="{ active: p.platformCode === platform }"
+              :title="p.playNote || p.platformName"
+              @click="selectPlatform(p.platformCode)"
+            >
               {{ p.platformName }}
-            </a-radio-button>
-          </a-radio-group>
+              <span class="platform-count">{{ p.dramaCount }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -43,9 +57,30 @@
         </button>
       </div>
 
+      <!--
+        本地库放最前面：它只查本地（实测 16ms），切平台/翻页都是瞬时的。
+        榜单和上新要打源站（单平台 0.5~2 秒），放后面让它们各自转圈，
+        不要挡住首屏 —— 之前首屏是两个全平台聚合区块，用户要等 3 秒才看到东西。
+      -->
+      <div class="sd-section-title">
+        <h2>{{ platformName }} · {{ activeCategory === '全部' ? '全部内容' : activeCategory }}</h2>
+        <span class="sd-muted">{{ total }} 部</span>
+      </div>
+
+      <a-spin :spinning="listLoading">
+        <div v-if="dramaList.length" class="drama-grid">
+          <DramaCard v-for="item in dramaList" :key="item.id" :drama="item" />
+        </div>
+        <a-empty v-else description="该平台暂无内容" />
+      </a-spin>
+
+      <div v-if="hasMore" class="load-more">
+        <a-button :loading="listLoading" @click="loadMore">加载更多</a-button>
+      </div>
+
       <!-- 榜单 -->
       <div class="sd-section-title">
-        <h2>短剧榜单</h2>
+        <h2>{{ platformName }} · 榜单</h2>
       </div>
 
       <a-tabs v-model:activeKey="rankType" @change="loadRank">
@@ -58,12 +93,12 @@
         <div v-if="rankList.length" class="drama-grid">
           <DramaCard v-for="item in rankList" :key="`${item.platformCode}-${item.platformDramaId}`" :drama="item" />
         </div>
-        <a-empty v-else description="暂无榜单数据" />
+        <a-empty v-else description="该平台暂无榜单数据" />
       </a-spin>
 
       <!-- 今日上新 -->
       <div class="sd-section-title">
-        <h2>今日上新</h2>
+        <h2>{{ platformName }} · 今日上新</h2>
         <a-button type="link" @click="router.push('/category')">查看更多</a-button>
       </div>
 
@@ -75,30 +110,14 @@
             :drama="item"
           />
         </div>
-        <a-empty v-else description="暂无上新内容" />
+        <a-empty v-else description="该平台暂无上新内容" />
       </a-spin>
-
-      <!-- 本地精选 -->
-      <div class="sd-section-title">
-        <h2>{{ activeCategory === '全部' ? '精选推荐' : `${activeCategory} · 精选` }}</h2>
-      </div>
-
-      <a-spin :spinning="listLoading">
-        <div v-if="dramaList.length" class="drama-grid">
-          <DramaCard v-for="item in dramaList" :key="item.id" :drama="item" />
-        </div>
-        <a-empty v-else description="暂无内容" />
-      </a-spin>
-
-      <div v-if="hasMore" class="load-more">
-        <a-button :loading="listLoading" @click="loadMore">加载更多</a-button>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { dramaApi } from '@/api/drama'
 import type { Drama } from '@/api/types'
@@ -109,7 +128,9 @@ const router = useRouter()
 const platformStore = usePlatformStore()
 
 const keyword = ref('')
-const platform = ref('all')
+/** 当前浏览的平台。始终是某一个具体平台，没有「全部」 */
+const platform = ref('')
+const platformName = computed(() => platformStore.nameOf(platform.value) || '该平台')
 const activeCategory = ref('全部')
 const rankType = ref('hot')
 
@@ -129,7 +150,19 @@ const hasMore = ref(false)
 
 function handleSearch() {
   if (!keyword.value.trim()) return
-  router.push({ path: '/search', query: { q: keyword.value.trim(), platform: platform.value } })
+  // 搜索保持全网：这是聚合站的核心能力，要缩小范围可以在搜索页自己选平台
+  router.push({ path: '/search', query: { q: keyword.value.trim() } })
+}
+
+function selectPlatform(code: string) {
+  if (code === platform.value) return
+  platform.value = code
+  platformStore.select(code)
+
+  // 榜单/上新跟着平台走（各打一个源），本地列表瞬时刷新
+  loadRank()
+  loadLatest()
+  loadList(true)
 }
 
 async function loadCategories() {
@@ -143,7 +176,7 @@ async function loadCategories() {
 async function loadRank() {
   rankLoading.value = true
   try {
-    rankList.value = await dramaApi.rank(rankType.value, 10)
+    rankList.value = await dramaApi.rank(rankType.value, 10, platform.value)
   } catch {
     rankList.value = []
   } finally {
@@ -154,7 +187,7 @@ async function loadRank() {
 async function loadLatest() {
   latestLoading.value = true
   try {
-    latestList.value = await dramaApi.latest(activeCategory.value, 10)
+    latestList.value = await dramaApi.latest(activeCategory.value, 10, platform.value)
   } catch {
     latestList.value = []
   } finally {
@@ -200,7 +233,10 @@ function selectCategory(cat: string) {
 }
 
 onMounted(async () => {
-  platformStore.load()
+  await platformStore.load()
+  // 平台列表拿到之后才能落定默认平台（上次选的，或剧数最多的那个）
+  platform.value = platformStore.ensureSelected()
+
   await loadCategories()
   loadRank()
   loadLatest()
@@ -245,10 +281,48 @@ onMounted(async () => {
 
 .hero-platforms {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.platform-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 860px;
+}
+
+.platform-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--sd-border);
+  background: var(--sd-bg-elevated);
+  color: var(--sd-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.platform-tab:hover {
+  color: var(--sd-text);
+  border-color: #3d3d48;
+}
+
+.platform-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
+  border-color: transparent;
+}
+
+.platform-count {
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .category-chips {

@@ -41,28 +41,30 @@ namespace ShortDrama.Api.Endpoints
             group.MapGet("/rank", async (
                 [FromQuery] string? type,
                 [FromQuery] int limit,
+                [FromQuery] string? platform,
                 IAggregationService service,
                 CancellationToken ct) =>
             {
-                var result = await service.GetRankAsync(type ?? "hot", limit <= 0 ? 20 : limit, ct);
+                var result = await service.GetRankAsync(type ?? "hot", limit <= 0 ? 20 : limit, platform, ct);
                 return Results.Ok(ApiResponse<System.Collections.Generic.List<DramaDto>>.Success(result));
             })
             .WithName("GetRank")
-            .WithSummary("聚合榜单：推荐 / 热播 / 新剧")
+            .WithSummary("聚合榜单：推荐 / 热播 / 新剧（可只查单个平台）")
             .RequireRateLimiting("api");
 
             // 今日上新
             group.MapGet("/latest", async (
                 [FromQuery] string? category,
                 [FromQuery] int limit,
+                [FromQuery] string? platform,
                 IAggregationService service,
                 CancellationToken ct) =>
             {
-                var result = await service.GetLatestAsync(category ?? "全部", limit <= 0 ? 20 : limit, ct);
+                var result = await service.GetLatestAsync(category ?? "全部", limit <= 0 ? 20 : limit, platform, ct);
                 return Results.Ok(ApiResponse<System.Collections.Generic.List<DramaDto>>.Success(result));
             })
             .WithName("GetLatest")
-            .WithSummary("今日上新")
+            .WithSummary("今日上新（可只查单个平台）")
             .RequireRateLimiting("api");
 
             // 分类列表

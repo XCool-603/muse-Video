@@ -32,12 +32,17 @@ export const dramaApi = {
     return request<Episode[]>({ url: `/drama/${id}/episodes`, method: 'get' })
   },
 
-  rank(type = 'hot', limit = 20) {
-    return request<Drama[]>({ url: '/drama/rank', method: 'get', params: { type, limit } })
+  /**
+   * 榜单。传 platform 只查那一个平台（一个源一次请求）；
+   * 不传才是全平台聚合 —— 全平台要并行打十几个源，是首页卡顿的来源。
+   */
+  rank(type = 'hot', limit = 20, platform?: string) {
+    return request<Drama[]>({ url: '/drama/rank', method: 'get', params: { type, limit, platform } })
   },
 
-  latest(category = '全部', limit = 20) {
-    return request<Drama[]>({ url: '/drama/latest', method: 'get', params: { category, limit } })
+  /** 今日上新。platform 语义同 rank */
+  latest(category = '全部', limit = 20, platform?: string) {
+    return request<Drama[]>({ url: '/drama/latest', method: 'get', params: { category, limit, platform } })
   },
 
   categories() {

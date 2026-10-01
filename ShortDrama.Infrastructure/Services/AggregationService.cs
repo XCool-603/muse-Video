@@ -139,6 +139,10 @@ namespace ShortDrama.Infrastructure.Services
                     var done = tasks.Count(t => t.IsCompleted);
                     var elapsed = (int)sw.ElapsedMilliseconds;
 
+                    // 所有平台都返回了就没什么可等的。
+                    // 少了这一条，「只查一个平台」也要空等到软期限（实测单源 3.1 秒），
+                    // 因为下面那条要求 done >= minReady 且 elapsed >= soft 同时成立。
+                    if (done >= tasks.Count) break;
                     if (done >= minReady && elapsed >= soft) break;
                     if (elapsed >= hard) break;
 
@@ -213,9 +217,9 @@ namespace ShortDrama.Infrastructure.Services
             return pageResult;
         }
 
-        public async Task<List<DramaDto>> GetRankAsync(string type, int limit = 20, CancellationToken ct = default)
+        public async Task<List<DramaDto>> GetRankAsync(string type, int limit = 20, string? platformCode = null, CancellationToken ct = default)
         {
-            var adapters = _adapters.GetAll();
+            var adapters = SelectAdapters(platformCode);
 
             var tasks = adapters.Select(async adapter =>
             {
@@ -251,9 +255,9 @@ namespace ShortDrama.Infrastructure.Services
                 .ToList();
         }
 
-        public async Task<List<DramaDto>> GetLatestAsync(string category = "全部", int limit = 20, CancellationToken ct = default)
+        public async Task<List<DramaDto>> GetLatestAsync(string category = "全部", int limit = 20, string? platformCode = null, CancellationToken ct = default)
         {
-            var adapters = _adapters.GetAll();
+            var adapters = SelectAdapters(platformCode);
 
             var tasks = adapters.Select(async adapter =>
             {
@@ -294,6 +298,24 @@ namespace ShortDrama.Infrastructure.Services
             return _bootstrapper.BootstrapAsync(platformCode, ct);
         }
 
+        /// <summary>
+        /// 按平台筛选要查询的适配器。
+        /// 不传（或传 "all"）= 全部平台；传具体平台只打那一个源 ——
+        /// 这是「按平台浏览」不卡的根据：一个源一次请求，而不是并行打十几个。
+        /// </summary>
+        private List<IPlatformAdapter> SelectAdapters(string? platformCode)
+        {
+            var all = _adapters.GetAll();
+            if (string.IsNullOrWhiteSpace(platformCode) || platformCode.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                return all.ToList();
+            }
+
+            return all
+                .Where(a => a.PlatformCode.Equals(platformCode, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
         /// <summary>按标题相似度合并同剧多源，保留信息最完整的一条并汇总来源</summary>
         /// <summary>
         /// 等一批平台任务，但受两段式预算约束：软期限到点且已收到足够多结果就返回，
@@ -327,6 +349,10 @@ namespace ShortDrama.Infrastructure.Services
                 var done = tasks.Count(t => t.IsCompleted);
                 var elapsed = (int)sw.ElapsedMilliseconds;
 
+                // 同 SearchAsync：平台都回来了就直接收工。
+                // 原先这里只判「软期限 + 数量门槛」，于是 15 个平台 1 秒就全回来了，
+                // 首页的榜单/上新还是硬等 3 秒 —— 实测 rank 3.2s、latest 3.4s 基本都是这个空等。
+                if (done >= tasks.Count) break;
                 if (done >= minReady && elapsed >= soft) break;
                 if (elapsed >= hard) break;
 

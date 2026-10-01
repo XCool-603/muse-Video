@@ -14,8 +14,8 @@
 
       <div class="filter-group">
         <span class="filter-label">平台</span>
+        <!-- 没有「全部」：全平台意味着并行打十几个源，是这一页之前卡的原因 -->
         <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="reload">
-          <a-radio-button value="all">全部</a-radio-button>
           <a-radio-button v-for="p in platformStore.withContent()" :key="p.platformCode" :value="p.platformCode">
             {{ p.platformName }}
           </a-radio-button>
@@ -56,7 +56,8 @@ const platformStore = usePlatformStore()
 
 const categories = ref<string[]>(['全部'])
 const category = ref('全部')
-const platform = ref('all')
+/** 当前平台。没有「全部」，始终是一个具体平台，所以实时补充只打一个源 */
+const platform = ref('')
 const sortBy = ref('hot')
 
 const list = ref<Drama[]>([])
@@ -80,8 +81,9 @@ async function load(reset = true) {
       sortBy: sortBy.value,
       page: page.value,
       pageSize,
-      // 实时模式：选了具体分类时，后端会把分类当关键词并行打各平台接口，
-      // 再和本地库合并去重 —— 否则分类浏览只能看到已入库的那部分
+      // 实时模式：选了具体分类时，后端会把分类当关键词去该平台搜一遍，
+      // 再和本地库合并去重 —— 否则分类浏览只能看到已入库的那部分。
+      // 因为平台是确定的，这里只打一个源，不再有全平台并行那种等待。
       live: true
     })
 
@@ -96,6 +98,8 @@ async function load(reset = true) {
 }
 
 function reload() {
+  // 切平台同时记住，回首页也停在这个平台
+  platformStore.select(platform.value)
   load(true)
 }
 
@@ -105,7 +109,9 @@ function loadMore() {
 }
 
 onMounted(async () => {
-  platformStore.load()
+  await platformStore.load()
+  platform.value = platformStore.ensureSelected()
+
   try {
     categories.value = await dramaApi.categories()
   } catch {

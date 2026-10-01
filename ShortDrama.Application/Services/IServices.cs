@@ -10,11 +10,14 @@ namespace ShortDrama.Application.Services
         /// <summary>跨平台聚合搜索：并行请求各适配器 + 本地库，去重合并后统一排序分页</summary>
         Task<PagedResult<DramaDto>> SearchAsync(string keyword, int page, int pageSize, string? platformCode = null, CancellationToken ct = default);
 
-        /// <summary>跨平台聚合榜单</summary>
-        Task<List<DramaDto>> GetRankAsync(string type, int limit = 20, CancellationToken ct = default);
+        /// <summary>
+        /// 聚合榜单。platformCode 为空或 "all" = 全部平台；
+        /// 传具体平台则只打那一个源（按平台浏览时的快路径）。
+        /// </summary>
+        Task<List<DramaDto>> GetRankAsync(string type, int limit = 20, string? platformCode = null, CancellationToken ct = default);
 
-        /// <summary>跨平台聚合今日上新</summary>
-        Task<List<DramaDto>> GetLatestAsync(string category = "全部", int limit = 20, CancellationToken ct = default);
+        /// <summary>聚合今日上新。platformCode 语义同 <see cref="GetRankAsync"/></summary>
+        Task<List<DramaDto>> GetLatestAsync(string category = "全部", int limit = 20, string? platformCode = null, CancellationToken ct = default);
 
         /// <summary>把某平台的短剧数据同步入库（用于本地化与加速后续查询）</summary>
         Task<int> SyncPlatformAsync(string platformCode, CancellationToken ct = default);
