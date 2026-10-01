@@ -45,8 +45,12 @@ export const dramaApi = {
     return request<Drama[]>({ url: '/drama/latest', method: 'get', params: { category, limit, platform } })
   },
 
-  categories() {
-    return request<string[]>({ url: '/drama/categories', method: 'get' })
+  /**
+   * 分类列表。传 platform 只返回该平台真的有的分类（按内容量排序）——
+   * 分类是各采集源自己的字段，不跟平台走的话，选出来的分类点进去大多是空的。
+   */
+  categories(platform?: string) {
+    return request<string[]>({ url: '/drama/categories', method: 'get', params: { platform } })
   },
 
   /** 把平台原始剧集导入本地库（管理员） */

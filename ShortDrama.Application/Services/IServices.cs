@@ -34,7 +34,13 @@ namespace ShortDrama.Application.Services
         /// <summary>库里没有分集时回源补齐（配合全量目录快速入库）</summary>
         Task<bool> EnsureEpisodesAsync(long dramaId, CancellationToken ct = default);
 
-        Task<List<string>> GetCategoriesAsync(CancellationToken ct = default);
+        /// <summary>
+        /// 分类列表。传 platformCode 只返回该平台真的有的分类（按内容量从多到少），
+        /// 不传则返回全平台去重后的分类。
+        /// 分类是各采集源自己的字段，同一个分类名在不同源里差别很大：全平台能出上百个，
+        /// 而按平台浏览时其中绝大多数在那个源里是空的 —— 所以分类列表必须跟着平台走。
+        /// </summary>
+        Task<List<string>> GetCategoriesAsync(string? platformCode = null, CancellationToken ct = default);
 
         /// <summary>前端平台筛选列表（只返回启用的、且有内容的平台）</summary>
         Task<List<PlatformInfoDto>> GetPlatformsAsync(CancellationToken ct = default);

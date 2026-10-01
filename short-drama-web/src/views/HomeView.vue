@@ -159,17 +159,30 @@ function selectPlatform(code: string) {
   platform.value = code
   platformStore.select(code)
 
-  // 榜单/上新跟着平台走（各打一个源），本地列表瞬时刷新
-  loadRank()
-  loadLatest()
-  loadList(true)
+  // 分类是各采集源自己的字段：换平台后原来的分类可能在新平台里根本不存在，
+  // 所以先按新平台重取分类（选中的那个不在其中就退回「全部」），再刷新各区块
+  loadCategories().then(() => {
+    loadRank()
+    loadLatest()
+    loadList(true)
+  })
 }
 
+/**
+ * 按当前平台取分类。分类列表必须跟着平台走 ——
+ * 全平台去重能出上百个分类，而其中绝大多数在某个具体源里是空的，
+ * 用户点下去只会看到「暂无内容」。
+ * 换平台后原来选中的分类可能在新平台里不存在，就退回「全部」。
+ */
 async function loadCategories() {
   try {
-    categories.value = await dramaApi.categories()
+    categories.value = await dramaApi.categories(platform.value)
   } catch {
     categories.value = ['全部']
+  }
+
+  if (!categories.value.includes(activeCategory.value)) {
+    activeCategory.value = '全部'
   }
 }
 

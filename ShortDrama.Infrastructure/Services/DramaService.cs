@@ -214,15 +214,31 @@ namespace ShortDrama.Infrastructure.Services
             return episodes.Select(Mapper.ToEpisodeDto).ToList();
         }
 
-        public async Task<List<string>> GetCategoriesAsync(CancellationToken ct = default)
+        public async Task<List<string>> GetCategoriesAsync(string? platformCode = null, CancellationToken ct = default)
         {
-            var categories = await _db.Dramas.AsNoTracking()
-                .Select(d => d.Category)
-                .Distinct()
+            var query = _db.Dramas.AsNoTracking().AsQueryable();
+
+            // 按平台取分类：分类名是各采集源自己的字段，源与源之间差别很大。
+            // 全平台去重能出上百个分类（大量只有一两部的杂项），而按平台浏览时
+            // 其中绝大多数在那个源里根本没有内容 —— 前端点下去就是「暂无内容」。
+            if (!string.IsNullOrWhiteSpace(platformCode) &&
+                !platformCode.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(d => d.PlatformCode == platformCode);
+            }
+
+            // 按内容量排序：常用的分类排在前面，长尾杂项自然沉到最后
+            var categories = await query
+                .Where(d => d.Category != null && d.Category != "")
+                .GroupBy(d => d.Category)
+                .Select(g => new { Name = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .ThenBy(x => x.Name)
+                .Select(x => x.Name)
                 .ToListAsync(ct);
 
             var ordered = new List<string> { "全部" };
-            ordered.AddRange(categories.Where(c => !string.IsNullOrWhiteSpace(c)).OrderBy(c => c));
+            ordered.AddRange(categories.Where(c => !string.IsNullOrWhiteSpace(c)));
             return ordered;
         }
 

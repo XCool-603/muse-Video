@@ -15,7 +15,7 @@
       <div class="filter-group">
         <span class="filter-label">平台</span>
         <!-- 没有「全部」：全平台意味着并行打十几个源，是这一页之前卡的原因 -->
-        <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="reload">
+        <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="onPlatformChange">
           <a-radio-button v-for="p in platformStore.withContent()" :key="p.platformCode" :value="p.platformCode">
             {{ p.platformName }}
           </a-radio-button>
@@ -98,8 +98,30 @@ async function load(reset = true) {
 }
 
 function reload() {
+  load(true)
+}
+
+/**
+ * 按当前平台取分类。分类是各采集源自己的字段：不跟平台走的话，
+ * 全平台去重能出上百个分类，而其中绝大多数在某个具体源里是空的，
+ * 选出来点进去就是「暂无内容」。
+ */
+async function loadCategories() {
+  try {
+    categories.value = await dramaApi.categories(platform.value)
+  } catch {
+    categories.value = ['全部']
+  }
+
+  if (!categories.value.includes(category.value)) {
+    category.value = '全部'
+  }
+}
+
+async function onPlatformChange() {
   // 切平台同时记住，回首页也停在这个平台
   platformStore.select(platform.value)
+  await loadCategories()
   load(true)
 }
 
@@ -112,11 +134,7 @@ onMounted(async () => {
   await platformStore.load()
   platform.value = platformStore.ensureSelected()
 
-  try {
-    categories.value = await dramaApi.categories()
-  } catch {
-    categories.value = ['全部']
-  }
+  await loadCategories()
   load(true)
 })
 </script>

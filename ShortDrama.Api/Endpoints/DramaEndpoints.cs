@@ -68,9 +68,12 @@ namespace ShortDrama.Api.Endpoints
             .RequireRateLimiting("api");
 
             // 分类列表
-            group.MapGet("/categories", async (IDramaService service, CancellationToken ct) =>
+            group.MapGet("/categories", async (
+                [FromQuery] string? platform,
+                IDramaService service,
+                CancellationToken ct) =>
             {
-                var categories = await service.GetCategoriesAsync(ct);
+                var categories = await service.GetCategoriesAsync(platform, ct);
                 return Results.Ok(ApiResponse<System.Collections.Generic.List<string>>.Success(categories));
             })
             .WithName("GetCategories");
