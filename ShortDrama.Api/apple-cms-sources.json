@@ -153,7 +153,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "2026-10-01 恢复为「可配置但默认关闭」。接口本身可用，但用短剧关键词搜索会直接返回色情内容（证据见文件末尾 //44~//59 与 docs/SOURCES.md 5.5）。要启用请先自行核验内容合规性。"
+        "note": "2026-10-01 恢复为「可配置但默认关闭」。接口本身可用，但用短剧关键词搜索会直接返回色情内容（证据见文件末尾 //44~//59 与 docs/SOURCES.md 5.5）。要启用：把这条的 enabled 改成 true 并重启后端（管理后台的开关只对已注册适配器的源有效，对 enabled=false 的源点了没用）。"
       },
       {
         "platformCode": "acms_didi",
@@ -162,7 +162,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_heihei",
@@ -171,7 +171,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_lebo",
@@ -180,7 +180,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_senlin",
@@ -189,7 +189,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_naixiang",
@@ -198,7 +198,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_shayu",
@@ -207,7 +207,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_lajiao",
@@ -216,7 +216,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_jingpin",
@@ -225,7 +225,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       },
       {
         "platformCode": "acms_yutu",
@@ -234,7 +234,7 @@
         "enabled": false,
         "format": "json",
         "shortDramaTypeIds": [],
-        "note": "同上：接口可用、内容不合规，默认关闭。"
+        "note": "同上：接口可用、内容不合规，默认关闭。要启用：enabled 改 true 并重启。"
       }
     ]
   },
@@ -277,7 +277,7 @@
   "//42": "  火速  https://api.huosuapi.cc/api.php/provide/vod/     → 可连但搜索恒为 0 条",
   "//43": "===========================================================",
   "//44": "【关于源站内容】以上源均为第三方公开采集站，内容非本系统提供。",
-  "//45": "2026-09-30 复测：以下 10 个源用短剧相关关键词搜索会直接返回色情内容（含乱伦、性侵类描述）。2026-10-01 处置：它们在上面的 sources 里保留、但 enabled=false —— 配置里看得见、后台能单独开关，默认不参与聚合。要启用请先自行核验内容合规性；域名与证据留在此处作为审计痕迹。",
+  "//45": "2026-09-30 复测：以下 10 个源用短剧相关关键词搜索会直接返回色情内容（含乱伦、性侵类描述）。2026-10-01 处置：它们在上面的 sources 里保留、但 enabled=false，默认不参与聚合。要启用：把对应条目的 enabled 改成 true 并重启后端（管理后台的开关只对已注册适配器的源有效，对 enabled=false 的源点了没用）。启用前请自行核验内容合规性；域名与证据留在此处作为审计痕迹。",
   "//46": "实测「短剧」一词的结果里命中露骨特征词的比例（抽样 60-70 条标题）：",
   "//47": "  155   https://155api.com/api.php/provide/vod/           → 17 条命中，含乱伦、性侵类描述",
   "//48": "  滴滴  https://api.ddapi.cc/api.php/provide/vod/",
