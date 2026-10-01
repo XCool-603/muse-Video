@@ -33,7 +33,20 @@ namespace ShortDrama.Api.Endpoints
                 CancellationToken ct) =>
             {
                 var userId = http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var info = await service.GetPlayInfoAsync(dramaId, episode, userId, ct);
+
+                PlayInfoDto? info;
+                try
+                {
+                    info = await service.GetPlayInfoAsync(dramaId, episode, userId, ct);
+                }
+                catch (NotSupportedException ex)
+                {
+                    // 适配器明确表示该平台无法在服务端播放（例如红果的 DRM 加密）。
+                    // 如实返回原因，不要伪装成「播放源不可用」这种含糊提示。
+                    return Results.Json(
+                        ApiResponse<PlayInfoDto>.Fail(4090, ex.Message),
+                        statusCode: StatusCodes.Status409Conflict);
+                }
 
                 if (info is null)
                 {
@@ -101,7 +114,19 @@ namespace ShortDrama.Api.Endpoints
                     return Results.Text(cached!, "application/vnd.apple.mpegurl", Encoding.UTF8);
                 }
 
-                var info = await playService.GetPlayInfoAsync(dramaId, episode, null, ct);
+                PlayInfoDto? info;
+                try
+                {
+                    info = await playService.GetPlayInfoAsync(dramaId, episode, null, ct);
+                }
+                catch (NotSupportedException ex)
+                {
+                    // 同 /{dramaId}/{episode}：平台本身不可播（DRM 等），如实说明
+                    return Results.Json(
+                        ApiResponse<string>.Fail(4090, ex.Message),
+                        statusCode: StatusCodes.Status409Conflict);
+                }
+
                 if (info is null || string.IsNullOrWhiteSpace(info.PlayUrl))
                 {
                     return Results.NotFound("播放源不可用");

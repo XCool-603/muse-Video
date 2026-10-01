@@ -76,9 +76,26 @@ namespace ShortDrama.Infrastructure.Services
                         // 多源切换 / 会员鉴权绕过策略在适配器内部实现，这里拿到的是干净地址
                         rawUrl = await adapter.GetPlayUrlAsync(drama.PlatformDramaId, episode);
                     }
+                    catch (NotSupportedException)
+                    {
+                        // 适配器明确表示「这个平台无法在服务端播放」（例如红果短剧是
+                        // MP4 CENC / AES-128 CTR DRM 加密，密钥不下发到 Web 端）。
+                        // 必须原样抛出：绝不能退回 ep.VideoUrl —— 那里存的往往只是
+                        // 「官方播放页」地址，拿它当流地址会让上层把网页 HTML 当成播放列表
+                        // 返回给播放器（实测红果就是这样，播放列表里全是 HTML 行）。
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "获取平台播放地址失败，回退本地缓存地址: {Url}", rawUrl);
+
+                        // 回退地址也必须看起来是可播放的媒体地址，否则宁可判为不可播，
+                        // 也不要让一个网页地址冒充视频流。
+                        if (!LooksLikeMediaUrl(rawUrl))
+                        {
+                            _logger.LogWarning("本地缓存地址不是媒体地址，判定为不可播放: {Url}", rawUrl);
+                            return null;
+                        }
                     }
                 }
 
@@ -125,6 +142,16 @@ namespace ShortDrama.Infrastructure.Services
                 StreamType = isProgressive ? "mp4" : "hls"
             };
         }
+
+        /// <summary>
+        /// 判断地址看起来是不是可直接播放的媒体流（HLS / 明文 MP4）。
+        /// 只用于「适配器取地址失败后的回退」这一处：此时宁可判为不可播，
+        /// 也不能把官方播放页之类的网页地址当成视频流。
+        /// </summary>
+        private static bool LooksLikeMediaUrl(string? url) =>
+            !string.IsNullOrWhiteSpace(url) &&
+            (url.Contains(".m3u8", StringComparison.OrdinalIgnoreCase) ||
+             url.Contains(".mp4", StringComparison.OrdinalIgnoreCase));
 
         private async Task IncrementPlayCountAsync(long dramaId)
         {

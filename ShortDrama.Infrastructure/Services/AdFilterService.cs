@@ -73,6 +73,18 @@ namespace ShortDrama.Infrastructure.Services
             var result = new AdFilterResult();
             try
             {
+                // 内容校验：必须真的是 m3u8。
+                // 少了这一步，任何被误当成流地址的网页（实测红果短剧的官方播放页
+                // https://hongguoduanju.com/player/xxx）都会被逐行「重写」成一个假播放列表，
+                // 还返回 200 —— 播放器拿不到任何可播内容，前端却什么都不报，问题被完全掩盖。
+                if (string.IsNullOrWhiteSpace(text) ||
+                    !text.TrimStart().StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Success = false;
+                    result.Error = "源站返回的内容不是 m3u8 播放列表（可能拿到了网页或错误页）";
+                    return result;
+                }
+
                 // Master playlist（含 #EXT-X-STREAM-INF）不处理广告，直接补全绝对地址
                 if (text.Contains("#EXT-X-STREAM-INF", StringComparison.OrdinalIgnoreCase))
                 {

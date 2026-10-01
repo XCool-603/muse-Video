@@ -185,6 +185,52 @@ namespace ShortDrama.Tests
             Assert.Equal("#EXT-X-MEDIA-SEQUENCE:100", seqLine);
         }
 
+        // ==================== 内容校验 ====================
+
+        [Fact]
+        public void ProcessPlaylist_RejectsHtmlContent()
+        {
+            // 实测红果短剧：适配器抛出「DRM 不可播」，但上层把官方播放页地址
+            // 当成流地址，于是网页 HTML 被逐行「重写」成假播放列表并返回 200，
+            // 播放器拿不到内容却不报错。必须在校验处直接判失败。
+            var service = CreateService();
+
+            const string html = """
+                <!doctype html><html lang="zh-CN"><head><title>二嫁有喜 第1集</title>
+                <meta data-rh="true" name="description" content="二嫁有喜在线观看">
+                </head><body><div id="root"></div></body></html>
+                """;
+
+            var result = service.ProcessPlaylist(html, "https://hongguoduanju.com/player/1055/1");
+
+            Assert.False(result.Success);
+            Assert.Contains("不是 m3u8", result.Error);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_RejectsEmptyContent()
+        {
+            var service = CreateService();
+
+            var result = service.ProcessPlaylist("", "https://cdn.example.com/hls/index.m3u8");
+
+            Assert.False(result.Success);
+        }
+
+        [Fact]
+        public void ProcessPlaylist_AcceptsPlaylistWithLeadingWhitespace()
+        {
+            // 有些源在 #EXTM3U 前带空行/空白，不应误判
+            var service = CreateService();
+
+            var result = service.ProcessPlaylist(
+                "\n  #EXTM3U\n#EXTINF:4.000,\nseg_1.ts\n",
+                "https://cdn.example.com/hls/index.m3u8");
+
+            Assert.True(result.Success);
+            Assert.Contains("seg_1.ts", result.Playlist);
+        }
+
         // ==================== 带 URI 属性的标签（加密密钥等） ====================
 
         [Fact]
