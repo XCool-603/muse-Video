@@ -87,14 +87,25 @@ namespace ShortDrama.Infrastructure.Services
             };
         }
 
-        public static string PlatformDisplayName(string code) => code switch
+        /// <summary>
+        /// 平台编码 → 展示名。
+        /// 先查启动期注册进来的配置名字（采集源都走这条，例如 acms_bfzy → 暴风资源），
+        /// 没注册过再退回内置的少量映射，最后才原样返回编码。
+        /// </summary>
+        public static string PlatformDisplayName(string code)
         {
-            "hongguo" => "红果短剧",
-            "huangdou" => "黄豆短剧",
-            "juguo" => "剧果短剧",
-            "yeguo" => "野果短剧",
-            "diguo" => "帝果短剧",
-            _ => code
-        };
+            var registered = PlatformNameRegistry.Resolve(code);
+            if (!string.IsNullOrEmpty(registered)) return registered;
+
+            return code switch
+            {
+                "hongguo" => "红果短剧",
+                "huangdou" => "黄豆短剧",
+                "juguo" => "剧果短剧",
+                "yeguo" => "野果短剧",
+                "diguo" => "帝果短剧",
+                _ => code
+            };
+        }
     }
 }

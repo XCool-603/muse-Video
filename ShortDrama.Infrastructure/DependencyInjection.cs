@@ -46,6 +46,14 @@ namespace ShortDrama.Infrastructure
                            ?? new AppleCmsOptions();
             services.AddSingleton(appleCms);
 
+            // 把采集源的展示名注册进全局表。Mapper 是静态类，拿不到配置；
+            // 本地库内容（列表 / 收藏 / 详情 / 推荐）映射 platformName 时只能查这张表，
+            // 否则前端卡片角标会显示 acms_bfzy 这种内部编码而不是「暴风资源」。
+            foreach (var source in appleCms.Sources)
+            {
+                PlatformNameRegistry.Register(source.PlatformCode, source.PlatformName);
+            }
+
             // 播放代理策略（appsettings.json 的 Playback 段）
             // 默认直连 CDN，视频流量不经过服务器；遇到不发 CORS 头的源再打开代理
             var playback = configuration.GetSection(PlaybackOptions.SectionName).Get<PlaybackOptions>()
