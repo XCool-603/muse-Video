@@ -2,27 +2,81 @@
 
 一条命令跑起来，之后可以自动跟进最新代码。
 
-## 三行部署
+## 一键部署（复制即用）
 
-```bash
-git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
-cp .env.example .env
-docker compose up -d --build
-```
-
-打开 <http://localhost:8080> 就能用。首次构建要拉基础镜像并编译前后端，约 3-5 分钟；之后启动只要几秒。
-
-> 第 2 行的作用是给你一个可编辑的 `.env`。不执行它，compose 会用内置的同名默认值，跑起来效果一样。
->
-> ⚠️ 但这两条路**都不会自动更换 `JWT_KEY`** —— `.env.example` 里放的也是同一个占位值，上线前必须自己改。
-> 想让密钥自动随机生成，用下面的 `./deploy.sh`，它在首次运行时会把占位值替换成随机密钥。
-
-想再少一行、并且顺带拿到**随机 JWT 密钥**和**定时自动更新**，用项目自带脚本（推荐）：
+**Linux / macOS**
 
 ```bash
 git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
 ./deploy.sh
 ```
+
+**Windows（PowerShell）**
+
+```powershell
+git clone https://github.com/XCool-603/muse-Video.git shortdrama
+cd shortdrama
+.\deploy.ps1
+```
+
+脚本会自动完成：检查 Docker 环境 → 生成 `.env`（含**随机 JWT 密钥**）→ 构建镜像 → 启动容器 → 等待健康检查 → 打印访问地址与访问口令。
+
+打开 <http://localhost:8080> 就能用。首次构建要拉基础镜像并编译前后端，约 3-5 分钟；之后启动只要几秒。
+
+> 不想用脚本，等价的手工命令是 `cp .env.example .env && docker compose up -d --build`。
+>
+> ⚠️ 这条路**不会自动更换 `JWT_KEY`** —— `.env.example` 里放的是占位值，上线前必须自己改。
+> 想让密钥自动随机生成，就用上面的 `./deploy.sh`。
+
+## 一键升级（复制即用）
+
+**Linux / macOS**
+
+```bash
+cd shortdrama && ./deploy.sh --update
+```
+
+**Windows（PowerShell）**
+
+```powershell
+cd shortdrama; .\deploy.ps1 -Update
+```
+
+默认是**源码模式**：`git pull --ff-only` → 构建新镜像 → **构建成功才切换**（构建失败时旧容器继续跑，站点不中断）。
+
+**想几秒升完？改用预构建镜像** —— GitHub Actions 已经替你编译好，你这边只 `docker pull`：
+
+```bash
+# 一次性（环境变量优先于 .env，只影响这一次）
+SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest ./deploy.sh --update
+```
+
+想让之后每次升级（含定时任务）都走镜像，就写进 `.env`：把 `.env` 里这一行前面的 `#` 去掉
+
+```bash
+SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
+```
+
+（`.env.example` 里已经有这行、只是被注释掉了。别用 `echo >> .env` 追加 —— 脚本按 `grep | head -1` 取第一个值，追加的第二行不会生效。）
+
+此时不再拉代码、不再编译，只做 `docker compose pull app` + `up -d --no-build`。
+详见[第七节](#7-构建太慢改用预构建镜像)（含私有包登录、ARM 机器注意事项）。
+
+**不想手动升？装一次定时任务，以后不用管**：
+
+```bash
+./deploy.sh --install-cron        # Linux / macOS：每天 04:00 自动升级
+.\deploy.ps1 -InstallTask         # Windows
+```
+
+**只想看看有没有新版本**（退出码 `10` = 有新版本，方便接监控）：
+
+```bash
+./deploy.sh --check
+```
+
+> 不用脚本的等价升级命令：源码模式 `git pull && docker compose up -d --build`；
+> 镜像模式 `docker compose pull app && docker compose up -d`。
 
 ---
 
@@ -74,14 +128,36 @@ cd shortdrama
 
 > 如果提示 `Permission denied`（用 ZIP 下载的源码，或文件系统丢了可执行位），先 `chmod +x deploy.sh`，或者直接用 `bash deploy.sh` 代替 `./deploy.sh`。
 
-### 3. 不想用脚本
+### 3. 不想用脚本（纯 Docker 命令）
 
-脚本只是把下面的步骤串起来，等价的手工命令是：
+脚本只是把下面的步骤串起来。**部署**：
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
+
+**升级**（按你用的模式选一条）：
+
+```bash
+# 源码模式：拉代码后重建
+git pull && docker compose up -d --build
+
+# 镜像模式（.env 里配了 SHORTDRAMA_IMAGE）：只拉镜像再重启，几秒完成
+docker compose pull app && docker compose up -d
+```
+
+**其他常用**：
+
+```bash
+docker compose logs -f app      # 看日志
+docker compose restart app      # 重启
+docker compose down             # 停止（保留数据卷）
+docker compose down -v          # 停止并清空数据
+```
+
+> ⚠️ 纯命令路线不会替换 `JWT_KEY`：`.env.example` 里是占位值，上线前自己改；
+> 或者用 `./deploy.sh`，它在首次运行时会自动生成随机密钥。
 
 ### 4. 常用参数
 

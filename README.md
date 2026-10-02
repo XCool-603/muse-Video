@@ -1,4 +1,4 @@
-﻿# 短剧聚合平台
+# 短剧聚合平台
 
 基于 **.NET 10.0 Minimal API + Vue 3 + Ant Design Vue 4** 的短剧聚合平台，通过统一适配器层聚合多个短剧平台（红果、黄豆、剧果、野果、帝果）的内容，提供**统一搜索、分类浏览、竖屏播放、去广告、收藏与观看历史**能力，并配备完整的管理后台。
 
@@ -56,34 +56,65 @@ cd .. && dotnet run --project ShortDrama.Api -c Release
 
 ### 4. 容器化部署（推荐）
 
-三行跑起来：
+**一键部署**
 
 ```bash
+# Linux / macOS
 git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
-cp .env.example .env
-docker compose up -d --build
-```
-
-或者用自带脚本（少一行，并且会自动生成随机 JWT 密钥、支持定时自动更新）：
-
-```bash
-./deploy.sh          # Linux / macOS
-.\deploy.ps1         # Windows
-```
-
-默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。内置**定时自动更新**：
-
-```bash
-./deploy.sh --install-cron        # Linux / macOS：每天 04:00 自动拉取最新代码并重建重启
-./deploy.sh --update              # 也可以随时手动更新一次
+./deploy.sh
 ```
 
 ```powershell
-.\deploy.ps1 -InstallTask         # Windows
-.\deploy.ps1 -Update
+# Windows（PowerShell）
+git clone https://github.com/XCool-603/muse-Video.git shortdrama
+cd shortdrama
+.\deploy.ps1
 ```
 
-启动后访问 <http://localhost:8080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
+脚本自动完成：检查 Docker 环境 → 生成 `.env`（含**随机 JWT 密钥**）→ 构建镜像 → 启动容器 → 等待健康检查 → 打印访问地址与口令。
+
+**一键升级**
+
+```bash
+# Linux / macOS
+cd shortdrama && ./deploy.sh --update
+```
+
+```powershell
+# Windows
+cd shortdrama; .\deploy.ps1 -Update
+```
+
+默认**源码模式**：`git pull --ff-only` → 构建新镜像 → **构建成功才切换**（构建失败时旧容器继续跑，站点不中断）。
+
+想**几秒升完**，改用预构建镜像（GitHub Actions 已替你编译好）：
+
+```bash
+# 一次性：环境变量优先于 .env
+SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest ./deploy.sh --update
+```
+
+想让之后每次升级（含定时任务）都走镜像，就把 `.env` 里这一行前面的 `#` 去掉：
+
+```bash
+SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
+```
+
+此时升级只 `docker pull` + 重启，不再编译。
+
+不想手动升，装一次定时任务即可；也可以只检查有没有新版本（退出码 `10` = 有新版）：
+
+```bash
+./deploy.sh --install-cron     # Linux / macOS：每天 04:00 自动升级
+./deploy.sh --check            # 只检查，不动容器
+```
+
+```powershell
+.\deploy.ps1 -InstallTask      # Windows
+.\deploy.ps1 -Check
+```
+
+默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:8080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
 
 > 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
 
