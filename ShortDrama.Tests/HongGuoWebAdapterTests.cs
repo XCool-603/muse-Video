@@ -99,6 +99,54 @@ namespace ShortDrama.Tests
             return new HongGuoWebAdapter(options, new HttpClient(new StubHandler(html)), NullLogger.Instance);
         }
 
+        /// <summary>
+        /// 播放页：SSR JSON 里的明文视频地址。注意 / 被转义成 \u002F（与真实页面一致），
+        /// 这是必须处理的坑 —— 不还原的话地址直接不可用。
+        /// </summary>
+        private const string PlayerHtml = """
+            <html><body>
+            <script>window.__INITIAL_STATE__={"series_id":"7687919221593885758","vid":"7687919221593885758","video_player_info":{"duration":98.1,"height":"1280","width":"720","main_url":"https:\u002F\u002Fv26-hgweb.qznovelvod.com\u002Fabc123\u002Fvideo\u002Ftos\u002Fcn\u002Fxxx\u002Findex.mp4?a=8662&br=1261"}}</script>
+            </body></html>
+            """;
+
+        /// <summary>按 URL 片段路由的桩：详情页与播放页返回不同内容</summary>
+        private static HongGuoWebAdapter CreateRoutedAdapter(params (string Fragment, string Body)[] routes)
+        {
+            var options = new HongGuoWebOptions
+            {
+                PlatformCode = "hongguo",
+                PlatformName = "红果短剧",
+                BaseUrl = "https://hongguoduanju.com"
+            };
+            return new HongGuoWebAdapter(options, new HttpClient(new RoutingStubHandler(routes)), NullLogger.Instance);
+        }
+
+        private sealed class RoutingStubHandler : HttpMessageHandler
+        {
+            private readonly (string Fragment, string Body)[] _routes;
+
+            public RoutingStubHandler((string Fragment, string Body)[] routes) => _routes = routes;
+
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                var url = request.RequestUri?.ToString() ?? string.Empty;
+
+                foreach (var (fragment, body) in _routes)
+                {
+                    if (url.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = new StringContent(body, Encoding.UTF8, "text/html")
+                        });
+                    }
+                }
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
+        }
+
         // ==================== 目录解析 ====================
 
         [Fact]
@@ -192,16 +240,36 @@ namespace ShortDrama.Tests
         }
 
         [Fact]
-        public async Task GetPlayUrlAsync_ThrowsWithDrmExplanation()
+        public async Task GetPlayUrlAsync_ExtractsPlainMp4Url_FromPlayerPage()
         {
-            // 视频为 MP4 CENC（AES-128 CTR）DRM 加密，服务端无法解密。
-            // 适配器必须如实抛出，不能返回一个假装能播的地址。
-            var adapter = CreateAdapter(DetailHtml);
+            // 2026-10-02 实测更正：红果视频没有加密，播放页 SSR 的
+            // video_player_info.main_url 就是明文 MP4 地址（CDN 还开了 CORS）。
+            var adapter = CreateRoutedAdapter(
+                ("/detail", DetailHtml),
+                ("/player/", PlayerHtml));
+
+            var url = await adapter.GetPlayUrlAsync("7687919221593885758", 1);
+
+            Assert.StartsWith("https://v26-hgweb.qznovelvod.com/", url);
+            Assert.Contains(".mp4", url);
+            // SSR 把 / 转义成 \u002F，必须还原，否则地址不可用
+            Assert.DoesNotContain("\\u002F", url);
+        }
+
+        [Fact]
+        public async Task GetPlayUrlAsync_EpisodeNotPublished_ExplainsPermission_NotDrm()
+        {
+            // 第 4 集在 SSR 里没有播放页链接：官网只公开前几集（accessible_episode_cnt=3），
+            // 其余要登录/会员。这是权限问题，不是加密问题。
+            var adapter = CreateRoutedAdapter(
+                ("/detail", DetailHtml),
+                ("/player/", PlayerHtml));
 
             var ex = await Assert.ThrowsAsync<NotSupportedException>(
-                () => adapter.GetPlayUrlAsync("7687919221593885758", 1));
+                () => adapter.GetPlayUrlAsync("7687919221593885758", 4));
 
-            Assert.Contains("DRM", ex.Message);
+            Assert.Contains("未在官网公开", ex.Message);
+            Assert.DoesNotContain("DRM", ex.Message);
         }
 
         // ==================== 容错 ====================

@@ -6,6 +6,7 @@
       playsinline
       webkit-playsinline
       :poster="poster"
+      referrerpolicy="no-referrer"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
       @ended="onEnded"

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ namespace ShortDrama.Infrastructure.Services
         private readonly IAdapterFactory _adapters;
         private readonly IMemoryCache _cache;
         private readonly PlayabilityTracker _playability;
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<PlayService> _logger;
 
         private static readonly TimeSpan PlayUrlCacheDuration = TimeSpan.FromMinutes(10);
@@ -29,13 +31,64 @@ namespace ShortDrama.Infrastructure.Services
             IAdapterFactory adapters,
             IMemoryCache cache,
             PlayabilityTracker playability,
+            IHttpClientFactory httpClientFactory,
             ILogger<PlayService> logger)
         {
             _db = db;
             _adapters = adapters;
             _cache = cache;
             _playability = playability;
+            _httpClientFactory = httpClientFactory;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// 判断是「明文 MP4」还是 HLS。
+        ///
+        /// 不能只看扩展名：红果的字节 CDN 地址形如
+        /// https://v26-hgweb.qznovelvod.com/…/video/tos/cn/…?a=8662 —— 没有后缀，
+        /// 只看扩展名会被判成 HLS，交给 hls.js 拉必然失败（实测就是这个问题）。
+        /// 没有明确后缀时探一次 content-type，结果缓存 30 分钟，避免每次播放都探。
+        /// </summary>
+        private async Task<bool> IsProgressiveAsync(string url, CancellationToken ct)
+        {
+            if (url.Contains(".mp4", StringComparison.OrdinalIgnoreCase)) return true;
+            if (url.Contains(".m3u8", StringComparison.OrdinalIgnoreCase)) return false;
+
+            var key = $"urlkind:{url}";
+            if (_cache.TryGetValue(key, out bool cached)) return cached;
+
+            var progressive = false;
+            try
+            {
+                // 用 Range GET 而不是 HEAD：HEAD 在部分 CDN 上不返回 content-type，
+                // 而 Range 只取 1 字节、拿到响应头就断开，代价可以忽略。
+                //
+                // 必须用**不带默认请求头**的客户端：应用里那个 "stream" 客户端带了一个
+                // 假 Referer（https://www.example.com/），而红果的 CDN 会校验 Referer ——
+                // 实测外站 Referer 直接 403 text/html，于是内容类型被判成 HLS，
+                // 交给 hls.js 去拉必然失败。
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
+                using var response = await _httpClientFactory.CreateClient()
+                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+                var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                progressive = mediaType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) &&
+                              !mediaType.Contains("mpegurl", StringComparison.OrdinalIgnoreCase);
+
+                _logger.LogInformation("流类型探测：{Type} → {Kind}  ({Url})",
+                    string.IsNullOrEmpty(mediaType) ? "(无 content-type)" : mediaType,
+                    progressive ? "mp4" : "hls", url);
+            }
+            catch (Exception ex)
+            {
+                // 探测失败就按 HLS 处理（保持原有行为），别因为探测挂了就判不可播
+                _logger.LogWarning(ex, "探测流类型失败，按 HLS 处理: {Url}", url);
+            }
+
+            _cache.Set(key, progressive, TimeSpan.FromMinutes(30));
+            return progressive;
         }
 
         /// <summary>
@@ -196,7 +249,7 @@ namespace ShortDrama.Infrastructure.Services
             _ = IncrementPlayCountAsync(dramaId);
 
             // 判定流类型：明文 MP4 直接交给 <video>，m3u8 走 hls.js + 去广告代理
-            var isProgressive = rawUrl.Contains(".mp4", StringComparison.OrdinalIgnoreCase);
+            var isProgressive = await IsProgressiveAsync(rawUrl, ct);
 
             return new PlayInfoDto
             {

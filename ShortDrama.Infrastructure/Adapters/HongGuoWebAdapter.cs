@@ -22,9 +22,14 @@ namespace ShortDrama.Infrastructure.Adapters
     ///    热度、评分、点赞、收藏、标签、演员、简介、分集列表）。
     /// ❌ 搜索：搜索页是纯前端渲染，服务端不返回结果，且接口未在 bundle 中暴露。
     ///    本适配器 SearchAsync 返回空，由站内已索引的本地库兜底。
-    /// ❌ 播放：视频为 MP4 CENC（AES-128 CTR）DRM 加密，密钥不下发到 Web 端。
-    ///    社区实现（Erlmo/shortplay）用纯 C 解密，但作者声明算法不开源。
-    ///    本适配器 GetPlayUrlAsync 抛明确异常，不假装能播。
+    /// ✅ 播放（2026-10-02 实测更正）：视频**没有加密**，是普通明文 MP4。
+    ///    取一集下载前 128KB 看 MP4 box：ftyp → moov → mdat，明文 avc1(H.264) + mp4a(AAC)，
+    ///    pssh / tenc / senc / encv / sinf / schm / cenc / cbcs 全部不存在。
+    ///    地址在播放页 SSR 的 video_player_info.main_url 里，CDN 不需要 Referer
+    ///    且 Access-Control-Allow-Origin: *，浏览器可直连。
+    ///    真正的限制是**权限**：详情页 SSR 里 episode_cnt=86、accessible_episode_cnt=3，
+    ///    官网只公开前 3 集，其余要登录/会员，SSR 里没有它们的播放页链接。
+    ///    （此前这里写「MP4 CENC / AES-128 CTR DRM 加密」是错的，已更正。）
     ///
     /// ============ 解析策略 ============
     /// 站点用 CSS Modules，`pc-xxx-{hash}` 的 hash 每次构建都会变，不能作为锚点。
@@ -221,8 +226,9 @@ namespace ShortDrama.Infrastructure.Adapters
                     Title = $"第 {number} 集",
                     CoverUrl = detail.CoverUrl,
                     DurationSeconds = 120,
-                    // 红果播放为 DRM 加密，这里只记录官方播放页地址（供跳转观看），
-                    // 不伪装成可直接播放的流地址。SSR 只渲染前几集的链接。
+                    // 这里存的是该集的**官方播放页**地址（SSR 只渲染公开的那几集）。
+                    // 真实视频地址在播放页的 SSR JSON 里（video_player_info.main_url），
+                    // 由 GetPlayUrlAsync 现取 —— 那些地址带时效签名，不适合入库。
                     VideoUrl = string.IsNullOrWhiteSpace(href)
                         ? string.Empty
                         : $"{_options.BaseUrl}{href}",
@@ -255,18 +261,56 @@ namespace ShortDrama.Infrastructure.Adapters
 
         // ==================== 播放 ====================
 
+        /// <summary>
+        /// 播放页 SSR 里内嵌的明文视频地址。
+        /// 形如 video_player_info:{"vid":"…","main_url":"https://v26-hgweb.qznovelvod.com/…/video/tos/cn/…?a=8662&amp;…"}
+        /// </summary>
+        private static readonly Regex MainUrlRegex = new(
+            @"""main_url""\s*:\s*""(?<v>[^""]+)""",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// 取真实播放地址。
+        ///
+        /// 2026-10-02 实测更正：红果的视频**没有加密**，之前的「MP4 CENC / AES-128 CTR DRM」
+        /// 结论是错的。取一集实际下载前 128KB 看 MP4 box 结构：
+        ///   ftyp → moov → mdat，明文 avc1(H.264) + mp4a(AAC)，
+        ///   pssh / tenc / senc / encv / sinf / schm / cenc / cbcs 全部不存在。
+        /// CDN 也不需要 Referer，且 Access-Control-Allow-Origin: *，浏览器可直连播放。
+        ///
+        /// 真正限制是**权限**而不是加密：详情页 SSR 里
+        ///   episode_cnt = 86、accessible_episode_cnt = 3
+        /// 即官网只公开前 3 集，其余要登录/会员，SSR 里根本没有它们的播放页链接。
+        /// </summary>
         public async Task<string> GetPlayUrlAsync(string dramaId, int episodeNumber)
         {
-            // 红果视频为 MP4 CENC（AES-128 CTR）DRM 加密，密钥不下发到 Web 端，
-            // 服务端拿不到可解密播放的地址。这里如实抛出，由上层提示用户跳转官方 App/网页。
             var detail = await GetDramaDetailAsync(dramaId);
             var page = detail?.Episodes
                 .FirstOrDefault(e => e.EpisodeNumber == episodeNumber)?.VideoUrl;
 
-            throw new NotSupportedException(
-                "红果短剧视频为 DRM 加密（MP4 CENC / AES-128 CTR），无法在服务端解密播放。" +
-                (string.IsNullOrWhiteSpace(page) ? string.Empty : $"可跳转官方播放页观看：{page}"));
+            if (string.IsNullOrWhiteSpace(page))
+            {
+                throw new NotSupportedException(
+                    $"红果短剧第 {episodeNumber} 集未在官网公开（官网只放出前几集，其余需登录或会员）。" +
+                    $"{_options.BaseUrl}/detail?series_id={dramaId}");
+            }
+
+            // 播放页里取明文地址；SSR 把 / 转义成 \u002F，要还原
+            var html = await _http.GetStringAsync(page);
+            var match = MainUrlRegex.Match(html);
+            if (!match.Success)
+            {
+                throw new NotSupportedException(
+                    $"红果短剧第 {episodeNumber} 集取不到播放地址（播放页结构可能已变）。可跳转官方播放页观看：{page}");
+            }
+
+            return UnescapeSlash(match.Groups["v"].Value);
         }
+
+        /// <summary>SSR JSON 里的 \u002F 与 \/ 还原成 /</summary>
+        private static string UnescapeSlash(string value) =>
+            value.Replace("\\u002F", "/", StringComparison.OrdinalIgnoreCase)
+                 .Replace("\\/", "/", StringComparison.Ordinal);
 
         // ==================== 解析辅助 ====================
 

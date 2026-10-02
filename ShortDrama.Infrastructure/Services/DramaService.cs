@@ -289,17 +289,21 @@ namespace ShortDrama.Infrastructure.Services
                 .ToList();
         }
 
-        /// <summary>该平台是否支持站内直接播放</summary>
+        /// <summary>
+        /// 该平台是否支持站内直接播放。
+        ///
+        /// 红果此前按「DRM 加密」被整体判不可播；2026-10-02 实测更正：视频是**明文 MP4**
+        /// （MP4 box 里没有任何加密 box），只是官网只公开前几集、其余要登录/会员。
+        /// 所以不再按平台判死 —— 能播的集照常播，取不到地址的集由适配器按集抛异常提示。
+        /// </summary>
         private static bool IsPlayable(string platformCode) => platformCode switch
         {
-            // 红果视频为 DRM 加密，服务端无法解密
-            "hongguo" => false,
             _ => true
         };
 
         private static string? PlayNote(string platformCode) => platformCode switch
         {
-            "hongguo" => "视频为 DRM 加密，仅支持浏览目录与跳转官方观看",
+            "hongguo" => "官网只公开前几集（其余需登录或会员），公开的集可直接播放",
             "huangdou" => "付费集有服务端权益校验，免费集可播",
             _ => null
         };
