@@ -58,9 +58,15 @@ RUN dotnet publish ShortDrama.Api/ShortDrama.Api.csproj \
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 
-# curl 供 HEALTHCHECK 使用（aspnet 基础镜像默认不带）
+# 三个包都在这一层装完（都必须在切用户之前）：
+#   curl   —— HEALTHCHECK 用，aspnet 基础镜像默认不带
+#   tzdata —— aspnet 基础镜像是 debian-slim，**不带时区库**。不装的话下面那句
+#             ln -snf 只会建出一个断链，TZ 静默失效（时间仍按 UTC 走）
+#   gosu   —— 入口脚本用它从 root 降权到 app
+# DEBIAN_FRONTEND 必须设：tzdata 会弹交互式提问，非交互构建下不设会卡住构建。
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl tzdata gosu \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -69,10 +75,21 @@ WORKDIR /app
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-COPY --from=api /app/publish .
+# 运行期用户：业务进程不该以 root 跑。UID/GID 固定，便于与宿主对齐。
+ARG UID=10001
+ARG GID=10001
+RUN groupadd -g "${GID}" app \
+ && useradd -m -u "${UID}" -g app -s /usr/sbin/nologin app \
+ && install -d -o app -g app /data
+
+COPY --from=api --chown=app:app /app/publish .
+
+# 入口脚本先修正 /data 属主（兼容升级前 root 属主的旧数据卷），再降权运行。
+# --chmod=755 必须显式写：Windows 上 git 不保留可执行位，否则容器起来就
+# permission denied: /usr/local/bin/entrypoint.sh。
+COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # 数据目录（SQLite 库文件落在这里，compose 里挂成卷）
-RUN mkdir -p /data
 VOLUME ["/data"]
 
 ENV ASPNETCORE_ENVIRONMENT=Production \
@@ -87,4 +104,8 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD curl -fsS http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["dotnet", "ShortDrama.Api.dll"]
+# 入口脚本以 root 起步做一次 chown，随后 exec 降权到 app（细节见脚本内注释）。
+# 想完全跳过这一步：在 compose 里设 user: "10001:10001"，
+# 此时脚本以 app 身份启动，会自动跳过降权分支（前提是卷属主已经对）。
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["dotnet", "ShortDrama.Api.dll"]

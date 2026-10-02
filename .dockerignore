@@ -31,6 +31,18 @@ ShortDrama.Api/wwwroot/
 .vscode/
 *.swp
 
+# ---- 密钥：不进构建上下文 ----
+# .env 里有 JWT_KEY 与访问口令。虽然 Dockerfile 从不 COPY 它（只拷指定目录），
+# 但构建上下文会整包上传给 daemon，没必要把它带过去。
+.env
+.env.*
+!.env.example
+
+# ---- 测试产物 ----
+**/TestResults/
+*.trx
+coverage*.xml
+
 # ---- 文档与杂项 ----
 *.md
 !README.md

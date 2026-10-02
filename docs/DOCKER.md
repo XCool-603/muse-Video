@@ -464,6 +464,36 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 | `shortdrama-pgdata` | PostgreSQL 数据目录 | `--postgres` |
 | `shortdrama-redisdata` | Redis AOF | `--postgres` |
 
+### 容器以非 root 运行（UID 10001）
+
+镜像里的业务进程以 `app`（UID/GID `10001`）运行，不再是 root。`/data` 是唯一需要写的路径。
+
+**升级兼容性已处理**：数据卷只在**首次创建且为空**时继承镜像里的属主；你现在的卷是旧版本（root）
+创建的，里面的 `shortdrama.db` 属主是 root —— 直接切成非 root 会写不进去。
+所以入口脚本 `docker/entrypoint.sh` 会先以 root 做一次 `chown -R app:app /data`，再 `exec` 降权。
+**升级不需要你手动做任何事**，`./deploy.sh --update` 照常用。
+
+设计成失败也不会让站点起不来：拿不到 `gosu`、或 `chown` 失败时，脚本会打印告警并**退回以 root 运行**
+（等于改动前的行为），而不是退出。
+
+想完全跳过这一步（例如卷属主已经是对的、或你的编排平台不允许 root 入口）：
+
+```yaml
+services:
+  app:
+    user: "10001:10001"
+```
+
+此时脚本以 `app` 身份启动，会自动跳过降权分支。前提是 `/data` 已经属于 `10001`；
+否则容器会因写不了 SQLite 而启动失败，日志里是 `SQLite Error 14: unable to open database file`。
+
+手动把已有卷改属主（可选，正常升级用不到）：
+
+```bash
+docker run --rm -v shortdrama-data:/data alpine chown -R 10001:10001 /data
+```
+
+
 > compose 会给卷名加上项目前缀（取自目录名）。用 `docker volume ls` 查看实际名称；日常操作用 `docker compose` 命令即可，不必关心前缀。
 
 ### 备份（SQLite）

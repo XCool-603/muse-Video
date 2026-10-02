@@ -1,0 +1,26 @@
+# ============================================================================
+# 行尾规范化
+#
+# 为什么需要这个文件：Windows 上 git 默认 core.autocrlf=true，检出时会把 LF
+# 换成 CRLF。而在 Linux 容器里执行的脚本一旦带上 CRLF，shebang 会变成
+# /bin/sh^M，报 bad interpreter: No such file or directory —— 这个错误看起来
+# 像「镜像里没这个文件」，实际是行尾问题，很容易误判。
+#
+# 仓库里会被 Linux 执行的脚本：
+#   docker/entrypoint.sh   容器入口（Dockerfile 里 COPY 进镜像）
+#   deploy.sh              部署机上的部署/升级脚本
+# 两者都必须是 LF，这里钉死。
+#
+# 下面这些是「字节必须精确」的配置类文件，同样钉成 LF：
+#   .dockerignore   Docker 逐行解析排除规则；行尾带 \r 会让 node_modules/ 之类的
+#                   规则静默失配（构建上下文变大、宿主 node_modules 混进镜像）
+#   *.yml / *.yaml  compose 配置
+#   .env.example    部署脚本用 cut -d= 取值，值尾带 \r 会让口令/密钥多一个字符
+# ============================================================================
+
+*.sh text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+.env.example text eol=lf
