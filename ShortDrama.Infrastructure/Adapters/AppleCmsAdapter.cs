@@ -117,21 +117,24 @@ namespace ShortDrama.Infrastructure.Adapters
 
         public async Task<List<PlatformRankItem>> GetRankAsync(string type, int limit = 20)
         {
-            // 苹果CMS 支持 h 参数排序：h=9 为日榜，h=8 为周榜
-            var order = type switch
+            // 优先给「短剧维度」的榜：把该源所有短剧分类的目录合并、按播放量排序。
+            // 之前用的是 h=9/h=8 全站日榜/周榜，但那拿到的是该源全站内容（综艺/美剧/动漫混杂），
+            // 而且实测「t=分类 & h=9」的组合没有任何源支持 —— 全部返回 0 条。
+            if (!string.Equals(type, "new", StringComparison.OrdinalIgnoreCase))
             {
-                "new" => "ac=detail&pg=1",
-                "recommend" => "ac=detail&pg=1&h=8",
-                _ => "ac=detail&pg=1&h=9"
-            };
+                var ranked = await GetShortDramaRankAsync(limit);
+                if (ranked.Count > 0) return ranked;
+                // 该源没有可用短剧分类（如那批 AV 源）时落到下面的全站榜
+            }
 
-            var items = await FetchListAsync(order, limit);
+            // 「新剧榜」= 该源全站最新；其他类型在没有短剧分类时也退化到这里
+            var items = await FetchListAsync("ac=detail&pg=1", limit);
 
             // 有的源站根本不支持 h 排序参数：实测辣椒资源 h=9 / h=8 都直接返回空列表，
             // 于是热播榜、推荐榜整块是空的。退化成「该源最新」，总比空着强。
-            if (items.Count == 0 && order.Contains("&h=", StringComparison.Ordinal))
+            if (items.Count == 0)
             {
-                items = await FetchListAsync("ac=detail&pg=1", limit);
+                items = await FetchListAsync("ac=detail&pg=1&h=9", limit);
             }
 
             return items
@@ -147,6 +150,92 @@ namespace ShortDrama.Infrastructure.Adapters
                     PlayCount = GetLong(i, "vod_hits")
                 })
                 .ToList();
+        }
+
+        /// <summary>
+        /// 短剧维度的热榜：该源所有短剧分类的目录合并后按播放量排序。
+        ///
+        /// 短剧分类的判定：配置的 shortDramaTypeIds 优先；但实测速播/金鹰资源配置里
+        /// 指定的 type_id 已失效（返回 0 条），所以查空时退回按分类名匹配（短剧/爽剧/逆袭…）。
+        /// 每个分类只取第 1 页 —— 苹果CMS 每页固定 20 条，合并后再排序截断，
+        /// 请求次数 = 短剧分类数（3~10 个），串行打源站。
+        /// </summary>
+        private async Task<List<PlatformRankItem>> GetShortDramaRankAsync(int limit)
+        {
+            var typeIds = new List<string>();
+
+            foreach (var id in _source.ShortDramaTypeIds)
+            {
+                typeIds.Add(id.ToString());
+            }
+
+            if (typeIds.Count == 0)
+            {
+                // 没配 shortDramaTypeIds：按分类表的名字找
+                var classes = await GetCategoriesInternalAsync();
+                typeIds = classes
+                    .Where(c => ShortDramaHints.Any(h => c.TypeName.Contains(h, StringComparison.Ordinal)))
+                    .Select(c => c.TypeId)
+                    .ToList();
+            }
+            else
+            {
+                // 配置了：先验证是否还有效，全部失效就退回按名字匹配
+                var probe = await FetchListAsync($"ac=detail&t={typeIds[0]}&pg=1", 1);
+                if (probe.Count == 0)
+                {
+                    var classes = await GetCategoriesInternalAsync();
+                    var byName = classes
+                        .Where(c => ShortDramaHints.Any(h => c.TypeName.Contains(h, StringComparison.Ordinal)))
+                        .Select(c => c.TypeId)
+                        .ToList();
+                    if (byName.Count > 0) typeIds = byName;
+                }
+            }
+
+            if (typeIds.Count == 0) return new List<PlatformRankItem>();
+
+            // 并行拉、只取前 6 个分类：串行打 10 次 = 实测 9.5 秒，首页等不起；
+            // 每类第 1 页 20 条，6 类就有 120 个候选，按播放量排序后足够选 10 条。
+            // 并发 6 对单源是可承受的（搜索路径本来就是 25 个源同时打）。
+            var tasks = typeIds.Take(6)
+                .Select(typeId => FetchListAsync($"ac=detail&t={typeId}&pg=1", limit))
+                .ToList();
+
+            var merged = new List<Dictionary<string, JsonElement>>();
+            foreach (var page in await Task.WhenAll(tasks))
+            {
+                merged.AddRange(page);
+            }
+
+            return merged
+                .Where(PassesFilter)
+                .GroupBy(i => GetString(i, "vod_id"))
+                .Select(g => g.First())
+                .OrderByDescending(i => GetLong(i, "vod_hits"))
+                .Take(limit)
+                .Select(i => new PlatformRankItem
+                {
+                    PlatformDramaId = GetString(i, "vod_id"),
+                    Title = GetString(i, "vod_name"),
+                    CoverUrl = GetString(i, "vod_pic"),
+                    Category = MapCategory(GetString(i, "type_name")),
+                    PlayCount = GetLong(i, "vod_hits")
+                })
+                .ToList();
+        }
+
+        /// <summary>判定「短剧相关分类」用的词。与前端分类排序用的是同一套语义</summary>
+        private static readonly string[] ShortDramaHints =
+        {
+            "短剧", "爽剧", "逆袭", "重生", "霸总", "穿越", "甜宠", "闪婚", "漫剧"
+        };
+
+        /// <summary>取源站分类表（不走缓存，调用方决定是否缓存）</summary>
+        private async Task<List<PlatformCategoryItem>> GetCategoriesInternalAsync()
+        {
+            var envelope = await FetchEnvelopeAsync("ac=list", 0, default);
+            return envelope.Classes;
         }
 
         // ==================== 上新 ====================

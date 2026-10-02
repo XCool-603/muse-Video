@@ -231,6 +231,15 @@ namespace ShortDrama.Infrastructure.Services
 
         public async Task<List<DramaDto>> GetRankAsync(string type, int limit = 20, string? platformCode = null, CancellationToken ct = default)
         {
+            // 榜单缓存：短剧维度的热榜要并行拉该源好几个分类（实测 2~5 秒），
+            // 没有缓存的话每次刷新首页都重打源站。榜单对时效不敏感，缓存 5 分钟。
+            var rankKey = $"rank:{type}|{limit}|{platformCode ?? "all"}";
+            if (_options.CacheSeconds > 0 &&
+                _cache.TryGetValue(rankKey, out List<DramaDto>? cachedRank) && cachedRank is not null)
+            {
+                return cachedRank;
+            }
+
             var adapters = SelectAdapters(platformCode);
 
             var tasks = adapters.Select(async adapter =>
@@ -262,10 +271,17 @@ namespace ShortDrama.Infrastructure.Services
             var all = (await AwaitWithBudget(tasks, ct, minReadyOverride: 6, waitForAll: IsExplicitPlatform(platformCode)))
                 .SelectMany(x => x).ToList();
 
-            return DeduplicateAndMerge(all)
+            var ranked = DeduplicateAndMerge(all)
                 .OrderByDescending(d => d.PlayCount)
                 .Take(limit)
                 .ToList();
+
+            if (_options.CacheSeconds > 0 && ranked.Count > 0)
+            {
+                _cache.Set(rankKey, ranked, TimeSpan.FromMinutes(5));
+            }
+
+            return ranked;
         }
 
         public async Task<List<DramaDto>> GetLatestAsync(string category = "全部", int limit = 20, string? platformCode = null, CancellationToken ct = default)
