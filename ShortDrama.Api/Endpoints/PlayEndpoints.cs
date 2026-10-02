@@ -89,6 +89,7 @@ namespace ShortDrama.Api.Endpoints
                 IMemoryCache cache,
                 PlaybackOptions playback,
                 IHttpClientFactory httpClientFactory,
+                PlayabilityTracker playability,
                 HttpContext http,
                 ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
@@ -174,6 +175,10 @@ namespace ShortDrama.Api.Endpoints
                     // 60 秒内不会变，重试同样的请求只会白白再打源站。
                     cache.Set(failKey, (filtered.Error ?? "未知原因").TrimEnd('.', '。', ' '), TimeSpan.FromSeconds(60));
 
+                    // 记录该源站 CDN 在这台部署机上的可播性（403/404 → 按地区整站拒绝）
+                    var upstream = ExtractUpstreamStatus(filtered.Error);
+                    playability.RecordFailure(info.PlatformCode, info.PlayUrl, upstream);
+
                     logger.LogWarning("拉取播放列表失败（Drama={DramaId}, Ep={Episode}, 源={Platform}）: {Error}",
                         dramaId, episode, info.PlatformName, filtered.Error);
 
@@ -215,6 +220,7 @@ namespace ShortDrama.Api.Endpoints
                         filtered.RemovedSegmentCount, dramaId, episode);
                 }
 
+                playability.RecordSuccess(info.PlatformCode, info.PlayUrl);
                 cache.Set(cacheKey, filtered.Playlist, TimeSpan.FromMinutes(5));
                 return Results.Text(filtered.Playlist, "application/vnd.apple.mpegurl", Encoding.UTF8);
             })
@@ -332,6 +338,16 @@ namespace ShortDrama.Api.Endpoints
             })
             .WithName("PlayHistory")
             .RequireAuthorization();
+        }
+
+        /// <summary>从去广告失败的异常消息里抽上游状态码，识别失败用于可播性跟踪。
+        /// 消息形如 "Response status code does not indicate success: 404 (Not Found)." ——
+        /// 状态码在括号**外面**（括号里是原因短语），所以正则要匹配「数字 + 左括号」。</summary>
+        private static int ExtractUpstreamStatus(string? error)
+        {
+            if (string.IsNullOrWhiteSpace(error)) return 0;
+            var match = System.Text.RegularExpressions.Regex.Match(error, @"(\d{3})\s*\(");
+            return match.Success ? int.Parse(match.Groups[1].Value) : 0;
         }
 
         /// <summary>

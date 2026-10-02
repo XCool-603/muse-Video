@@ -13,6 +13,17 @@ export interface PlatformInfo {
   color: string
 }
 
+/**
+ * 排序：能播的最先（用户点开就能看），其次按内容量。
+ * playable=false 的源点进去大概率 502，压到最后并标灰。
+ */
+function sortPlatforms(list: PlatformInfo[]) {
+  return [...list].sort((a, b) => {
+    if (a.playable !== b.playable) return a.playable ? -1 : 1
+    return b.dramaCount - a.dramaCount
+  })
+}
+
 /** 记住上次浏览的平台，刷新/重进后还停在那儿 */
 const STORAGE_KEY = 'sd.browse.platform'
 
@@ -52,12 +63,12 @@ export const usePlatformStore = defineStore('platform', () => {
   }
 
   /**
-   * 全部已注册平台，按内容量从多到少。
+   * 全部已注册平台，能播的在前、按内容量排序。
    * 刻意不按「本地库有没有内容」过滤：刚打开的源本地库还是空的，
    * 但它的实时榜单/上新是可用的，过滤掉就等于平台凭空消失。
    */
   function all() {
-    return [...platforms.value].sort((a, b) => b.dramaCount - a.dramaCount)
+    return sortPlatforms(platforms.value)
   }
 
   /** 切平台：同时记住，刷新后还停在这个平台 */
@@ -80,8 +91,10 @@ export const usePlatformStore = defineStore('platform', () => {
     if (!list.length) return selected.value
     if (selected.value && list.some((p) => p.platformCode === selected.value)) return selected.value
 
-    // all() 已按内容量排序，第一个就是内容最多的那个
-    select(list[0].platformCode)
+    // 默认落点：第一个「可播」的平台（排序已保证能播的在前）；
+    // 没有任何平台标记为可播时，all() 的第一个就是内容最多的
+    const best = list.find((p) => p.playable && p.dramaCount > 0) ?? list[0]
+    select(best.platformCode)
     return selected.value
   }
 

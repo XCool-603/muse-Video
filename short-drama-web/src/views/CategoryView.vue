@@ -9,8 +9,13 @@
       <div class="filter-group">
         <span class="filter-label">平台</span>
         <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="onPlatformChange">
-          <a-radio-button v-for="p in platformStore.all()" :key="p.platformCode" :value="p.platformCode">
-            {{ p.platformName }}
+          <a-radio-button
+            v-for="p in platformStore.all()"
+            :key="p.platformCode"
+            :value="p.platformCode"
+            :title="p.playNote || p.platformName"
+          >
+            {{ p.platformName }}{{ p.playable ? '' : ' ✕' }}
           </a-radio-button>
         </a-radio-group>
       </div>

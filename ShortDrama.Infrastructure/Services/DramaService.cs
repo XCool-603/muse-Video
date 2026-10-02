@@ -18,12 +18,14 @@ namespace ShortDrama.Infrastructure.Services
     {
         private readonly AppDbContext _db;
         private readonly IAdapterFactory _adapters;
+        private readonly PlayabilityTracker _playability;
         private readonly ILogger<DramaService> _logger;
 
-        public DramaService(AppDbContext db, IAdapterFactory adapters, ILogger<DramaService> logger)
+        public DramaService(AppDbContext db, IAdapterFactory adapters, PlayabilityTracker playability, ILogger<DramaService> logger)
         {
             _db = db;
             _adapters = adapters;
+            _playability = playability;
             _logger = logger;
         }
 
@@ -259,20 +261,29 @@ namespace ShortDrama.Infrastructure.Services
             {
                 counts.TryGetValue(adapter.PlatformCode, out var count);
 
+                // 静态的「能不能站内播」（DRM 等）+ 动态的「这台部署机实际可播」
+                // （来自真实播放请求的结果：CDN 按 IP/地区整站拒绝时为 false）
+                var staticPlayable = IsPlayable(adapter.PlatformCode);
+                var measured = _playability.GetPlatformStatus(adapter.PlatformCode);
+                var playable = staticPlayable && measured != false;
+                var note = PlayNote(adapter.PlatformCode)
+                           ?? (measured == false ? "该源 CDN 拒绝本部署机访问（403/404），无法播放" : null);
+
                 result.Add(new PlatformInfoDto
                 {
                     PlatformCode = adapter.PlatformCode,
                     PlatformName = adapter.PlatformName,
                     DramaCount = count,
-                    Playable = IsPlayable(adapter.PlatformCode),
-                    PlayNote = PlayNote(adapter.PlatformCode),
+                    Playable = playable,
+                    PlayNote = note,
                     Color = PlatformColor(adapter.PlatformCode)
                 });
             }
 
-            // 有内容的排前面，其次按内容量
+            // 排序：可播的排前面（用户点开就能看），同组内按内容量
             return result
-                .OrderByDescending(p => p.DramaCount > 0)
+                .OrderBy(p => p.Playable ? 0 : 1)
+                .ThenByDescending(p => p.DramaCount > 0)
                 .ThenByDescending(p => p.DramaCount)
                 .ThenBy(p => p.PlatformName, StringComparer.Ordinal)
                 .ToList();

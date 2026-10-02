@@ -27,7 +27,7 @@
               v-for="p in platformStore.all()"
               :key="p.platformCode"
               class="platform-tab"
-              :class="{ active: p.platformCode === platform }"
+              :class="{ active: p.platformCode === platform, dead: !p.playable }"
               :title="p.playNote || p.platformName"
               @click="selectPlatform(p.platformCode)"
             >
@@ -361,6 +361,12 @@ onMounted(async () => {
   color: #fff;
   background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
   border-color: transparent;
+}
+
+/* 该源 CDN 拒绝本部署机访问（403/404），点进去大概率播不了 —— 半透明加删除线提示 */
+.platform-tab.dead {
+  opacity: 0.42;
+  text-decoration: line-through;
 }
 
 .platform-count {

@@ -68,6 +68,10 @@ namespace ShortDrama.Infrastructure
             // 平台健康状态：跨请求共享，用于跳过已知失败/超时的源
             services.AddSingleton<SourceHealthTracker>();
 
+            // 部署机可播性跟踪：按源站 CDN 域名记真实播放结果（403/404 = 按地区整站拒绝）。
+            // 源站 CDN 会按部署机所在网络整站拒绝，这个结论只能靠真实播放请求得出。
+            services.AddSingleton<Services.PlayabilityTracker>();
+
             // 采集源抓取用的 HttpClient
             services.AddHttpClient("applecms", client =>
             {
