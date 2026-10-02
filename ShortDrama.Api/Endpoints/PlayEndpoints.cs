@@ -108,10 +108,23 @@ namespace ShortDrama.Api.Endpoints
                 var proxySegments = proxy == true || playback.ProxySegments;
                 // 两种模式的播放列表内容不同，缓存键必须区分，否则会互相串
                 var cacheKey = $"clean-m3u8:{dramaId}:{episode}:{(proxySegments ? "p" : "d")}";
+                var failKey = $"play-fail:{dramaId}:{episode}:{(proxySegments ? "p" : "d")}";
 
                 if (cache.TryGetValue(cacheKey, out string? cached) && !string.IsNullOrWhiteSpace(cached))
                 {
                     return Results.Text(cached!, "application/vnd.apple.mpegurl", Encoding.UTF8);
+                }
+
+                // 上一次已经失败过？60 秒内直接把同样的失败返回，不再打源站。
+                // 上游 403/404 是按 IP/地区的整站拒绝，60 秒内不会变；而播放器对同一集
+                // 会重试好几次，不缓存的话每次重试都完整走一遍「去广告失败 → 回退原始 → 再失败」。
+                if (cache.TryGetValue(failKey, out string? knownFail) && !string.IsNullOrWhiteSpace(knownFail))
+                {
+                    return Results.Json(
+                        ApiResponse<string>.Fail(5020,
+                            $"源站播放列表拉取失败（刚试过，60 秒内不重试）：{knownFail}。" +
+                            "可能是该源在服务器所在地不可达，或被源站按地区拒绝"),
+                        statusCode: StatusCodes.Status502BadGateway);
                 }
 
                 PlayInfoDto? info;
@@ -157,7 +170,10 @@ namespace ShortDrama.Api.Endpoints
 
                 if (!filtered.Success)
                 {
-                    // 错误信息里带上源名和上游状态码，否则用户只看到「502」无从判断是哪个源坏了
+                    // 失败也缓存 60 秒（检查在上面）：上游 403/404 是按 IP/地区的整站拒绝，
+                    // 60 秒内不会变，重试同样的请求只会白白再打源站。
+                    cache.Set(failKey, (filtered.Error ?? "未知原因").TrimEnd('.', '。', ' '), TimeSpan.FromSeconds(60));
+
                     logger.LogWarning("拉取播放列表失败（Drama={DramaId}, Ep={Episode}, 源={Platform}）: {Error}",
                         dramaId, episode, info.PlatformName, filtered.Error);
 
@@ -189,7 +205,7 @@ namespace ShortDrama.Api.Endpoints
                     return Results.Json(
                         ApiResponse<string>.Fail(5020,
                             $"源站播放列表拉取失败（{info.PlatformName}）：{reason}。" +
-                            "可能是该源在服务器所在地不可达，或被源站按地区拒绝"),
+                            "可能是该源在服务器所在地不可达，或被源站按地区拒绝（60 秒内不重试）"),
                         statusCode: StatusCodes.Status502BadGateway);
                 }
 
