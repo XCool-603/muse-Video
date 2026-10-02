@@ -79,6 +79,13 @@ namespace ShortDrama.Application.Services
         Task<PlayProgressDto?> GetProgressAsync(string userId, long dramaId, CancellationToken ct = default);
 
         Task<List<PlayProgressDto>> GetHistoryAsync(string userId, int limit = 20, CancellationToken ct = default);
+
+        /// <summary>
+        /// 该剧所属采集源出现过的其它 CDN 主机（已按「已知可用 → 未知 → 已知被拒」排序）。
+        /// 播放失败时用同一路径换主机重试 —— 实测采集站给的地址可能指向已退役的主机，
+        /// 而同一路径在另一台主机上是好的。
+        /// </summary>
+        Task<List<string>> GetAlternateHostsAsync(long dramaId, CancellationToken ct = default);
     }
 
     public interface IAuthService

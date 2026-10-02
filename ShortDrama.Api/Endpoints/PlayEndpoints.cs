@@ -169,6 +169,26 @@ namespace ShortDrama.Api.Endpoints
                 var segmentProxy = proxySegments ? "/api/v1/play/segment" : null;
                 var filtered = await adFilter.BuildCleanPlaylistAsync(info.PlayUrl, segmentProxy, ct);
 
+                // 换主机重试：采集站给的播放地址可能指向已退役的 CDN 主机
+                // （实测暴风 bfeng10.com 全站 404，而同一路径在 fengbao13.com 上是 200，
+                //  4143 条相对路径分片、无加密）。同一路径换该源其它主机，多数能救回来。
+                if (!filtered.Success)
+                {
+                    var alternates = await playService.GetAlternateHostsAsync(dramaId, ct);
+                    foreach (var altUrl in SwapHosts(info.PlayUrl, alternates))
+                    {
+                        var retry = await adFilter.BuildCleanPlaylistAsync(altUrl, segmentProxy, ct);
+                        if (!retry.Success) continue;
+
+                        logger.LogInformation("换 CDN 主机成功：{From} → {To}",
+                            HostOf(info.PlayUrl), HostOf(altUrl));
+
+                        playability.RecordSuccess(info.PlatformCode, altUrl);
+                        cache.Set(cacheKey, retry.Playlist, TimeSpan.FromMinutes(5));
+                        return Results.Text(retry.Playlist, "application/vnd.apple.mpegurl", Encoding.UTF8);
+                    }
+                }
+
                 if (!filtered.Success)
                 {
                     // 失败也缓存 60 秒（检查在上面）：上游 403/404 是按 IP/地区的整站拒绝，
@@ -339,6 +359,35 @@ namespace ShortDrama.Api.Endpoints
             .WithName("PlayHistory")
             .RequireAuthorization();
         }
+
+        /// <summary>
+        /// 把 URL 的主机名换成候选主机，路径与查询串原样保留。
+        /// 刻意不用 UriBuilder：它会「双向归一化」，把已编码的中文路径解回原文，
+        /// 而部分源站地址里带未编码中文（见 ToAsciiUrl 的注释），换了会被 Kestrel 拒绝。
+        /// </summary>
+        private static IEnumerable<string> SwapHosts(string url, IReadOnlyList<string> hosts)
+        {
+            var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+            if (schemeEnd <= 0 || hosts.Count == 0) yield break;
+
+            var scheme = url[..schemeEnd];
+            var rest = url[(schemeEnd + 3)..];
+            var slash = rest.IndexOf('/');
+            if (slash <= 0) yield break;
+
+            var originalHost = rest[..slash];
+            var pathAndQuery = rest[slash..];
+
+            foreach (var host in hosts)
+            {
+                if (string.IsNullOrWhiteSpace(host)) continue;
+                if (host.Equals(originalHost, StringComparison.OrdinalIgnoreCase)) continue;
+                yield return $"{scheme}://{host}{pathAndQuery}";
+            }
+        }
+
+        private static string HostOf(string url)
+            => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
 
         /// <summary>从去广告失败的异常消息里抽上游状态码，识别失败用于可播性跟踪。
         /// 消息形如 "Response status code does not indicate success: 404 (Not Found)." ——

@@ -19,16 +19,86 @@ namespace ShortDrama.Infrastructure.Services
         private readonly AppDbContext _db;
         private readonly IAdapterFactory _adapters;
         private readonly IMemoryCache _cache;
+        private readonly PlayabilityTracker _playability;
         private readonly ILogger<PlayService> _logger;
 
         private static readonly TimeSpan PlayUrlCacheDuration = TimeSpan.FromMinutes(10);
 
-        public PlayService(AppDbContext db, IAdapterFactory adapters, IMemoryCache cache, ILogger<PlayService> logger)
+        public PlayService(
+            AppDbContext db,
+            IAdapterFactory adapters,
+            IMemoryCache cache,
+            PlayabilityTracker playability,
+            ILogger<PlayService> logger)
         {
             _db = db;
             _adapters = adapters;
             _cache = cache;
+            _playability = playability;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// 该剧所属源出现过的其它 CDN 主机。
+        /// 从已入库的分集地址里取样统计 —— 采集站给每部剧的地址可能指向不同主机，
+        /// 其中一部分已退役（实测暴风 bfeng10.com 全站 404，fengbao13.com 正常）。
+        /// 按「已知可用 → 未知 → 已知被拒」排序，换主机重试时先试靠谱的。
+        /// </summary>
+        public async Task<List<string>> GetAlternateHostsAsync(long dramaId, CancellationToken ct = default)
+        {
+            var platformCode = await _db.Dramas.AsNoTracking()
+                .Where(d => d.Id == dramaId)
+                .Select(d => d.PlatformCode)
+                .FirstOrDefaultAsync(ct);
+
+            if (string.IsNullOrWhiteSpace(platformCode)) return new List<string>();
+
+            var cacheKey = $"cdn-hosts:{platformCode}";
+            if (_cache.TryGetValue(cacheKey, out List<string>? cached) && cached is not null)
+            {
+                return cached;
+            }
+
+            var dramaIds = _db.Dramas.AsNoTracking()
+                .Where(d => d.PlatformCode == platformCode)
+                .Select(d => d.Id);
+
+            // 取样即可：一个源的主机就那么几台，400 条地址足够覆盖
+            var urls = await _db.Episodes.AsNoTracking()
+                .Where(e => dramaIds.Contains(e.DramaId))
+                .OrderByDescending(e => e.Id)
+                .Select(e => e.VideoUrl)
+                .Take(400)
+                .ToListAsync(ct);
+
+            var hosts = urls
+                .Select(u => Uri.TryCreate(u, UriKind.Absolute, out var uri) ? uri.Host : null)
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Select(h => h!)
+                .ToList();
+
+            // 关键：还要问源站「你现在用哪些主机」。本地库存的是入库当时的地址，
+            // 主机可能早就换了 —— 实测暴风资源的本地库主机全是 404 的旧主机，
+            // 而源站当前目录里的 fengbao13.com 是好的。少了这一路，换主机只会撞墙。
+            if (_adapters.Get(platformCode) is ILiveCatalogAdapter live)
+            {
+                try
+                {
+                    hosts.AddRange(await live.GetCdnHostsAsync(ct));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "取源站 CDN 主机失败：{Platform}", platformCode);
+                }
+            }
+
+            var ranked = _playability.RankHosts(hosts);
+            if (ranked.Count > 0)
+            {
+                _cache.Set(cacheKey, ranked, TimeSpan.FromMinutes(30));
+            }
+
+            return ranked;
         }
 
         public async Task<PlayInfoDto?> GetPlayInfoAsync(long dramaId, int episode, string? userId, CancellationToken ct = default)

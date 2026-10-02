@@ -25,6 +25,16 @@ namespace ShortDrama.Application.Adapters
         /// 按源站分类翻页取目录。typeId 为空 = 该源的全站目录（最新在前）。
         /// </summary>
         Task<PlatformCatalogPage> GetCatalogPageAsync(string? typeId, int page, int pageSize, CancellationToken ct = default);
+
+        /// <summary>
+        /// 该源**当前**在用的 CDN 主机名（从最近几页目录的播放地址里统计）。
+        ///
+        /// 为什么需要它：采集站给每部剧的播放地址可能指向不同主机，其中一部分已退役
+        /// （实测暴风 bfeng10.com 全站 404，而同一路径在 fengbao13.com 上是 200）。
+        /// 本地库里存的是入库当时的地址，主机可能早就换了 —— 换主机重试必须知道
+        /// 源站现在用哪些主机，否则只会拿旧主机反复撞墙。
+        /// </summary>
+        Task<List<string>> GetCdnHostsAsync(CancellationToken ct = default);
     }
 
     public class PlatformCategoryItem

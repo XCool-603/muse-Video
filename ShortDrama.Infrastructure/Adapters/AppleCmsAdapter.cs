@@ -289,6 +289,80 @@ namespace ShortDrama.Infrastructure.Adapters
 
         // ==================== 源站目录直读（ILiveCatalogAdapter）====================
 
+        /// <summary>该源当前在用的 CDN 主机缓存（目录变动慢，缓存半小时）</summary>
+        private List<string>? _cdnHosts;
+        private DateTime _cdnHostsAt = DateTime.MinValue;
+        private readonly object _cdnHostsLock = new();
+        private static readonly TimeSpan CdnHostsTtl = TimeSpan.FromMinutes(30);
+
+        /// <summary>
+        /// 从最近几页目录的播放地址里统计当前在用的 CDN 主机。
+        /// 换主机重试靠它 —— 本地库里存的是入库当时的地址，主机可能早就换了。
+        /// </summary>
+        public async Task<List<string>> GetCdnHostsAsync(CancellationToken ct = default)
+        {
+            lock (_cdnHostsLock)
+            {
+                if (_cdnHosts is not null && DateTime.UtcNow - _cdnHostsAt < CdnHostsTtl)
+                {
+                    return _cdnHosts;
+                }
+            }
+
+            var hosts = new List<string>();
+            foreach (var page in new[] { 1, 2 })
+            {
+                var items = await FetchListAsync($"ac=detail&pg={page}", 20);
+                foreach (var item in items)
+                {
+                    foreach (var url in ExtractPlayUrls(GetString(item, "vod_play_url")))
+                    {
+                        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                            !string.IsNullOrWhiteSpace(uri.Host))
+                        {
+                            hosts.Add(uri.Host);
+                        }
+                    }
+                }
+            }
+
+            var distinct = hosts.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            lock (_cdnHostsLock)
+            {
+                if (distinct.Count > 0)
+                {
+                    _cdnHosts = distinct;
+                    _cdnHostsAt = DateTime.UtcNow;
+                }
+            }
+
+            return distinct;
+        }
+
+        /// <summary>
+        /// 从 vod_play_url 里取出所有播放地址。
+        /// 格式：第1集$url#第2集$url，多播放源用 $$$ 分隔。
+        /// </summary>
+        private static List<string> ExtractPlayUrls(string raw)
+        {
+            var urls = new List<string>();
+            if (string.IsNullOrWhiteSpace(raw)) return urls;
+
+            foreach (var group in raw.Split("$$$", StringSplitOptions.RemoveEmptyEntries))
+            {
+                foreach (var segment in group.Split('#', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var idx = segment.IndexOf('$');
+                    if (idx < 0 || idx + 1 >= segment.Length) continue;
+
+                    var url = segment[(idx + 1)..].Trim();
+                    if (url.Length > 0) urls.Add(url);
+                }
+            }
+
+            return urls;
+        }
+
         /// <summary>
         /// 源站自己的分类表。苹果CMS 的 ac=list 会在 class 字段里返回全部分类，
         /// 这是「按平台浏览」时分类的来源 —— 不再依赖本地库统计。
