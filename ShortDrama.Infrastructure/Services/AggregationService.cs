@@ -187,7 +187,12 @@ namespace ShortDrama.Infrastructure.Services
                     localQuery = localQuery.Where(d => d.PlatformCode == platformCode);
                 }
 
-                var local = await localQuery.Take(pageSize * 2).ToListAsync(ct);
+                // 没有 OrderBy 的 Skip/Take 在 SQLite 里每页取到的可能不一样（日志里那条 EF 告警就是它），
+                // 也让结果不可复现。按更新时间倒序，最新的排前面。
+                var local = await localQuery
+                    .OrderByDescending(d => d.UpdatedAt)
+                    .Take(pageSize * 2)
+                    .ToListAsync(ct);
                 merged.AddRange(local.Select(d => Mapper.ToDto(d)));
             }
 

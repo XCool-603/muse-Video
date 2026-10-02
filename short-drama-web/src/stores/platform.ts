@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { request } from '@/api/request'
+import type { PlatformCategory } from '@/api/drama'
+import type { Drama } from '@/api/types'
 
 export interface PlatformInfo {
   platformCode: string
@@ -93,3 +95,62 @@ export const usePlatformStore = defineStore('platform', () => {
 
   return { platforms, loaded, loading, selected, load, all, select, ensureSelected, nameOf, colorOf }
 })
+
+/**
+ * 会话内缓存：切平台/切分类来回点时不再重复打接口。
+ *
+ * 为什么要这层：按平台浏览的每个区块都是「实时打源站」（1~4 秒），服务端虽然有缓存，
+ * 但浏览器这边每次切换还是得等一个来回。会话内存住结果后，第二次点击是瞬时的；
+ * 刷新页面即清空，不会像 localStorage 那样把旧内容留几天。
+ *
+ * 另外存每个请求的 Promise：快速连点时，同一个 key 的两个并发请求只会真正发一次，
+ * 两个调用方共享同一个结果 —— 不会出现「慢的旧响应盖掉新的」。
+ */
+const categoryCache = new Map<string, Promise<PlatformCategory[]>>()
+const catalogCache = new Map<string, Promise<{ items: Drama[]; total: number }>>()
+const rankCache = new Map<string, Promise<Drama[]>>()
+
+/** 缓存上限，防长会话内存膨胀；超出就整表清掉（数据都是可以重新拿的） */
+const CACHE_LIMIT = 120
+
+function remember<T>(store: Map<string, Promise<T>>, key: string, make: () => Promise<T>): Promise<T> {
+  const hit = store.get(key)
+  if (hit) return hit
+  const p = make().finally(() => {
+    // 失败的结果不留在缓存里，下次还能重试
+    if (store.get(key) === p) {
+      p.catch(() => store.delete(key))
+    }
+  })
+  if (store.size >= CACHE_LIMIT) store.clear()
+  store.set(key, p)
+  return p
+}
+
+export function usePlatformBrowseCache() {
+  function loadCategories(platformCode: string) {
+    return remember(categoryCache, platformCode, () =>
+      request<PlatformCategory[]>({ url: `/drama/live/${platformCode}/categories`, method: 'get' })
+    )
+  }
+
+  function loadCatalog(platformCode: string, typeId: string | undefined, page: number, pageSize: number) {
+    const key = `${platformCode}|${typeId ?? ''}|${page}|${pageSize}`
+    return remember(catalogCache, key, () =>
+      request<{ items: Drama[]; total: number }>({
+        url: `/drama/live/${platformCode}/catalog`,
+        method: 'get',
+        params: { typeId: typeId || undefined, page, pageSize }
+      })
+    )
+  }
+
+  function loadRank(platformCode: string, type: string, limit: number) {
+    const key = `${platformCode}|${type}|${limit}`
+    return remember(rankCache, key, () =>
+      request<Drama[]>({ url: '/drama/rank', method: 'get', params: { type, limit, platform: platformCode } })
+    )
+  }
+
+  return { loadCategories, loadCatalog, loadRank }
+}

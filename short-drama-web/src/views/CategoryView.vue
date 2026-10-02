@@ -30,13 +30,16 @@
       </div>
     </div>
 
-    <a-spin :spinning="loading">
+    <a-spin :spinning="loading && list.length > 0">
       <div v-if="list.length" class="drama-grid">
         <DramaCard
           v-for="item in list"
           :key="`${item.platformCode}-${item.platformDramaId}`"
           :drama="item"
         />
+      </div>
+      <div v-else-if="loading" class="drama-grid">
+        <CardSkeleton v-for="i in pageSize" :key="i" />
       </div>
       <a-empty v-else description="暂时取不到内容：可能是源站这个分类翻页不全，也可能是内容被过滤规则剔除，或该源本身没有内容" />
     </a-spin>
@@ -49,12 +52,14 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { dramaApi, type PlatformCategory } from '@/api/drama'
+import type { PlatformCategory } from '@/api/drama'
 import type { Drama } from '@/api/types'
-import { usePlatformStore } from '@/stores/platform'
+import { usePlatformStore, usePlatformBrowseCache } from '@/stores/platform'
 import DramaCard from '@/components/DramaCard.vue'
+import CardSkeleton from '@/components/CardSkeleton.vue'
 
 const platformStore = usePlatformStore()
+const browse = usePlatformBrowseCache()
 
 /** 当前平台。没有「全部」，始终是一个具体平台 */
 const platform = ref('')
@@ -71,35 +76,38 @@ const hasMore = ref(false)
 
 async function loadCategories() {
   try {
-    categories.value = await dramaApi.liveCategories(platform.value)
+    categories.value = await browse.loadCategories(platform.value)
   } catch {
     categories.value = []
   }
 }
 
+/** 请求序号：快速切平台时，慢的旧响应不能盖掉新请求的结果 */
+let seq = 0
+
 async function load(reset = true) {
+  const current = ++seq
   loading.value = true
-  if (reset) {
-    page.value = 1
-    list.value = []
-  }
+  if (reset) page.value = 1
+  // reset 时不清空旧列表：等新数据到了原地替换，避免网格塌下去再弹回来
 
   try {
-    const result = await dramaApi.liveCatalog({
-      platform: platform.value,
-      typeId: typeId.value || undefined,
-      page: page.value,
+    const result = await browse.loadCatalog(
+      platform.value,
+      typeId.value || undefined,
+      page.value,
       pageSize
-    })
+    )
+    if (current !== seq) return
 
     list.value = reset ? result.items : [...list.value, ...result.items]
     total.value = result.total
     // 有的源翻到第 2 页就是空的，所以「还有更多」要看这一页实际拿到了什么
     hasMore.value = result.items.length > 0 && list.value.length < result.total
   } catch {
-    hasMore.value = false
+    if (current === seq) hasMore.value = false
   } finally {
-    loading.value = false
+    if (current === seq) loading.value = false
   }
 }
 

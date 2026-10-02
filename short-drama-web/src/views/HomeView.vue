@@ -66,13 +66,17 @@
         <span class="sd-muted">{{ total > 0 ? `共 ${total} 部 · ` : '' }}实时取自该平台接口</span>
       </div>
 
-      <a-spin :spinning="listLoading">
+      <a-spin :spinning="listLoading && list.length > 0">
         <div v-if="list.length" class="drama-grid">
           <DramaCard
             v-for="item in list"
             :key="`${item.platformCode}-${item.platformDramaId}`"
             :drama="item"
           />
+        </div>
+        <!-- 首次加载没有旧内容可留：铺一排占位卡片，避免整块白掉再突然弹开 -->
+        <div v-else-if="listLoading" class="drama-grid">
+          <CardSkeleton v-for="i in pageSize" :key="i" />
         </div>
         <a-empty v-else description="暂时取不到内容：可能是源站这个分类翻页不全，也可能是内容被过滤规则剔除，或该源本身没有内容" />
       </a-spin>
@@ -105,13 +109,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { dramaApi, type PlatformCategory } from '@/api/drama'
+import type { PlatformCategory } from '@/api/drama'
 import type { Drama } from '@/api/types'
-import { usePlatformStore } from '@/stores/platform'
+import { usePlatformStore, usePlatformBrowseCache } from '@/stores/platform'
 import DramaCard from '@/components/DramaCard.vue'
+import CardSkeleton from '@/components/CardSkeleton.vue'
 
 const router = useRouter()
 const platformStore = usePlatformStore()
+const browse = usePlatformBrowseCache()
 
 /** 分类一多就是一整面墙，先显示这么多个，其余折起来 */
 const CHIP_LIMIT = 14
@@ -191,26 +197,33 @@ function selectType(id: string) {
 
 async function loadCategories() {
   try {
-    categories.value = await dramaApi.liveCategories(platform.value)
+    categories.value = await browse.loadCategories(platform.value)
   } catch {
     categories.value = []
   }
 }
 
+/**
+ * 请求序号：快速连点时（切平台 A → B → C），慢的旧响应不能盖掉新请求的结果。
+ * 响应回来先对号，不是当前这轮的直接丢弃。
+ */
+let listSeq = 0
+
 async function loadList(reset = true) {
+  const seq = ++listSeq
   listLoading.value = true
-  if (reset) {
-    page.value = 1
-    list.value = []
-  }
+  if (reset) page.value = 1
+  // 注意：reset 时不清空旧列表 —— 先留着，等新数据到了原地替换，
+  // 否则切平台/切分类时网格会先塌掉再弹回来，视觉上就是一卡。
 
   try {
-    const result = await dramaApi.liveCatalog({
-      platform: platform.value,
-      typeId: typeId.value || undefined,
-      page: page.value,
+    const result = await browse.loadCatalog(
+      platform.value,
+      typeId.value || undefined,
+      page.value,
       pageSize
-    })
+    )
+    if (seq !== listSeq) return // 已经有更新的请求了，这份作废
 
     list.value = reset ? result.items : [...list.value, ...result.items]
     total.value = result.total
@@ -218,20 +231,26 @@ async function loadList(reset = true) {
     // 所以「还有更多」要看这一页到底有没有拿到东西。
     hasMore.value = result.items.length > 0 && list.value.length < result.total
   } catch {
-    hasMore.value = false
+    if (seq === listSeq) hasMore.value = false
   } finally {
-    listLoading.value = false
+    if (seq === listSeq) listLoading.value = false
   }
 }
 
+/** 榜单同样有请求序号问题，且切 tab 来回点也该走缓存 */
+let rankSeq = 0
+
 async function loadRank() {
+  const seq = ++rankSeq
   rankLoading.value = true
   try {
-    rankList.value = await dramaApi.rank(rankType.value, 10, platform.value)
+    const result = await browse.loadRank(platform.value, rankType.value, 10)
+    if (seq !== rankSeq) return
+    rankList.value = result
   } catch {
-    rankList.value = []
+    if (seq === rankSeq) rankList.value = []
   } finally {
-    rankLoading.value = false
+    if (seq === rankSeq) rankLoading.value = false
   }
 }
 
