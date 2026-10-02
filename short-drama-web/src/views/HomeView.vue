@@ -183,22 +183,19 @@ function selectPlatform(code: string) {
   platform.value = code
   platformStore.select(code)
 
-  // 先按上次的分类（没选过就「全部」）取一轮：有缓存时是瞬时的，页面不会白等
+  // 分类先定，列表只拉一次：
+  // 若先按「全部」拉一轮、分类表到了再切短剧，用户会先看到一屏综艺再闪成短剧，
+  // 内容跳变很难看。分类表很小（多为缓存命中，亚秒级），等它定好默认分类再拉列表。
   typeId.value = pickedTypes.has(code) ? (typeId.value || '') : ''
   chipsExpanded.value = false
-  loadList(true)
   loadRank()
 
-  // 分类表到了之后：该平台没被用户手动选过分类、且源站有短剧相关分类时，
-  // 自动切到短剧 —— 这是短剧站，默认不该看到它的综艺/美剧。
-  // 没有短剧分类的源（那批 AV 源）留在全站目录。
   loadCategories().then(() => {
-    if (pickedTypes.has(code)) return
-    const short = sortedCategories.value.find((c) => isShortCategory(c))
-    if (short && short.typeId !== typeId.value) {
-      typeId.value = short.typeId
-      loadList(true)
+    if (!pickedTypes.has(code)) {
+      const short = sortedCategories.value.find((c) => isShortCategory(c))
+      if (short) typeId.value = short.typeId
     }
+    loadList(true)
   })
 }
 
@@ -278,18 +275,15 @@ onMounted(async () => {
   // 平台列表拿到之后才能落定默认平台（上次选的，或内容最多的那个）
   platform.value = platformStore.ensureSelected()
 
-  loadCategories().then(() => {
-    // 首次进来：该平台没被手动选过分类、且源站有短剧相关分类时，自动落到短剧
-    if (pickedTypes.has(platform.value)) return
-    const short = sortedCategories.value.find((c) => isShortCategory(c))
-    if (short) {
-      typeId.value = short.typeId
-      loadList(true)
-    }
-  })
-
-  loadList(true)
   loadRank()
+  // 与 selectPlatform 相同：先定分类，列表只拉一次，避免「先综艺后短剧」的内容跳变
+  loadCategories().then(() => {
+    if (!pickedTypes.has(platform.value)) {
+      const short = sortedCategories.value.find((c) => isShortCategory(c))
+      if (short) typeId.value = short.typeId
+    }
+    loadList(true)
+  })
 })
 </script>
 
