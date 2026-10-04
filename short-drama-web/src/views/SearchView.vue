@@ -15,7 +15,7 @@
     <div class="filters">
       <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="handleSearch">
         <a-radio-button value="all">全部平台</a-radio-button>
-        <a-radio-button v-for="p in platformStore.all()" :key="p.platformCode" :value="p.platformCode">
+        <a-radio-button v-for="p in platforms" :key="p.platformCode" :value="p.platformCode">
           {{ p.platformName }}
         </a-radio-button>
       </a-radio-group>
@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SearchOutlined } from '@ant-design/icons-vue'
 import { dramaApi } from '@/api/drama'
@@ -67,6 +67,8 @@ import DramaCard from '@/components/DramaCard.vue'
 const route = useRoute()
 const router = useRouter()
 const platformStore = usePlatformStore()
+/** 只算一次：模板里直接调 all() 会在每次重渲染时重新排序 */
+const platforms = computed(() => platformStore.all())
 
 const keyword = ref('')
 const platform = ref('all')
@@ -77,14 +79,6 @@ const page = ref(1)
 const pageSize = 12
 const total = ref(0)
 const hasMore = ref(false)
-
-const platforms = [
-  { code: 'hongguo', name: '红果' },
-  { code: 'huangdou', name: '黄豆' },
-  { code: 'juguo', name: '剧果' },
-  { code: 'yeguo', name: '野果' },
-  { code: 'diguo', name: '帝果' }
-]
 
 const hotWords = ['逆袭', '重生', '霸总', '穿越', '种田', '首富', '战神']
 

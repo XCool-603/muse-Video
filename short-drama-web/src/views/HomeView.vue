@@ -5,7 +5,7 @@
       <div class="sd-container hero-inner">
         <h1 class="hero-title">聚合全网短剧，一站搜索观看</h1>
         <p class="hero-sub">
-          {{ platformStore.all().length }} 个平台 · 按平台浏览（内容实时取自各平台接口），搜索仍可全网检索
+          {{ platforms.length }} 个平台 · 按平台浏览（内容实时取自各平台接口），搜索仍可全网检索
         </p>
 
         <div class="search-box">
@@ -24,7 +24,7 @@
           <span class="sd-muted">平台：</span>
           <div class="platform-tabs">
             <button
-              v-for="p in platformStore.all()"
+              v-for="p in platforms"
               :key="p.platformCode"
               class="platform-tab"
               :class="{ active: p.platformCode === platform, dead: !p.playable }"
@@ -129,6 +129,12 @@ const keyword = ref('')
 /** 当前浏览的平台。始终是某一个具体平台，没有「全部」 */
 const platform = ref('')
 const platformName = computed(() => platformStore.nameOf(platform.value) || '该平台')
+/**
+ * 平台列表只算一次。
+ * 模板里直接写 platformStore.all() 的话，每次重渲染都会重新排序一遍新数组
+ * （首页每次列表/榜单/分类更新都会重渲染），纯属白算。
+ */
+const platforms = computed(() => platformStore.all())
 
 const categories = ref<PlatformCategory[]>([])
 /** 当前选中的源站分类；空 = 该源的全站目录 */

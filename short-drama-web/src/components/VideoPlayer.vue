@@ -103,7 +103,9 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import Hls from 'hls.js'
+// 只引类型：hls.js 有 580KB，改成真要播 HLS 时才动态加载（见 attachSource）。
+// MP4 源（红果、黄果）不该为它买单 —— 类型导入在编译期就被擦除，不进产物。
+import type Hls from 'hls.js'
 import {
   AudioMutedOutlined,
   CaretRightOutlined,
@@ -168,6 +170,8 @@ let hideTimer: number | undefined
 let resumeApplied = false
 // fatal 网络错误的重试次数（有上限，见 ERROR 处理）
 let networkRetries = 0
+// attachSource 的调用序号：动态 import hls.js 是异步的，期间换源就作废这一次
+let attachSeq = 0
 
 const playedPercent = computed(() =>
   duration.value > 0 ? Math.min(100, (currentTime.value / duration.value) * 100) : 0
@@ -185,9 +189,12 @@ function formatTime(seconds: number): string {
 }
 
 /** 挂载播放源：m3u8 走 hls.js，明文 mp4 直接交给原生 <video> */
-function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
+async function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
   const video = videoRef.value
   if (!video || !url) return
+
+  // 异步加载 hls.js 期间用户可能又换了源：用序号把过期的这次丢掉
+  const seq = ++attachSeq
 
   destroyHls()
   errorMessage.value = ''
@@ -202,6 +209,29 @@ function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
     video.addEventListener('loadedmetadata', applyResumeAndPlay, { once: true })
     return
   }
+
+  // Safari / iOS 原生就支持 HLS —— 先判它，这样 Safari 用户不用白下 580KB 的 hls.js。
+  // （Chrome/Edge 对 'application/vnd.apple.mpegurl' 返回空串，会落到下面的 hls.js 分支）
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = url
+    video.addEventListener('loadedmetadata', applyResumeAndPlay, { once: true })
+    return
+  }
+
+  // 只有真的要播 HLS 才把这 580KB 拉下来。放在这里而不是模块顶层，
+  // 是为了让 MP4 源（红果、黄果）完全不下载它。
+  // 动态加载本身可能失败（例如浏览器缓存了旧 index.html、chunk 名已变 → 404），
+  // 这时必须给出提示，不能让播放器静默卡在 loading。
+  let Hls: typeof import('hls.js').default
+  try {
+    ({ default: Hls } = await import('hls.js'))
+  } catch {
+    errorMessage.value = '播放器组件加载失败，请刷新页面后重试'
+    loading.value = false
+    emit('error', errorMessage.value)
+    return
+  }
+  if (seq !== attachSeq) return // 期间换过源了，这次作废
 
   if (Hls.isSupported()) {
     hls = new Hls({
@@ -251,10 +281,6 @@ function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
           break
       }
     })
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    // Safari / iOS 原生 HLS
-    video.src = url
-    video.addEventListener('loadedmetadata', applyResumeAndPlay, { once: true })
   } else {
     errorMessage.value = '当前浏览器不支持 HLS 播放'
     loading.value = false

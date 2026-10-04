@@ -10,7 +10,7 @@
         <span class="filter-label">平台</span>
         <a-radio-group v-model:value="platform" size="small" button-style="solid" @change="onPlatformChange">
           <a-radio-button
-            v-for="p in platformStore.all()"
+            v-for="p in platforms"
             :key="p.platformCode"
             :value="p.platformCode"
             :title="p.playNote || p.platformName"
@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { PlatformCategory } from '@/api/drama'
 import type { Drama } from '@/api/types'
 import { usePlatformStore, usePlatformBrowseCache } from '@/stores/platform'
@@ -64,6 +64,8 @@ import DramaCard from '@/components/DramaCard.vue'
 import CardSkeleton from '@/components/CardSkeleton.vue'
 
 const platformStore = usePlatformStore()
+/** 只算一次：模板里直接调 all() 会在每次重渲染时重新排序 */
+const platforms = computed(() => platformStore.all())
 const browse = usePlatformBrowseCache()
 
 /** 当前平台。没有「全部」，始终是一个具体平台 */

@@ -1,7 +1,14 @@
 <template>
   <div class="drama-card" @click="handleClick">
     <div class="cover-wrap">
-      <img :src="cover" :alt="drama.title" loading="lazy" class="cover" @error="onCoverError" />
+      <img
+        :src="cover"
+        :alt="drama.title"
+        loading="lazy"
+        decoding="async"
+        class="cover"
+        @error="onCoverError"
+      />
 
       <div class="badges">
         <span v-if="drama.totalEpisodes" class="badge badge-episodes">
@@ -123,6 +130,14 @@ async function resolveAndPlay() {
 .drama-card {
   cursor: pointer;
   transition: transform 0.22s ease;
+  /*
+    长列表渲染优化：「加载更多」堆到上百张卡片后，屏幕外的卡片不必参与布局与绘制。
+    contain-intrinsic-size 的 auto 关键字很关键 —— 首次渲染后浏览器会记住真实尺寸，
+    滚动条不会因为占位高度估算不准而跳动（这里 300px 只是首次的估算值）。
+    卡片高度 = 栅格宽度 × 4/3（封面 3/4）+ 约 66px 信息区，150~200px 栅格下约 266~333px。
+  */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
 }
 
 .drama-card:hover {
