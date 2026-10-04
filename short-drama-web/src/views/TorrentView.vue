@@ -29,7 +29,7 @@
         共 <b class="highlight">{{ total }}</b> 条 · 用时 {{ tookMs }} ms
         <span v-if="cached">（命中缓存）</span>
       </span>
-      <span class="sd-muted">按做种数排序 —— 做种为 0 的通常下不动</span>
+      <span class="sd-muted">按相关度排序；下载前请看做种数，做种为 0 的通常下不动</span>
     </div>
 
     <!-- 搜索失败要明确区分于「0 条」：原先失败时清空结果、显示成「没搜到」，
@@ -176,6 +176,13 @@ const task = ref<TorrentTask | null>(null)
 const preparingHash = ref('')
 
 let pollTimer: number | undefined
+/**
+ * 搜索请求序号：防止旧响应覆盖新结果。
+ * 搜索要打 6 个索引站、耗时几秒，用户很可能等不及就改了关键词再搜一次；
+ * 若先发的慢请求后返回，它会把新词的结果覆盖掉 —— 表现就是「不管搜什么都一样」。
+ * 首页/分类页早有这个保护，这里当初漏了。
+ */
+let searchSeq = 0
 
 /** 做种数为 0 的结果基本下不动，标红提示；为 null 表示站点没提供，不做判断 */
 function seedClass(seeders?: number | null) {
@@ -202,12 +209,15 @@ async function doSearch() {
   const query = keyword.value.trim()
   if (!query) return
 
+  const seq = ++searchSeq
   searching.value = true
   searched.value = true
   searchError.value = ''
 
   try {
     const response = await torrentApi.search({ q: query, limit: 15 })
+    if (seq !== searchSeq) return // 期间又搜了别的词，这次结果作废
+
     results.value = response.results
     total.value = response.total
     tookMs.value = response.tookMs
@@ -215,6 +225,8 @@ async function doSearch() {
     sources.value = response.sources ?? []
     sourceErrors.value = response.sourceErrors ?? []
   } catch (error) {
+    if (seq !== searchSeq) return
+
     // 关键：失败不能表现成「0 条」。把原因留下来给用户看，
     // 同时保留上一次的结果，避免页面突然空掉让人以为「点了没反应」。
     results.value = []
@@ -222,7 +234,7 @@ async function doSearch() {
     sourceErrors.value = []
     searchError.value = extractError(error)
   } finally {
-    searching.value = false
+    if (seq === searchSeq) searching.value = false
   }
 }
 

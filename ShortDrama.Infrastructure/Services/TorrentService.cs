@@ -105,7 +105,14 @@ namespace ShortDrama.Infrastructure.Services
         {
             var response = new TorrentSearchResponseDto { Query = keyword };
 
-            var query = $"api/search?q={Uri.EscapeDataString(keyword)}&limit={limit}&sort=seeders&order=desc";
+            // 用种子服务的默认排序（relevance，按相关度）。
+            //
+            // **不要改成 sort=seeders**：实测 apibay 对中文查询是无效的（它不处理中文，
+            // 直接返回自己的默认榜单：MobLand / South Park 之类），而那批无关结果的做种数
+            // 极高（3 万+）。一旦按做种排序，它们会稳定霸占前几条，表现为
+            // 「不管搜什么，结果都一样」——这个坑我踩过。
+            // 相关度排序下这些无关结果会沉下去，中文查询的首条才是真命中。
+            var query = $"api/search?q={Uri.EscapeDataString(keyword)}&limit={limit}&sort=relevance";
             if (minSeeders is > 0) query += $"&min-seeders={minSeeders}";
 
             var payload = await Control.GetFromJsonAsync<SearchResponse>(query, ct);
