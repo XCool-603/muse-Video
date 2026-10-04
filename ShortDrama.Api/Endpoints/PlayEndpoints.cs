@@ -172,7 +172,16 @@ namespace ShortDrama.Api.Endpoints
                 // 换主机重试：采集站给的播放地址可能指向已退役的 CDN 主机
                 // （实测暴风 bfeng10.com 全站 404，而同一路径在 fengbao13.com 上是 200，
                 //  4143 条相对路径分片、无加密）。同一路径换该源其它主机，多数能救回来。
-                if (!filtered.Success)
+                //
+                // 但**整站级封锁**换主机是没用的：实测无尽资源 12 台主机全部 403、
+                // 天堂资源 9 台全部 403。这种源已经被 PlayabilityTracker 记为不可播，
+                // 再逐个试只是白等 5~10 秒 —— 所以此时跳过整轮换主机。
+                // 注意原始地址上面已经试过一次：网络恢复后第一次播放就能成功并解除标记。
+                if (!filtered.Success && playability.GetPlatformStatus(info.PlatformCode) == false)
+                {
+                    logger.LogInformation("平台 {Platform} 已判定本机不可达，跳过换主机重试", info.PlatformName);
+                }
+                else if (!filtered.Success)
                 {
                     var alternates = await playService.GetAlternateHostsAsync(dramaId, ct);
                     foreach (var altUrl in SwapHosts(info.PlayUrl, alternates))
