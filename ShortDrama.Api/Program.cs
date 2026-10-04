@@ -164,6 +164,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", time = DateTime
 
 app.MapDramaEndpoints();
 app.MapPlayEndpoints();
+app.MapTorrentEndpoints();
 app.MapUserEndpoints();
 app.MapAdminEndpoints();
 app.MapAccessGateEndpoints();

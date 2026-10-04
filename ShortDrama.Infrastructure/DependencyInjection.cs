@@ -205,6 +205,30 @@ namespace ShortDrama.Infrastructure
                 client.DefaultRequestHeaders.Referrer = new Uri("https://www.example.com/");
             });
 
+            // ---- 本地种子服务（torrent-search，另一个进程，默认 127.0.0.1:8787）----
+            // 注意这里**不设 Referrer**，也不设 UA：它是本机自己人的服务，不是采集站 CDN。
+            var torrent = configuration.GetSection(TorrentOptions.SectionName).Get<TorrentOptions>()
+                ?? new TorrentOptions();
+            services.AddSingleton(torrent);
+
+            // 控制面：搜索/状态/任务，短超时 —— 连不上就尽快失败，好让前端提示「种子服务没启动」
+            services.AddHttpClient("torrent", client =>
+            {
+                client.BaseAddress = new Uri(torrent.BaseUrl.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(Math.Max(5, torrent.TimeoutSeconds));
+            });
+
+            // 数据面：播放代理。**超时必须无限** —— HttpClient.Timeout 覆盖的不只是响应头，
+            // 还包括读响应体的全过程；用控制面那个 30 秒超时去代理视频，播到 30 秒就被掐断。
+            // 结束条件交给调用方的 CancellationToken（客户端断开）。
+            services.AddHttpClient("torrent-stream", client =>
+            {
+                client.BaseAddress = new Uri(torrent.BaseUrl.TrimEnd('/') + "/");
+                client.Timeout = Timeout.InfiniteTimeSpan;
+            });
+
+            services.AddSingleton<ITorrentService, TorrentService>();
+
             return services;
         }
     }

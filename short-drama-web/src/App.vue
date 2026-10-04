@@ -77,11 +77,14 @@ const navItems = [
   { path: '/', label: '首页' },
   { path: '/category', label: '分类' },
   { path: '/search', label: '搜索' },
+  { path: '/torrent', label: '种子' },
   { path: '/profile', label: '我的' }
 ]
 
 // 播放页采用沉浸式布局；入口页不显示导航与页脚
-const isImmersive = computed(() => route.name === 'play' || route.name === 'gate')
+const isImmersive = computed(
+  () => route.name === 'play' || route.name === 'torrent-play' || route.name === 'gate'
+)
 
 const themeConfig = {
   algorithm: antdTheme.darkAlgorithm,

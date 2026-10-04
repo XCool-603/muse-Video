@@ -30,6 +30,19 @@ const router = createRouter({
       meta: { title: '搜索' }
     },
     {
+      path: '/torrent',
+      name: 'torrent',
+      component: () => import('@/views/TorrentView.vue'),
+      meta: { title: '种子' }
+    },
+    {
+      // 种子播放：独立路由，复用播放页的沉浸式布局（App.vue 按 name 隐藏导航）
+      path: '/torrent/play/:hash/:index',
+      name: 'torrent-play',
+      component: () => import('@/views/TorrentPlayerView.vue'),
+      meta: { title: '种子播放' }
+    },
+    {
       path: '/play/:id/:episode?',
       name: 'play',
       component: () => import('@/views/PlayerView.vue'),
