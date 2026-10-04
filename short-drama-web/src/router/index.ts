@@ -113,4 +113,38 @@ router.afterEach((to) => {
   document.title = title ? `${title} · 短剧聚合` : '短剧聚合 · 一站式短剧搜索与播放'
 })
 
+/**
+ * 懒加载 chunk 取不到时自动刷新一次。
+ *
+ * 为什么需要：路由组件是动态 import 的，而构建产物带内容 hash ——
+ * 每次重新部署，旧的 chunk 文件名就不存在了。如果用户的标签页是**部署前打开的**，
+ * 里面记着的还是旧文件名，这时点导航（例如「种子」）会去请求一个 404 的 chunk，
+ * 表现是**点了完全没反应**（Vue Router 默认不提示，控制台外看不到任何反馈）。
+ *
+ * 刷新一次就能拿到新的 index.html 与新的 chunk 名。用 sessionStorage 加时间窗
+ * 兜底，避免万一持续失败时无限刷新。
+ */
+router.onError((error) => {
+  const message = String((error as Error)?.message ?? '')
+  const isChunkLoadFailure =
+    /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk \d+ failed/i.test(
+      message
+    )
+
+  if (!isChunkLoadFailure) return
+
+  const KEY = 'sd-chunk-reload-at'
+  const last = Number(sessionStorage.getItem(KEY) ?? 0)
+  const now = Date.now()
+
+  // 10 秒内已经刷过一次就不再刷，避免死循环
+  if (now - last < 10_000) {
+    console.error('[路由] 懒加载 chunk 仍然取不到，已放弃自动刷新：', message)
+    return
+  }
+
+  sessionStorage.setItem(KEY, String(now))
+  window.location.reload()
+})
+
 export default router
