@@ -26,12 +26,21 @@ export interface TorrentSearchResult {
   publishedAt?: string | null
 }
 
+export interface TorrentSourceStatus {
+  id: string
+  ok: boolean
+  count: number
+  error?: string | null
+}
+
 export interface TorrentSearchResponse {
   query: string
   total: number
   tookMs: number
   cached: boolean
   results: TorrentSearchResult[]
+  /** 每个索引源的结果数 —— 用来解释「为什么只有这几条 / 为什么 0 条」 */
+  sources: TorrentSourceStatus[]
   /** 个别源失败的原因，如实展示能解释为什么结果比预期少 */
   sourceErrors: string[]
 }

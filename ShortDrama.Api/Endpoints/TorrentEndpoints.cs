@@ -53,13 +53,29 @@ namespace ShortDrama.Api.Endpoints
 
                 limit = limit is <= 0 or > 50 ? 10 : limit;
 
+                // 搜索接口原先在成功路径上完全不打日志，导致「用户说搜不出来」时无从判断：
+                // 是没发请求、请求失败了、还是真的 0 条。这里把每次搜索都记下来。
+                var logger = loggerFactory.CreateLogger("TorrentSearch");
+                var startedAt = System.Diagnostics.Stopwatch.StartNew();
+
                 try
                 {
                     var result = await service.SearchAsync(q.Trim(), limit, minSeeders, ct);
+                    startedAt.Stop();
+
+                    logger.LogInformation(
+                        "种子搜索「{Query}」→ 命中 {Count} 条（源内合计 {Total}），用时 {Ms} ms；各源：{Sources}",
+                        q.Trim(), result.Results.Count, result.Total, startedAt.ElapsedMilliseconds,
+                        string.Join(", ", result.Sources.Select(s => $"{s.Id}={(s.Ok ? s.Count.ToString() : "失败")}")));
+
                     return Results.Ok(ApiResponse<TorrentSearchResponseDto>.Success(result));
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
                 {
+                    startedAt.Stop();
+                    logger.LogWarning(ex, "种子搜索「{Query}」失败（用时 {Ms} ms）：连不上种子服务",
+                        q.Trim(), startedAt.ElapsedMilliseconds);
+
                     return Results.Json(
                         ApiResponse<TorrentSearchResponseDto>.Fail(5030,
                             "连不上本地种子服务。请先启动它：node bin/magnet-search.mjs serve"),
@@ -68,7 +84,7 @@ namespace ShortDrama.Api.Endpoints
                 catch (JsonException ex)
                 {
                     // 上游字段形状变了不该让前端吃 500：如实说明并指出是哪一步
-                    loggerFactory.CreateLogger("TorrentSearch").LogWarning(ex, "解析种子服务搜索响应失败");
+                    logger.LogWarning(ex, "解析种子服务搜索响应失败");
                     return Results.Json(
                         ApiResponse<TorrentSearchResponseDto>.Fail(5001,
                             "本地种子服务返回了预期之外的数据格式（可能是版本不匹配）"),

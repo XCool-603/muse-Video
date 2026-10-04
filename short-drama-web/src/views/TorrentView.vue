@@ -25,12 +25,22 @@
     </div>
 
     <div class="filters">
-      <span v-if="searched" class="sd-muted">
+      <span v-if="searched && !searchError" class="sd-muted">
         共 <b class="highlight">{{ total }}</b> 条 · 用时 {{ tookMs }} ms
         <span v-if="cached">（命中缓存）</span>
       </span>
       <span class="sd-muted">按做种数排序 —— 做种为 0 的通常下不动</span>
     </div>
+
+    <!-- 搜索失败要明确区分于「0 条」：原先失败时清空结果、显示成「没搜到」，
+         看起来就像「点了没反应」，把真正的原因藏了起来 -->
+    <a-alert v-if="searchError" type="error" show-icon class="source-alert">
+      <template #message>搜索失败</template>
+      <template #description>
+        <div>{{ searchError }}</div>
+        <div class="sd-muted">这不代表没有资源。可以再点一次搜索重试。</div>
+      </template>
+    </a-alert>
 
     <a-alert v-if="sourceErrors.length" type="info" class="source-alert">
       <template #message>部分索引源没返回结果</template>
@@ -64,11 +74,28 @@
         </div>
       </div>
 
-      <a-empty v-else-if="searched" description="没搜到相关种子，换个关键词试试" />
-      <div v-else class="hint">
+      <div v-else-if="searched && !searchError && !searching" class="hint">
+        <p>没有搜到结果。</p>
+        <!-- 0 条时把各源的实际情况摊开，而不是丢一句「没搜到」 -->
+        <p v-if="sources.length" class="sd-muted">
+          本次跑了 {{ sources.length }} 个索引源：
+          <span v-for="s in sources" :key="s.id" class="source-chip" :class="{ bad: !s.ok }">
+            {{ s.id }} {{ s.ok ? s.count : '失败' }}
+          </span>
+        </p>
+        <p class="sd-muted">
+          这些索引站以英文影视和动漫为主，中文短剧的收录很少。
+          换个更通用的关键词（例如剧名里的两三个字）可能更容易命中。
+        </p>
+      </div>
+
+      <div v-else-if="!searched" class="hint">
         <p>输入剧名搜索种子资源。找到之后可以边下边播，不必等整部下完。</p>
         <p class="sd-muted">
           提示：做种数为 0 或「未知」的结果通常下不动；优先挑做种数高的。
+        </p>
+        <p class="sd-muted">
+          另外提醒：这些公开索引站以英文影视、动漫和成人内容为主，中文短剧的收录很少。
         </p>
       </div>
     </a-spin>
@@ -117,7 +144,17 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { torrentApi, isTaskActive, formatBytes, statusText, type TorrentStatus, type TorrentSearchResult, type TorrentFile, type TorrentTask } from '@/api/torrent'
+import {
+  torrentApi,
+  isTaskActive,
+  formatBytes,
+  statusText,
+  type TorrentStatus,
+  type TorrentSearchResult,
+  type TorrentSourceStatus,
+  type TorrentFile,
+  type TorrentTask
+} from '@/api/torrent'
 
 const route = useRoute()
 const router = useRouter()
@@ -130,7 +167,10 @@ const searched = ref(false)
 const total = ref(0)
 const tookMs = ref(0)
 const cached = ref(false)
+const sources = ref<TorrentSourceStatus[]>([])
 const sourceErrors = ref<string[]>([])
+/** 搜索失败的原因。必须与「0 条」区分开，否则失败会被误读成「没有资源」 */
+const searchError = ref('')
 
 const task = ref<TorrentTask | null>(null)
 const preparingHash = ref('')
@@ -164,19 +204,34 @@ async function doSearch() {
 
   searching.value = true
   searched.value = true
+  searchError.value = ''
+
   try {
     const response = await torrentApi.search({ q: query, limit: 15 })
     results.value = response.results
     total.value = response.total
     tookMs.value = response.tookMs
     cached.value = response.cached
+    sources.value = response.sources ?? []
     sourceErrors.value = response.sourceErrors ?? []
-  } catch {
+  } catch (error) {
+    // 关键：失败不能表现成「0 条」。把原因留下来给用户看，
+    // 同时保留上一次的结果，避免页面突然空掉让人以为「点了没反应」。
     results.value = []
+    sources.value = []
     sourceErrors.value = []
+    searchError.value = extractError(error)
   } finally {
     searching.value = false
   }
+}
+
+/** 从 axios 错误里取出可读原因（没有响应体时用 message，例如超时/网络错误） */
+function extractError(error: unknown): string {
+  const err = error as { response?: { status?: number; data?: { message?: string } }; message?: string }
+  const status = err?.response?.status
+  const message = err?.response?.data?.message || err?.message || '未知错误'
+  return status ? `HTTP ${status}：${message}` : message
 }
 
 async function prepare(item: TorrentSearchResult) {
@@ -264,6 +319,19 @@ onUnmounted(stopPolling)
 .source-error {
   font-size: 12px;
   color: var(--sd-text-muted, #9a9aa8);
+}
+
+.source-chip {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+
+.source-chip.bad {
+  color: #ff7875;
 }
 
 .torrent-list {

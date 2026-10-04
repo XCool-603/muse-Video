@@ -43,8 +43,21 @@ namespace ShortDrama.Application.DTOs
         public long TookMs { get; set; }
         public bool Cached { get; set; }
         public List<TorrentSearchResultDto> Results { get; set; } = new();
+        /// <summary>
+        /// 每个索引源的结果数。**必须给前端**：不然「0 条」无法解释 ——
+        /// 是全部源都没命中，还是只有某一个源挂了？
+        /// </summary>
+        public List<TorrentSourceStatusDto> Sources { get; set; } = new();
         /// <summary>某个源失败时的说明（例如 nyaa 超时）—— 如实转述，这能解释为什么结果比预期少</summary>
         public List<string> SourceErrors { get; set; } = new();
+    }
+
+    public class TorrentSourceStatusDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public bool Ok { get; set; }
+        public int Count { get; set; }
+        public string? Error { get; set; }
     }
 
     public class TorrentFileDto

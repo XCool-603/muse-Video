@@ -118,6 +118,14 @@ namespace ShortDrama.Infrastructure.Services
             // 失败的源要如实转述：这能解释为什么结果比预期少
             foreach (var source in payload.Sources ?? new List<SourceStatus>())
             {
+                response.Sources.Add(new TorrentSourceStatusDto
+                {
+                    Id = source.Id,
+                    Ok = source.Ok,
+                    Count = source.Count,
+                    Error = source.Error
+                });
+
                 if (!source.Ok && !string.IsNullOrWhiteSpace(source.Error))
                 {
                     response.SourceErrors.Add($"{source.Id}：{source.Error}");
@@ -398,6 +406,7 @@ namespace ShortDrama.Infrastructure.Services
         {
             [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
             [JsonPropertyName("ok")] public bool Ok { get; set; }
+            [JsonPropertyName("count")] public int Count { get; set; }
             [JsonPropertyName("error")] public string? Error { get; set; }
         }
 
