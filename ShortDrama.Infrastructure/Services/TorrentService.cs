@@ -37,6 +37,11 @@ namespace ShortDrama.Infrastructure.Services
         private readonly TorrentOptions _options;
         private readonly ILogger<TorrentService> _logger;
 
+        /// <summary>数据源清单缓存：用来按 kinds 排除成人站。10 分钟足够，源不会频繁变</summary>
+        private List<SourceInfo>? _sourceCache;
+        private DateTimeOffset _sourceCacheAt = DateTimeOffset.MinValue;
+        private static readonly TimeSpan SourceCacheTtl = TimeSpan.FromMinutes(10);
+
         public TorrentService(IHttpClientFactory factory, TorrentOptions options, ILogger<TorrentService> logger)
         {
             _factory = factory;
@@ -101,7 +106,7 @@ namespace ShortDrama.Infrastructure.Services
         }
 
         public async Task<TorrentSearchResponseDto> SearchAsync(
-            string keyword, int limit = 10, int? minSeeders = null, CancellationToken ct = default)
+            string keyword, int limit = 10, int? minSeeders = null, bool excludeAdult = true, CancellationToken ct = default)
         {
             var response = new TorrentSearchResponseDto { Query = keyword };
 
@@ -114,6 +119,19 @@ namespace ShortDrama.Infrastructure.Services
             // 相关度排序下这些无关结果会沉下去，中文查询的首条才是真命中。
             var query = $"api/search?q={Uri.EscapeDataString(keyword)}&limit={limit}&sort=relevance";
             if (minSeeders is > 0) query += $"&min-seeders={minSeeders}";
+
+            // 排除成人站：**按源的 kinds 排除，而不是按标题猜词**。
+            // 工具里有 sukebei（Nyaa 成人分站，kinds=[adult]），它只放成人内容；
+            // 实测工具的 safe=true 对这些结果并不生效（开了 safe 结果照旧），
+            // 所以直接在请求里把这类源去掉才是可靠的。
+            if (excludeAdult)
+            {
+                var allowed = await GetAllowedSourceIdsAsync(ct);
+                if (allowed is { Count: > 0 })
+                {
+                    query += $"&sources={Uri.EscapeDataString(string.Join(",", allowed))}";
+                }
+            }
 
             var payload = await Control.GetFromJsonAsync<SearchResponse>(query, ct);
             if (payload is null) return response;
@@ -143,11 +161,32 @@ namespace ShortDrama.Infrastructure.Services
             {
                 if (string.IsNullOrWhiteSpace(item.InfoHash) || string.IsNullOrWhiteSpace(item.Magnet)) continue;
 
+                var title = item.Title ?? string.Empty;
+
+                // 与关键词无关的结果直接挡掉。
+                // 实测 apibay 对中文查询无效，会返回它自己的默认榜单（MobLand / South Park 之类），
+                // 这些结果不但没用，做种数还极高，会把真命中的结果挤下去。
+                if (!IsRelevant(keyword, title))
+                {
+                    response.FilteredIrrelevant += 1;
+                    continue;
+                }
+
+                // 成人内容过滤。**首选工具自带的 adult 标记**：它来自站点自己的分类
+                // （实测准：sukebei 的 Real Life - Videos 全部 adult=true，正常动漫条目 false）。
+                // 关键词判断只作为兜底 —— 有些站点不标分类，那时只能按标题猜，会漏也会误伤，
+                // 所以过滤条数如实报给前端，界面上也允许关掉。
+                if (excludeAdult && (item.Adult || LooksAdult(title)))
+                {
+                    response.FilteredAdult += 1;
+                    continue;
+                }
+
                 var size = ReadSize(item.Size, item.SizeText, item.SizeBytes);
 
                 response.Results.Add(new TorrentSearchResultDto
                 {
-                    Title = item.Title ?? string.Empty,
+                    Title = title,
                     SizeText = size.Text,
                     SizeBytes = size.Bytes,
                     Seeders = item.Seeders,
@@ -160,6 +199,123 @@ namespace ShortDrama.Infrastructure.Services
             }
 
             return response;
+        }
+
+        /// <summary>
+        /// 允许参与搜索的源 id：默认启用、在线、且 kinds 里没有 adult。
+        ///
+        /// 取不到清单时返回 null，调用方就不要传 sources 参数（退回「全部源 + 标题关键词兜底」），
+        /// 而不是让搜索直接失败。
+        /// </summary>
+        private async Task<List<string>?> GetAllowedSourceIdsAsync(CancellationToken ct)
+        {
+            if (_sourceCache is not null && DateTimeOffset.UtcNow - _sourceCacheAt < SourceCacheTtl)
+            {
+                return BuildAllowedIds(_sourceCache);
+            }
+
+            try
+            {
+                var payload = await Control.GetFromJsonAsync<SourceList>("api/sources", ct);
+                if (payload?.Sources is { Count: > 0 })
+                {
+                    _sourceCache = payload.Sources;
+                    _sourceCacheAt = DateTimeOffset.UtcNow;
+                    return BuildAllowedIds(_sourceCache);
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+            {
+                _logger.LogDebug("取种子服务数据源清单失败，本次退回全部源：{Message}", ex.Message);
+            }
+
+            return null;
+        }
+
+        private static List<string> BuildAllowedIds(List<SourceInfo> sources)
+            => sources
+                .Where(s => s.DefaultEnabled && !s.Offline)
+                .Where(s => s.Kinds is null || !s.Kinds.Contains("adult", StringComparer.OrdinalIgnoreCase))
+                .Select(s => s.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToList();
+
+        /// <summary>
+        /// 标题是否与关键词相关。
+        ///
+        /// 中文查询：要求标题命中的「查询词字符」达到 60%（至少 2 个）。
+        ///   下限取 2 而不是 1 很关键：2 字查询（三体、狂飙）若只要求 1 个字命中，
+        ///   任何含「三」或「体」的标题都会通过（实测把《无职转生 第三季》也放进来了）。
+        /// 英文查询：要求标题包含查询的全部词元（长度 ≥2 的词元），否则视为无关。
+        /// </summary>
+        internal static bool IsRelevant(string keyword, string title)
+        {
+            if (string.IsNullOrWhiteSpace(keyword) || string.IsNullOrWhiteSpace(title)) return false;
+
+            var query = keyword.Trim();
+            var target = title.ToLowerInvariant();
+            var needle = query.ToLowerInvariant();
+
+            var queryChars = query.Where(IsCjk).Distinct().ToArray();
+
+            // 中文查询：按字符命中率判断
+            if (queryChars.Length > 0)
+            {
+                var hit = queryChars.Count(c => title.Contains(c));
+                // 单字查询只能要求 1；其余至少 2，且不低于 60%
+                var need = queryChars.Length == 1
+                    ? 1
+                    : Math.Max(2, (int)Math.Ceiling(queryChars.Length * 0.6));
+                return hit >= need;
+            }
+
+            // 英文/数字查询：整串命中，或所有词元都命中
+            if (target.Contains(needle)) return true;
+
+            var tokens = needle.Split(new[] { ' ', '.', '-', '_', '(', ')', '[', ']' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(t => t.Length >= 2)
+                .ToArray();
+
+            return tokens.Length > 0 && tokens.All(t => target.Contains(t));
+        }
+
+        private static bool IsCjk(char c)
+            => (c >= 0x4E00 && c <= 0x9FFF)      // 基本区
+            || (c >= 0x3400 && c <= 0x4DBF)      // 扩展 A
+            || (c >= 0xF900 && c <= 0xFAFF);     // 兼容表意
+
+        /// <summary>
+        /// 疑似成人内容的标题关键词（**兜底用**，首选工具自带的 adult 标记）。
+        ///
+        /// 只收「明确指向成人作品」的词：制片厂名、露骨行为词。
+        /// 刻意不收「美女 / 性感 / 偷拍 / 调教」这类会大量误伤的泛词。
+        /// </summary>
+        private static readonly string[] AdultKeywords =
+        {
+            // 国内成人制片厂 / 平台
+            "麻豆", "精东", "香蕉秀", "蜜桃影像", "天美传媒", "果冻传媒", "星空传媒", "乌鸦传媒", "91制片",
+            "swag", "皇家华人", "爱豆传媒", "国产自拍", "国产AV",
+            // 露骨行为词
+            "无码", "里番", "H漫", "内射", "口交", "口爆", "颜射", "中出", "无套", "群交", "肛交",
+            "巨乳", "爆乳", "淫", "肉便器", "痴女", "援交", "自慰", "做爱", "性爱", "换妻", "约啪",
+            "嫩穴", "骚穴", "肉棒", "鸡巴", "精液", "喷精", "吞精", "高潮喷", "母狗", "母畜",
+            "呻吟", "浪叫", "荡妇", "少妇", "后入", "灌满", "白浆", "打桩", "喷神", "白虎",
+            "丝足", "足交", "痴汉", "偷窥", "爆菊", "破处", "迷奸", "轮奸", "乱伦", "春药",
+            // 常见标题特征词（成人资源圈常用）
+            "寻花", "探花", "外围", "楼凤", "会所", "桑拿", "学生妹", "兼职妹", "大屌", "巨屌",
+            "情色", "三级片", "黄片", "黄版", "五十人斩", "调教开发",
+            // 英文
+            "porn", "xxx", "hentai", "jav", "nsfw", "uncensored"
+        };
+
+        private static bool LooksAdult(string title)
+        {
+            var lower = title.ToLowerInvariant();
+            foreach (var word in AdultKeywords)
+            {
+                if (lower.Contains(word, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
         }
 
         public async Task<TorrentTaskDto> PrepareAsync(string magnet, CancellationToken ct = default)
@@ -431,6 +587,8 @@ namespace ShortDrama.Infrastructure.Services
             [JsonPropertyName("leechers")] public int? Leechers { get; set; }
             [JsonPropertyName("infoHash")] public string? InfoHash { get; set; }
             [JsonPropertyName("magnet")] public string? Magnet { get; set; }
+            /// <summary>工具按站点分类给出的成人标记。比按标题猜词可靠，优先用它</summary>
+            [JsonPropertyName("adult")] public bool Adult { get; set; }
             [JsonPropertyName("sources")] public List<string>? Sources { get; set; }
             [JsonPropertyName("publishedAt")] public string? PublishedAt { get; set; }
         }
@@ -438,6 +596,19 @@ namespace ShortDrama.Infrastructure.Services
         private sealed class DownloadList
         {
             [JsonPropertyName("tasks")] public List<DownloadTask>? Tasks { get; set; }
+        }
+
+        private sealed class SourceList
+        {
+            [JsonPropertyName("sources")] public List<SourceInfo>? Sources { get; set; }
+        }
+
+        private sealed class SourceInfo
+        {
+            [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
+            [JsonPropertyName("kinds")] public List<string>? Kinds { get; set; }
+            [JsonPropertyName("defaultEnabled")] public bool DefaultEnabled { get; set; } = true;
+            [JsonPropertyName("offline")] public bool Offline { get; set; }
         }
 
         private sealed class DownloadTask

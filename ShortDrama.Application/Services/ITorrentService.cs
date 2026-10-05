@@ -19,9 +19,16 @@ namespace ShortDrama.Application.Services
         /// <summary>探测本地种子服务是否可用</summary>
         Task<TorrentStatusDto> GetStatusAsync(CancellationToken ct = default);
 
-        /// <summary>聚合搜索（默认按做种数排序，做种数高的才下得动）</summary>
+        /// <summary>
+        /// 聚合搜索（默认按相关度排序；做种数只作为挑选依据，不用于排序）。
+        /// </summary>
+        /// <param name="excludeAdult">
+        /// 是否按标题关键词挡掉疑似成人内容。站点自己的成人分类标注基本没用
+        /// （实测 safe=true 对「霸总」毫无变化），只能按关键词判断，因此会漏也会误伤 ——
+        /// 过滤条数会如实返回，界面上也允许关掉。
+        /// </param>
         Task<TorrentSearchResponseDto> SearchAsync(
-            string keyword, int limit = 10, int? minSeeders = null, CancellationToken ct = default);
+            string keyword, int limit = 10, int? minSeeders = null, bool excludeAdult = true, CancellationToken ct = default);
 
         /// <summary>确保该磁力有下载任务（没有就创建），返回任务状态与文件清单</summary>
         Task<TorrentTaskDto> PrepareAsync(string magnet, CancellationToken ct = default);

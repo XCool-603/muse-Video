@@ -25,11 +25,14 @@
     </div>
 
     <div class="filters">
+      <a-checkbox v-model:checked="excludeAdult" @change="doSearch">排除疑似成人内容</a-checkbox>
       <span v-if="searched && !searchError" class="sd-muted">
-        共 <b class="highlight">{{ total }}</b> 条 · 用时 {{ tookMs }} ms
-        <span v-if="cached">（命中缓存）</span>
+        共 <b class="highlight">{{ results.length }}</b> 条
+        <template v-if="filteredIrrelevant + filteredAdult > 0">
+          （已挡掉无关 {{ filteredIrrelevant }} / 成人 {{ filteredAdult }}）
+        </template>
+        · {{ tookMs }} ms<span v-if="cached"> · 命中缓存</span>
       </span>
-      <span class="sd-muted">按相关度排序；下载前请看做种数，做种为 0 的通常下不动</span>
     </div>
 
     <!-- 搜索失败要明确区分于「0 条」：原先失败时清空结果、显示成「没搜到」，
@@ -75,7 +78,15 @@
       </div>
 
       <div v-else-if="searched && !searchError && !searching" class="hint">
-        <p>没有搜到结果。</p>
+        <p>没有搜到与关键词匹配的结果。</p>
+        <p v-if="filteredIrrelevant > 0" class="sd-muted">
+          本次挡掉了 <b>{{ filteredIrrelevant }}</b> 条与关键词无关的结果 ——
+          部分索引站（如海盗湾）遇到中文查询会返回自己的默认榜单，那些内容看着多，但和你要找的没关系。
+        </p>
+        <p v-if="filteredAdult > 0" class="sd-muted">
+          另外挡掉了 <b>{{ filteredAdult }}</b> 条疑似成人内容。
+          想看看被挡掉的内容，可以关掉上面的「排除疑似成人内容」再搜一次。
+        </p>
         <!-- 0 条时把各源的实际情况摊开，而不是丢一句「没搜到」 -->
         <p v-if="sources.length" class="sd-muted">
           本次跑了 {{ sources.length }} 个索引源：
@@ -171,6 +182,16 @@ const sources = ref<TorrentSourceStatus[]>([])
 const sourceErrors = ref<string[]>([])
 /** 搜索失败的原因。必须与「0 条」区分开，否则失败会被误读成「没有资源」 */
 const searchError = ref('')
+/**
+ * 是否挡掉疑似成人内容，默认开。
+ * 中文短剧的查询词（霸总/战神/穿越…）在成人标题里极常见，不挡的话第一页基本都是噪声。
+ * 判断依据是标题关键词（站点自己的分类标注没用），会漏也会误伤，所以：
+ *   · 过滤条数显示在结果上方，不是偷偷吃掉；
+ *   · 关掉开关即原样返回。
+ */
+const excludeAdult = ref(true)
+const filteredIrrelevant = ref(0)
+const filteredAdult = ref(0)
 
 const task = ref<TorrentTask | null>(null)
 const preparingHash = ref('')
@@ -215,7 +236,11 @@ async function doSearch() {
   searchError.value = ''
 
   try {
-    const response = await torrentApi.search({ q: query, limit: 15 })
+    const response = await torrentApi.search({
+      q: query,
+      limit: 15,
+      excludeAdult: excludeAdult.value
+    })
     if (seq !== searchSeq) return // 期间又搜了别的词，这次结果作废
 
     results.value = response.results
@@ -224,6 +249,8 @@ async function doSearch() {
     cached.value = response.cached
     sources.value = response.sources ?? []
     sourceErrors.value = response.sourceErrors ?? []
+    filteredIrrelevant.value = response.filteredIrrelevant ?? 0
+    filteredAdult.value = response.filteredAdult ?? 0
   } catch (error) {
     if (seq !== searchSeq) return
 
@@ -349,14 +376,15 @@ onUnmounted(stopPolling)
 .torrent-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
+/* 行做紧凑：标题一行 + 元信息一行，尽量在一屏里多放几条 */
 .torrent-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 8px 10px;
   background: var(--sd-surface, #1b1b24);
   border: 1px solid var(--sd-border);
   border-radius: var(--sd-radius);
@@ -368,8 +396,9 @@ onUnmounted(stopPolling)
 }
 
 .torrent-title {
-  font-size: 14px;
-  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -377,9 +406,10 @@ onUnmounted(stopPolling)
 
 .torrent-meta {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   font-size: 12px;
+  line-height: 1.3;
   color: var(--sd-text-muted, #9a9aa8);
 }
 

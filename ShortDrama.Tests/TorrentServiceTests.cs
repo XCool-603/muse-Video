@@ -161,6 +161,83 @@ namespace ShortDrama.Tests
             Assert.Equal(2, status.ActiveDownloads);
         }
 
+        [Fact]
+        public async Task SearchAsync_挡掉与关键词无关的结果_并如实报出条数()
+        {
+            // 实测 apibay 对中文查询会返回它自己的默认榜单（做种数还极高），
+            // 这类结果必须挡掉，否则会把真命中的结果挤下去。
+            const string body = """
+            {
+              "total": 4, "tookMs": 1, "cached": false, "sources": [],
+              "results": [
+                { "title": "[后宫甄嬛传][76集全]", "infoHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "magnet": "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size": 100 },
+                { "title": "Spider-Man Brand New Day 2026 1080p", "infoHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "magnet": "magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "size": 100 },
+                { "title": "MobLand S02E03 1080p", "infoHash": "cccccccccccccccccccccccccccccccccccccccc",
+                  "magnet": "magnet:?xt=urn:btih:cccccccccccccccccccccccccccccccccccccccc", "size": 100 }
+              ]
+            }
+            """;
+
+            var service = CreateService(("api/search", body));
+            var result = await service.SearchAsync("甄嬛传", excludeAdult: false);
+
+            var item = Assert.Single(result.Results);
+            Assert.Contains("甄嬛传", item.Title);
+            Assert.Equal(2, result.FilteredIrrelevant);
+        }
+
+        [Fact]
+        public async Task SearchAsync_成人过滤默认开_关掉后原样返回()
+        {
+            const string body = """
+            {
+              "total": 2, "tookMs": 1, "cached": false, "sources": [],
+              "results": [
+                { "title": "香蕉秀xjx0123调教内射美腿女霸总", "infoHash": "dddddddddddddddddddddddddddddddddddddddd",
+                  "magnet": "magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd", "size": 100 },
+                { "title": "霸总的小娇妻 第01集", "infoHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                  "magnet": "magnet:?xt=urn:btih:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "size": 100 }
+              ]
+            }
+            """;
+
+            var service = CreateService(("api/search", body));
+
+            var filtered = await service.SearchAsync("霸总", excludeAdult: true);
+            Assert.Single(filtered.Results);
+            Assert.Equal(1, filtered.FilteredAdult);
+            Assert.Contains("小娇妻", filtered.Results[0].Title);
+
+            var unfiltered = await service.SearchAsync("霸总", excludeAdult: false);
+            Assert.Equal(2, unfiltered.Results.Count);
+            Assert.Equal(0, unfiltered.FilteredAdult);
+        }
+
+        [Fact]
+        public async Task SearchAsync_英文查询按词元判断相关性()
+        {
+            const string body = """
+            {
+              "total": 2, "tookMs": 1, "cached": false, "sources": [],
+              "results": [
+                { "title": "ubuntu-24.04.2-desktop-amd64.iso", "infoHash": "ffffffffffffffffffffffffffffffffffffffff",
+                  "magnet": "magnet:?xt=urn:btih:ffffffffffffffffffffffffffffffffffffffff", "size": 100 },
+                { "title": "Blender for Windows Deluxe", "infoHash": "1111111111111111111111111111111111111111",
+                  "magnet": "magnet:?xt=urn:btih:1111111111111111111111111111111111111111", "size": 100 }
+              ]
+            }
+            """;
+
+            var service = CreateService(("api/search", body));
+            var result = await service.SearchAsync("ubuntu", excludeAdult: false);
+
+            var item = Assert.Single(result.Results);
+            Assert.Contains("ubuntu", item.Title);
+            Assert.Equal(1, result.FilteredIrrelevant);
+        }
+
         /// <summary>按 URL 片段返回预设响应；没有匹配就 404。可配置成直接抛连接异常。</summary>
         private sealed class CannedHttpClientFactory : IHttpClientFactory
         {

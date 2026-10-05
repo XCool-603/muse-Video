@@ -42,6 +42,7 @@ namespace ShortDrama.Api.Endpoints
                 [FromQuery] string? q,
                 [FromQuery] int limit,
                 [FromQuery] int? minSeeders,
+                [FromQuery] bool? excludeAdult,
                 ITorrentService service,
                 ILoggerFactory loggerFactory,
                 CancellationToken ct) =>
@@ -52,6 +53,9 @@ namespace ShortDrama.Api.Endpoints
                 }
 
                 limit = limit is <= 0 or > 50 ? 10 : limit;
+                // 默认挡掉疑似成人内容：中文短剧的查询词在成人标题里极常见，
+                // 不挡的话第一页基本都是噪声。界面上有开关，关掉即原样返回。
+                var exclude = excludeAdult ?? true;
 
                 // 搜索接口原先在成功路径上完全不打日志，导致「用户说搜不出来」时无从判断：
                 // 是没发请求、请求失败了、还是真的 0 条。这里把每次搜索都记下来。
@@ -60,12 +64,13 @@ namespace ShortDrama.Api.Endpoints
 
                 try
                 {
-                    var result = await service.SearchAsync(q.Trim(), limit, minSeeders, ct);
+                    var result = await service.SearchAsync(q.Trim(), limit, minSeeders, exclude, ct);
                     startedAt.Stop();
 
                     logger.LogInformation(
-                        "种子搜索「{Query}」→ 命中 {Count} 条（源内合计 {Total}），用时 {Ms} ms；各源：{Sources}",
-                        q.Trim(), result.Results.Count, result.Total, startedAt.ElapsedMilliseconds,
+                        "种子搜索「{Query}」→ 命中 {Count} 条（源内合计 {Total}，挡掉无关 {Irrelevant} / 成人 {Adult}），用时 {Ms} ms；各源：{Sources}",
+                        q.Trim(), result.Results.Count, result.Total,
+                        result.FilteredIrrelevant, result.FilteredAdult, startedAt.ElapsedMilliseconds,
                         string.Join(", ", result.Sources.Select(s => $"{s.Id}={(s.Ok ? s.Count.ToString() : "失败")}")));
 
                     return Results.Ok(ApiResponse<TorrentSearchResponseDto>.Success(result));

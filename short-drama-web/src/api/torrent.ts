@@ -43,6 +43,10 @@ export interface TorrentSearchResponse {
   sources: TorrentSourceStatus[]
   /** 个别源失败的原因，如实展示能解释为什么结果比预期少 */
   sourceErrors: string[]
+  /** 被「与关键词无关」挡掉的条数（索引站忽略中文查询时会返回自己的默认榜单） */
+  filteredIrrelevant: number
+  /** 被成人内容关键词挡掉的条数（可在界面上关掉这个过滤） */
+  filteredAdult: number
 }
 
 export interface TorrentFile {
@@ -77,7 +81,7 @@ export const torrentApi = {
     return request<TorrentStatus>({ url: '/torrent/status', method: 'get' })
   },
 
-  search(params: { q: string; limit?: number; minSeeders?: number }) {
+  search(params: { q: string; limit?: number; minSeeders?: number; excludeAdult?: boolean }) {
     return request<TorrentSearchResponse>({ url: '/torrent/search', method: 'get', params })
   },
 

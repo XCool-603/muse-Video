@@ -50,6 +50,16 @@ namespace ShortDrama.Application.DTOs
         public List<TorrentSourceStatusDto> Sources { get; set; } = new();
         /// <summary>某个源失败时的说明（例如 nyaa 超时）—— 如实转述，这能解释为什么结果比预期少</summary>
         public List<string> SourceErrors { get; set; } = new();
+
+        /// <summary>
+        /// 被「与关键词无关」挡掉的条数。
+        /// 实测 apibay 对中文查询无效，会返回它自己的默认榜单（做种数还极高），
+        /// 这些结果必须挡掉，否则会把真正命中的结果挤下去。
+        /// </summary>
+        public int FilteredIrrelevant { get; set; }
+
+        /// <summary>被成人内容关键词挡掉的条数（用户可关掉这个过滤）</summary>
+        public int FilteredAdult { get; set; }
     }
 
     public class TorrentSourceStatusDto
