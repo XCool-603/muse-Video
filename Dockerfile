@@ -81,18 +81,21 @@ WORKDIR /app
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 运行期用户：业务进程不该以 root 跑。UID/GID 固定，便于与宿主对齐。
-# 用 10001 而不是 1000：node/ubuntu 之类的基础镜像已占用 1000。
+# 运行期用户：直接用**镜像内置**的非 root 用户 app。
 #
-# ⚠️ 故意叫 APP_UID/APP_GID 而不是 UID/GID：RUN 里的变量是 shell 展开的，
-# 而 UID/GID 在 bash 里是**只读内置变量**（root 下为 0）。若同名，shell 的值会盖掉 ARG，
-# 于是 useradd 拿到 -u 0 直接报 "UID 0 is not unique" —— 报错信息完全看不出是这个原因。
-ARG APP_UID=10001
-ARG APP_GID=10001
-RUN groupadd -g "${APP_GID}" app \
- && useradd -m -u "${APP_UID}" -g app -s /usr/sbin/nologin app \
- && mkdir -p /data \
- && chown app:app /data
+# ⚠️ 不要自己 groupadd / useradd 建一个叫 app 的用户。.NET 8+ 的官方 aspnet / runtime 镜像
+#    已经内置了 app 用户与 app 组（UID/GID 1654）。`groupadd -g 10001 app` 会以
+#    **exit 9（组名已存在）** 失败，而 Docker 只打印一行
+#    "did not complete successfully: exit code: 9" —— 完全看不出是"名字撞了"。
+#    （这正是 skill 里那条「官方镜像通常已经备好非 root 用户，直接用，别自己建」的实例。）
+#
+# 入口脚本按**用户名** app 操作（chown app:app / gosu app），所以不需要知道具体 UID；
+# 内置用户的 UID 若将来变化，脚本也不用改。
+#
+# 顺带把 HOME 建出来并交给 app：官方镜像是 --no-create-home 建的 app 用户，
+# 没有可写 HOME 时，任何写 ~/.cache、~/.aspnet 的组件都会失败（见 skill 1.3.2）。
+RUN mkdir -p /data /home/app \
+ && chown app:app /data /home/app
 
 COPY --from=api --chown=app:app /app/publish .
 
@@ -103,11 +106,12 @@ COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.
 
 # 构建期自检：把「权限没配对」这类问题在**构建时**就暴露出来，
 # 而不是等容器起来才在运行时报 EACCES（那时排查成本高得多，也容易误判成代码问题）。
-# 这两条正好覆盖最容易配错的两处：入口脚本的可执行位、数据目录的属主。
-# 按用户名比较而不是 ${APP_UID} —— 原因见上面 ARG 那段注释。
-RUN test -x /usr/local/bin/entrypoint.sh \
+# 三条分别覆盖：内置用户是否存在、入口脚本可执行位、数据目录属主。
+# 按**用户名**比较而不是数字 UID —— 内置用户的 UID 由基础镜像决定，不该在这里写死。
+RUN id app >/dev/null \
+ && test -x /usr/local/bin/entrypoint.sh \
  && test "$(stat -c '%U:%G' /data)" = "app:app" \
- && echo "自检通过：入口脚本可执行，/data 属主为 app:app"
+ && echo "自检通过：app 用户存在、入口脚本可执行、/data 属主为 app:app"
 
 # 数据目录（SQLite 库文件落在这里，compose 里挂成卷）
 # 命名卷**首次创建且为空**时会继承这里的属主；已存在的旧卷不会 —— 那由入口脚本兜底。
@@ -117,6 +121,7 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://+:8080 \
     DOTNET_RUNNING_IN_CONTAINER=true \
     DOTNET_NOLOGO=true \
+    HOME=/home/app \
     Database__Provider=Sqlite \
     ConnectionStrings__Default="Data Source=/data/shortdrama.db"
 
@@ -126,7 +131,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD curl -fsS http://localhost:8080/health || exit 1
 
 # 入口脚本以 root 起步做一次 chown，随后 exec 降权到 app（细节见脚本内注释）。
-# 想完全跳过这一步：在 compose 里设 user: "10001:10001"，
+# 想完全跳过这一步：在 compose 里设 user: "app"，
 # 此时脚本以 app 身份启动，会自动跳过降权分支（前提是卷属主已经对）。
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["dotnet", "ShortDrama.Api.dll"]

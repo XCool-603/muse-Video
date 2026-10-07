@@ -500,9 +500,9 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 | `shortdrama-pgdata` | PostgreSQL 数据目录 | `--postgres` |
 | `shortdrama-redisdata` | Redis AOF | `--postgres` |
 
-### 容器以非 root 运行（UID 10001）
+### 容器以非 root 运行（镜像内置的 app 用户）
 
-镜像里的业务进程以 `app`（UID/GID `10001`）运行，不再是 root。`/data` 是唯一需要写的路径。
+镜像里的业务进程以 `app` 运行，不再是 root。`app` 是 **.NET 官方镜像内置**的非 root 用户（UID/GID `1654`），我们不再自建用户 —— 自建一个同名用户会因组名重复而构建失败（`groupadd` 退出码 9）。`/data` 是唯一需要写的路径。
 
 **升级兼容性已处理**：数据卷只在**首次创建且为空**时继承镜像里的属主；你现在的卷是旧版本（root）
 创建的，里面的 `shortdrama.db` 属主是 root —— 直接切成非 root 会写不进去。
@@ -517,10 +517,10 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 ```yaml
 services:
   app:
-    user: "10001:10001"
+    user: "app"
 ```
 
-此时脚本以 `app` 身份启动，会自动跳过降权分支。前提是 `/data` 已经属于 `10001`；
+此时脚本以 `app` 身份启动，会自动跳过降权分支。前提是 `/data` 已经属于 `app`；
 否则容器会因写不了 SQLite 而启动失败，日志里是 `SQLite Error 14: unable to open database file`。
 
 手动把已有卷改属主（可选，正常升级用不到 —— 入口脚本启动时会自己修）：
@@ -528,8 +528,10 @@ services:
 ```bash
 # 卷的实际名字带项目前缀（取自目录名），先确认它：
 docker volume ls | grep shortdrama-data
-# 再用实际名字执行（下面 <卷名> 换成上一步查到的，例如 shortdrama_shortdrama-data）
-docker run --rm -v <卷名>:/data alpine chown -R 10001:10001 /data
+# 再查镜像里 app 用户的实际 UID（.NET 8+ 内置，通常是 1654 —— 以实测为准）
+docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'
+# 用上面两步查到的实际卷名与 UID 执行
+docker run --rm -v <卷名>:/data alpine chown -R <UID>:<UID> /data
 ```
 
 > ⚠️ 别照抄 `-v shortdrama-data:/data`：Compose 给卷名加了项目前缀，写裸名会**新建一个空卷**，
