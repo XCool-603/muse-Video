@@ -21,7 +21,7 @@ cd shortdrama
 
 脚本会自动完成：检查 Docker 环境 → 生成 `.env`（含**随机 JWT 密钥**）→ 构建镜像 → 启动容器 → 等待健康检查 → 打印访问地址与访问口令。
 
-打开 <http://localhost:8080> 就能用。首次构建要拉基础镜像并编译前后端，约 3-5 分钟；之后启动只要几秒。
+打开 <http://localhost:18080> 就能用。首次构建要拉基础镜像并编译前后端，约 3-5 分钟；之后启动只要几秒。
 
 > 不想用脚本，等价的手工命令是 `cp .env.example .env && docker compose up -d --build`。
 >
@@ -163,7 +163,7 @@ docker compose down -v          # 停止并清空数据
 
 | Linux / macOS | Windows | 作用 |
 |---------------|---------|------|
-| `-p 80` / `--port 80` | `-Port 80` | 对外端口，默认 8080 |
+| `-p 80` / `--port 80` | `-Port 80` | 对外端口，默认 18080 |
 | `--postgres` | `-Postgres` | 改用 PostgreSQL |
 | `--rebuild` | `-Rebuild` | 强制重建（不用缓存） |
 | `--down` | `-Down` | 停止（**保留**数据） |
@@ -176,11 +176,11 @@ docker compose down -v          # 停止并清空数据
 
 | 项目 | 地址 / 值 |
 |------|-----------|
-| 站点首页 | <http://localhost:8080> |
-| 管理后台 | <http://localhost:8080/admin> |
+| 站点首页 | <http://localhost:18080> |
+| 管理后台 | <http://localhost:18080/admin> |
 | 默认管理员 | `admin` / `admin123` |
-| 健康检查 | <http://localhost:8080/health> |
-| API 文档 | <http://localhost:8080/openapi/v1.json> |
+| 健康检查 | <http://localhost:18080/health> |
+| API 文档 | <http://localhost:18080/openapi/v1.json> |
 
 **访问口令门**：默认开启。第一次打开站点会跳到 `/gate`，需要输入口令才能访问整站。
 
@@ -397,7 +397,7 @@ PLATFORMS: linux/amd64
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `APP_PORT` | `8080` | 对外端口 |
+| `APP_PORT` | `18080` | 对外端口（容器内仍是 8080） |
 | `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式（本机构建）；填镜像地址 = 镜像模式（拉预构建镜像，更新只要几秒）。见[第三节第 7 小节](#7-构建太慢改用预构建镜像) |
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
@@ -587,7 +587,7 @@ Caddy（自动申请证书，最省事）：
 
 ```caddyfile
 drama.example.com {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:18080
 }
 ```
 
@@ -602,7 +602,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/drama.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:18080;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
@@ -614,11 +614,11 @@ server {
 }
 ```
 
-用反代时建议只让容器监听本机，别把 8080 直接暴露到公网——把 `docker-compose.yml` 里的 `ports` 改成：
+用反代时建议只让容器监听本机，别把对外端口直接暴露到公网——把 `docker-compose.yml` 里的 `ports` 改成：
 
 ```yaml
     ports:
-      - "127.0.0.1:${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${APP_PORT:-18080}:8080"
 ```
 
 ---
@@ -643,7 +643,7 @@ docker stats $(docker compose ps -q app)   # 资源占用（用容器 id，别�
 ```bash
 docker build -t shortdrama .
 docker run -d --name shortdrama \
-  -p 8080:8080 \
+  -p 18080:8080 \
   -v shortdrama-data:/data \
   -e AccessGate__Password='你的口令' \
   -e Jwt__Key="$(openssl rand -hex 48)" \
@@ -679,10 +679,56 @@ docker run -d --name shortdrama \
 | 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（如 ARM 机器拉了 amd64 镜像）。改工作流的 `PLATFORMS` 重新构建 |
 | Actions 里没有自动构建 | 确认 `.github/workflows/docker-publish.yml` 已推送，且仓库 Settings → Actions 允许运行工作流 |
 | 想确认当前是哪种模式 | 看部署完成后打印的「部署方式」一行；或 `grep SHORTDRAMA_IMAGE .env` |
-| 端口被占用 | `./deploy.sh -p 8081` 换个端口，或找出占用 8080 的进程 |
+| 端口被占用 | `./deploy.sh -p 8081` 换个端口，或找出占用端口的进程 |
 | 磁盘占用越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像） |
 | 面板「更新容器」报 `invalid endpoint settings: user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把容器**当前的动态 IP** 当成"要保留的静态 IP"回填，而 compose 自动创建的 `shortdrama_default` 网络没有自定义子网，Docker 拒绝 | 别用面板的容器更新，改用 `docker compose up -d`（见下方说明） |
 | `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：报错里的容器可能是别的项目的（先 `docker inspect xxx` 看 `com.docker.compose.project` 标签） | `docker rename xxx xxx-old` 解封（非破坏性）；本仓库的 compose 已不设 `container_name`，不会自己撞名 |
+
+### 端口打不开？按「从内到外」的顺序查，别一上来就换端口
+
+「打不开」有四种完全不同的原因，按顺序排除：
+
+```bash
+# ① 容器在跑吗？（没跑的话端口当然不通）
+docker compose ps
+docker compose logs --tail=50 app
+
+# ② 宿主机在监听吗？（有 LISTEN 才算通；老系统把 ss 换成 netstat）
+ss -lntp | grep 18080
+
+# ③ 本机能访问吗？（通 → 应用没问题，问题在网络层）
+curl -fsS http://127.0.0.1:18080/health
+
+# ④ 外网还是访问不了？那就是防火墙 / 安全组
+```
+
+| 卡在哪一步 | 原因 | 处理 |
+|---|---|---|
+| ① 容器没在跑 | 构建失败或启动报错 | `docker compose logs --tail=50 app` |
+| ② 没有 LISTEN | 端口映射写错，或容器内应用没起来 | 确认 compose 里是 `"<对外端口>:8080"` —— 容器内应用监听的是 **8080**，别写反 |
+| ③ 本机 curl 不通 | 应用启动失败，或还在初始化 | 首次启动要同步数据源，等 1-2 分钟；仍不行看日志 |
+| ③ 通、④ 不通 | **云安全组 / 本机防火墙没放行** | 见下（两处都要放） |
+
+**④ 的放行必须做两处，缺一不可**：
+
+1. **云厂商的安全组 / 防火墙规则**（阿里云、腾讯云、甲骨文等控制台里）——放行该 TCP 端口；
+2. **宿主机防火墙**：
+
+```bash
+# ufw（Ubuntu / Debian）
+ufw allow 18080/tcp
+
+# firewalld（CentOS / RHEL / Alma）
+firewall-cmd --permanent --add-port=18080/tcp && firewall-cmd --reload
+
+# 宝塔 / 1Panel 等面板：在面板的「防火墙 / 安全」里放行
+```
+
+> ⚠️ **8080 是热门端口**（面板、代理、各种测试服务都爱用它），撞车概率高。
+> 所以本项目的**对外默认端口是 18080**；容器内部仍然是 8080 ——
+> 容器内的端口是隔离的，不存在冲突，改它没有收益（还会多改一堆地方）。
+> 想换端口：改 `.env` 里的 `APP_PORT`，或 `./deploy.sh -p 9000` / `.\deploy.ps1 -Port 9000`。
+
 
 ### 用 `docker compose` 升级，别用面板的「更新容器」
 

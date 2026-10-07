@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     短剧聚合平台 —— 一键部署（Windows / PowerShell）
 
@@ -15,7 +15,7 @@
     使用 PostgreSQL 而非默认的 SQLite（会额外拉起 postgres 与 redis）
 
 .PARAMETER Port
-    对外端口，默认 8080
+    对外端口，默认 18080
 
 .PARAMETER Rebuild
     强制重新构建镜像（不使用缓存）
@@ -54,7 +54,7 @@
 [CmdletBinding()]
 param(
     [switch]$Postgres,
-    [int]$Port = 8080,
+    [int]$Port = 18080,
     [switch]$Rebuild,
     [switch]$Update,
     [switch]$Check,
@@ -374,7 +374,7 @@ function Invoke-PrepareEnv {
     }
 
     # 端口覆盖
-    if ($Port -ne 8080) {
+    if ($Port -ne 18080) {
         $envContent = Get-Content $envPath -Raw -Encoding UTF8
         if ($envContent -match 'APP_PORT=\d+') {
             $envContent = $envContent -replace 'APP_PORT=\d+', "APP_PORT=$Port"

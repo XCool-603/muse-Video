@@ -2,7 +2,7 @@
 # ============================================================================
 # 短剧聚合平台 —— 一键部署（Linux / macOS）
 #
-#   ./deploy.sh                  默认 SQLite，端口 8080
+#   ./deploy.sh                  默认 SQLite，端口 18080
 #   ./deploy.sh -p 80            指定端口
 #   ./deploy.sh --postgres       使用 PostgreSQL
 #   ./deploy.sh --rebuild        强制重建（不用缓存）
@@ -19,7 +19,7 @@ cd "$(dirname "$0")"
 ROOT="$(pwd)"
 
 # ---------------------------------------------------------------- 默认值
-PORT=8080
+PORT=18080
 USE_POSTGRES=0
 REBUILD=0
 ACTION="up"
@@ -289,7 +289,7 @@ prepare_env() {
     fi
 
     # 端口覆盖
-    if [[ "$PORT" != "8080" ]]; then
+    if [[ "$PORT" != "18080" ]]; then
         if grep -q '^APP_PORT=' .env; then
             sed -i.bak "s|^APP_PORT=.*|APP_PORT=${PORT}|" .env
             rm -f .env.bak

@@ -10,7 +10,7 @@
 #   留空          源码模式：本地 docker compose build 构建（默认）
 #   填 GHCR 地址  镜像模式：直接拉预构建镜像，不在本机编译，更新只需几秒
 #
-# 访问： http://localhost:8080
+# 访问： http://localhost:18080
 # ============================================================================
 
 services:
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "${APP_PORT:-18080}:8080"
 
     environment:
       ASPNETCORE_ENVIRONMENT: Production

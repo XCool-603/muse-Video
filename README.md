@@ -149,7 +149,7 @@ docker compose down -v         # 停止并清空数据
 > 种子搜索是可选增强，它由宿主机上的另一个进程提供。Docker 下要指向宿主机
 > （`host.docker.internal`，compose 已配好），详见 [docs/DOCKER.md](docs/DOCKER.md#种子搜索可选增强)。
 
-默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:8080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
+默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:18080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
 
 > 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
 

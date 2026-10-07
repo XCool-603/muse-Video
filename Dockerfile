@@ -5,7 +5,7 @@
 # 不需要额外的 Nginx 容器。这样 docker compose up 一条命令就能跑起来。
 #
 # 构建：docker build -t shortdrama .
-# 运行：docker run -d -p 8080:8080 -v shortdrama-data:/data shortdrama
+# 运行：docker run -d -p 18080:8080 -v shortdrama-data:/data shortdrama
 # ============================================================================
 
 
