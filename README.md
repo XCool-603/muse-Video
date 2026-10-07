@@ -114,6 +114,41 @@ SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
 .\deploy.ps1 -Check
 ```
 
+**不想用脚本？纯 Docker 命令也行**
+
+部署（三行）：
+
+```bash
+git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
+cp .env.example .env          # 想改端口/口令就编辑它；不执行这行也能跑，用内置默认值
+docker compose up -d --build
+```
+
+升级（按你的模式选一条）：
+
+```bash
+# 源码模式：拉代码后重建
+git pull && docker compose up -d --build
+
+# 镜像模式（.env 里配了 SHORTDRAMA_IMAGE）：只拉镜像再重启，几秒完成
+docker compose pull app && docker compose up -d
+```
+
+常用运维：
+
+```bash
+docker compose logs -f app     # 看日志
+docker compose restart app     # 重启
+docker compose down            # 停止（保留数据卷）
+docker compose down -v         # 停止并清空数据
+```
+
+> ⚠️ 纯命令路线**不会自动替换 `JWT_KEY`**：`.env.example` 里放的是占位值，上线前自己改。
+> 用 `./deploy.sh` 则会在首次运行时自动生成随机密钥。
+>
+> 种子搜索是可选增强，它由宿主机上的另一个进程提供。Docker 下要指向宿主机
+> （`host.docker.internal`，compose 已配好），详见 [docs/DOCKER.md](docs/DOCKER.md#种子搜索可选增强)。
+
 默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:8080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
 
 > 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
