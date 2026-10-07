@@ -47,10 +47,22 @@ services:
       # ---- 演示数据（默认关闭，只用真实源）----
       Demo__Enabled: "false"
 
+      # ---- 本地种子服务（可选增强，torrent-search）----
+      # 关键：容器里的 127.0.0.1 指的是**容器自己**，不是宿主机。
+      # 种子服务跑在宿主机上，所以这里必须用 host.docker.internal
+      # （下面的 extra_hosts 让它在 Linux 上也能解析；Docker Desktop 原生支持）。
+      # 如果种子服务也跑在 Docker 里、且与本服务同一个 compose 网络，改成它的服务名即可。
+      Torrent__BaseUrl: "${TORRENT_BASE_URL:-http://host.docker.internal:8787}"
+      Torrent__Enabled: "${TORRENT_ENABLED:-true}"
+
       # ---- 日志 ----
       Logging__LogLevel__Default: Information
       Logging__LogLevel__Microsoft.AspNetCore: Warning
       Logging__LogLevel__System.Net.Http.HttpClient: Warning
+
+    # 让容器能通过 host.docker.internal 访问宿主机（Linux 需要这行，Docker Desktop 自带）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     volumes:
       # SQLite 库文件 + 任何运行时数据

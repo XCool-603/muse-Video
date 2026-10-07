@@ -402,7 +402,43 @@ PLATFORMS: linux/amd64
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
 | `JWT_KEY` | 占位值 | JWT 签名密钥，**首次运行脚本会自动替换为随机值** |
+| `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址。见下方「种子搜索」一节 |
+| `TORRENT_ENABLED` | `true` | 是否启用种子功能（关掉后「种子」入口显示未启用） |
 | `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
+
+### 种子搜索（可选增强）
+
+「种子」页的搜索与边下边播由另一个项目 **torrent-search** 提供，它是**宿主机上的独立进程**
+（默认监听 `127.0.0.1:8787`）。本平台的容器只是转发请求。
+
+> ⚠️ **容器里的 `127.0.0.1` 指的是容器自己，不是宿主机。**
+> 所以 Docker 部署下不能沿用 appsettings 里那个 `http://127.0.0.1:8787` ——
+> 否则「种子」页会一直显示「连不上本地种子服务」，而种子服务其实好好地在宿主机上跑着。
+> compose 已经把 `Torrent__BaseUrl` 传成 `host.docker.internal:8787`，并加了
+> `extra_hosts: host.docker.internal:host-gateway`（Linux 上靠它解析，Docker Desktop 原生支持）。
+
+先在宿主机上把种子服务跑起来：
+
+```bash
+cd /path/to/torrent-search
+node bin/magnet-search.mjs serve      # 默认 127.0.0.1:8787
+```
+
+然后照常部署本平台即可，`种子` 入口会自动可用。验证：
+
+```bash
+# 容器内能不能连到宿主机的种子服务
+docker compose exec app curl -fsS http://host.docker.internal:8787/api/health
+```
+
+**种子服务也跑在 Docker 里？** 如果它和本服务在同一个 compose 网络，把地址换成它的服务名：
+
+```bash
+TORRENT_BASE_URL=http://torrent-search:8787
+```
+
+**不用种子功能？** 设 `TORRENT_ENABLED=false`，或者干脆不管 —— 连不上时页面只会提示
+「种子服务没在运行」，不影响其它功能。
 
 改完 `.env` 后需要重新创建容器才会生效：
 
