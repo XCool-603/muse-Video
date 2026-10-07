@@ -20,7 +20,10 @@ services:
       dockerfile: Dockerfile
     # 默认是本地构建的标签；设了 SHORTDRAMA_IMAGE 就换成远端镜像（见 docs/DOCKER.md）
     image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}
-    container_name: shortdrama
+    # 刻意不设 container_name：固定名字会关掉 Compose 的项目名前缀，
+    # 同一台机器上从两个目录部署同一份 compose 就会撞名
+    # （报 "Conflict. The container name ... is already in use"）。
+    # 需要按名字操作容器时用服务名：docker compose exec app / docker compose cp app:/data/...
     restart: unless-stopped
 
     ports:

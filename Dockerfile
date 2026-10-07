@@ -58,6 +58,12 @@ RUN dotnet publish ShortDrama.Api/ShortDrama.Api.csproj \
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 
+# OCI 标签：GHCR 的包页面会直接显示这些信息（构建工作流只推镜像，不会自己补标签）
+LABEL org.opencontainers.image.title="短剧聚合平台" \
+      org.opencontainers.image.description="跨平台短剧聚合搜索与播放：采集源实时聚合 + 去广告播放 + 本地种子增强" \
+      org.opencontainers.image.source="https://github.com/XCool-603/muse-Video" \
+      org.opencontainers.image.licenses="MIT"
+
 # 三个包都在这一层装完（都必须在切用户之前）：
 #   curl   —— HEALTHCHECK 用，aspnet 基础镜像默认不带
 #   tzdata —— aspnet 基础镜像是 debian-slim，**不带时区库**。不装的话下面那句
@@ -76,11 +82,17 @@ ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # 运行期用户：业务进程不该以 root 跑。UID/GID 固定，便于与宿主对齐。
-ARG UID=10001
-ARG GID=10001
-RUN groupadd -g "${GID}" app \
- && useradd -m -u "${UID}" -g app -s /usr/sbin/nologin app \
- && install -d -o app -g app /data
+# 用 10001 而不是 1000：node/ubuntu 之类的基础镜像已占用 1000。
+#
+# ⚠️ 故意叫 APP_UID/APP_GID 而不是 UID/GID：RUN 里的变量是 shell 展开的，
+# 而 UID/GID 在 bash 里是**只读内置变量**（root 下为 0）。若同名，shell 的值会盖掉 ARG，
+# 于是 useradd 拿到 -u 0 直接报 "UID 0 is not unique" —— 报错信息完全看不出是这个原因。
+ARG APP_UID=10001
+ARG APP_GID=10001
+RUN groupadd -g "${APP_GID}" app \
+ && useradd -m -u "${APP_UID}" -g app -s /usr/sbin/nologin app \
+ && mkdir -p /data \
+ && chown app:app /data
 
 COPY --from=api --chown=app:app /app/publish .
 
@@ -89,7 +101,16 @@ COPY --from=api --chown=app:app /app/publish .
 # permission denied: /usr/local/bin/entrypoint.sh。
 COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# 构建期自检：把「权限没配对」这类问题在**构建时**就暴露出来，
+# 而不是等容器起来才在运行时报 EACCES（那时排查成本高得多，也容易误判成代码问题）。
+# 这两条正好覆盖最容易配错的两处：入口脚本的可执行位、数据目录的属主。
+# 按用户名比较而不是 ${APP_UID} —— 原因见上面 ARG 那段注释。
+RUN test -x /usr/local/bin/entrypoint.sh \
+ && test "$(stat -c '%U:%G' /data)" = "app:app" \
+ && echo "自检通过：入口脚本可执行，/data 属主为 app:app"
+
 # 数据目录（SQLite 库文件落在这里，compose 里挂成卷）
+# 命名卷**首次创建且为空**时会继承这里的属主；已存在的旧卷不会 —— 那由入口脚本兜底。
 VOLUME ["/data"]
 
 ENV ASPNETCORE_ENVIRONMENT=Production \

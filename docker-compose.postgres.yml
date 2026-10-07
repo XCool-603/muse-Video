@@ -18,7 +18,6 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: shortdrama-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: shortdrama
@@ -41,7 +40,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: shortdrama-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:

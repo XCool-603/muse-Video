@@ -523,14 +523,18 @@ services:
 此时脚本以 `app` 身份启动，会自动跳过降权分支。前提是 `/data` 已经属于 `10001`；
 否则容器会因写不了 SQLite 而启动失败，日志里是 `SQLite Error 14: unable to open database file`。
 
-手动把已有卷改属主（可选，正常升级用不到）：
+手动把已有卷改属主（可选，正常升级用不到 —— 入口脚本启动时会自己修）：
 
 ```bash
-docker run --rm -v shortdrama-data:/data alpine chown -R 10001:10001 /data
+# 卷的实际名字带项目前缀（取自目录名），先确认它：
+docker volume ls | grep shortdrama-data
+# 再用实际名字执行（下面 <卷名> 换成上一步查到的，例如 shortdrama_shortdrama-data）
+docker run --rm -v <卷名>:/data alpine chown -R 10001:10001 /data
 ```
 
-
-> compose 会给卷名加上项目前缀（取自目录名）。用 `docker volume ls` 查看实际名称；日常操作用 `docker compose` 命令即可，不必关心前缀。
+> ⚠️ 别照抄 `-v shortdrama-data:/data`：Compose 给卷名加了项目前缀，写裸名会**新建一个空卷**，
+> 你以为在改旧卷，其实什么都没改（备份时更危险——会备份出一个空文件）。
+> 日常操作优先用 `docker compose` 子命令，不必关心前缀。
 
 ### 备份（SQLite）
 
@@ -539,17 +543,20 @@ docker run --rm -v shortdrama-data:/data alpine chown -R 10001:10001 /data
 ```bash
 mkdir -p backup
 docker compose stop app
-docker cp shortdrama:/data/shortdrama.db ./backup/shortdrama-$(date +%F).db
+# 用容器 id 而不是容器名：compose 的容器名带项目前缀，写死名字以后很容易失效
+docker cp "$(docker compose ps -aq app):/data/shortdrama.db" ./backup/shortdrama-$(date +%F).db
 docker compose start app
 ```
 
-`shortdrama` 是 `docker-compose.yml` 里固定写死的容器名（`container_name: shortdrama`），所以可以直接用 `docker cp`。
+> 这里刻意用 `docker compose ps -aq app` 取容器 id，而不是 `docker cp shortdrama:...`：
+> compose 里**没有**设 `container_name`，实际容器名形如 `shortdrama-app-1`（带项目名前缀），
+> 写死名字在换目录、改项目名之后就会失效。
 
 ### 恢复（SQLite）
 
 ```bash
 docker compose stop app
-docker cp ./backup/shortdrama-2026-09-30.db shortdrama:/data/shortdrama.db
+docker cp ./backup/shortdrama-2026-09-30.db "$(docker compose ps -aq app):/data/shortdrama.db"
 docker compose start app
 ```
 
@@ -626,7 +633,7 @@ docker compose up -d                  # 应用 .env 改动（重新创建容器�
 docker compose down                   # 移除容器（保留数据卷）
 docker compose down -v                # 移除容器并删除数据卷（清空数据）
 docker compose exec app sh            # 进容器
-docker stats shortdrama               # 资源占用
+docker stats $(docker compose ps -q app)   # 资源占用（用容器 id，别写死名字）
 ```
 
 单镜像方式（不用 compose）：
@@ -641,6 +648,10 @@ docker run -d --name shortdrama \
   --restart unless-stopped \
   shortdrama
 ```
+
+> 注意：这条手动命令里的卷名就是 **`shortdrama-data`**（没有前缀）——
+> 卷名带项目前缀是 **compose** 的行为。两种方式的卷是各自独立的，别指望它们共用数据。
+> 换成 compose 之后，`docker volume ls` 里看到的会是 `shortdrama_shortdrama-data` 这种形式。
 
 ---
 

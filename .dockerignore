@@ -50,6 +50,10 @@ LICENSE
 *.log
 logs/
 
+# ---- 与镜像无关的开发脚本 ----
+# scripts/ 只在开发机上跑（例如生成 Clash 规则），构建用不到
+scripts/
+
 # ---- Docker 自身 ----
 Dockerfile
 docker-compose*.yml
