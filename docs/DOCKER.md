@@ -681,6 +681,32 @@ docker run -d --name shortdrama \
 | 想确认当前是哪种模式 | 看部署完成后打印的「部署方式」一行；或 `grep SHORTDRAMA_IMAGE .env` |
 | 端口被占用 | `./deploy.sh -p 8081` 换个端口，或找出占用 8080 的进程 |
 | 磁盘占用越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像） |
+| 面板「更新容器」报 `invalid endpoint settings: user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把容器**当前的动态 IP** 当成"要保留的静态 IP"回填，而 compose 自动创建的 `shortdrama_default` 网络没有自定义子网，Docker 拒绝 | 别用面板的容器更新，改用 `docker compose up -d`（见下方说明） |
+| `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：报错里的容器可能是别的项目的（先 `docker inspect xxx` 看 `com.docker.compose.project` 标签） | `docker rename xxx xxx-old` 解封（非破坏性）；本仓库的 compose 已不设 `container_name`，不会自己撞名 |
+
+### 用 `docker compose` 升级，别用面板的「更新容器」
+
+宝塔 / 1Panel 之类的面板提供「更新容器」按钮，但它**不是**在跑 compose，而是把面板记录的容器参数
+原样搬到一个新容器上。两边的"期望状态"来源不同，于是出现两类典型故障：
+
+- **动态 IP 被固化成静态 IP**：面板从 `docker inspect` 读到当前 IP，回填成 `ipv4_address`，
+  而 compose 创建的网络没有自定义子网 → `user specified IP address is supported only when
+  connecting to networks with user configured subnets`，容器起不来（面板会尝试恢复原容器）。
+- **配置漂移**：面板不会读你的 `docker-compose.yml`，所以改了 compose（端口、环境变量、
+  网络、卷）之后再点「更新容器」，应用的仍是旧参数。
+
+正确做法是让 compose 来管这个容器：
+
+```bash
+cd <项目目录>
+docker compose down            # 删掉旧容器（数据卷保留）
+docker compose up -d           # 按 compose 的期望状态重建
+# 或者一条命令搞定（含拉代码/构建）：
+./deploy.sh --update
+```
+
+如果你必须用面板管理它，就在面板里把该容器的**静态 IP 留空**，或者给网络显式配一个子网
+（不推荐：写死的子网可能和宿主已有的网段冲突，导致网络创建失败）。
 
 查看某个容器的详细状态：
 
