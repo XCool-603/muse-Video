@@ -96,67 +96,7 @@ cd .. && dotnet run --project ShortDrama.Api -c Release
 
 ### 4. 容器化部署（推荐）
 
-**一键部署**
-
-```bash
-# Linux / macOS
-git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
-./deploy.sh
-```
-
-```powershell
-# Windows（PowerShell）
-git clone https://github.com/XCool-603/muse-Video.git shortdrama
-cd shortdrama
-.\deploy.ps1
-```
-
-脚本自动完成：检查 Docker 环境 → 生成 `.env`（含**随机 JWT 密钥**）→ 构建镜像 → 启动容器 → 等待健康检查 → 打印访问地址与口令。
-
-**一键升级**
-
-```bash
-# Linux / macOS
-cd shortdrama && ./deploy.sh --update
-```
-
-```powershell
-# Windows
-cd shortdrama; .\deploy.ps1 -Update
-```
-
-默认**源码模式**：`git pull --ff-only` → 构建新镜像 → **构建成功才切换**（构建失败时旧容器继续跑，站点不中断）。
-
-想**几秒升完**，改用预构建镜像（GitHub Actions 已替你编译好）：
-
-```bash
-# 一次性：环境变量优先于 .env
-SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest ./deploy.sh --update
-```
-
-想让之后每次升级（含定时任务）都走镜像，就把 `.env` 里这一行前面的 `#` 去掉：
-
-```bash
-SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
-```
-
-此时升级只 `docker pull` + 重启，不再编译。
-
-不想手动升，装一次定时任务即可；也可以只检查有没有新版本（退出码 `10` = 有新版）：
-
-```bash
-./deploy.sh --install-cron     # Linux / macOS：每天 04:00 自动升级
-./deploy.sh --check            # 只检查，不动容器
-```
-
-```powershell
-.\deploy.ps1 -InstallTask      # Windows
-.\deploy.ps1 -Check
-```
-
-**不想用脚本？纯 Docker 命令也行**
-
-部署（三行）：
+**部署**
 
 ```bash
 git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
@@ -164,17 +104,25 @@ cp .env.example .env          # 想改端口/口令就编辑它；不执行这�
 docker compose up -d --build
 ```
 
-升级（按你的模式选一条）：
+```powershell
+# Windows 同理（PowerShell 里把 cp 换成 Copy-Item）
+Copy-Item .env.example .env
+docker compose up -d --build
+```
+
+**升级**（按你的模式选一条）
 
 ```bash
-# 源码模式：拉代码后重建
-git pull && docker compose up -d --build
+# 源码模式（默认）：拉代码后重建
+git pull --ff-only && docker compose up -d --build
 
 # 镜像模式（.env 里配了 SHORTDRAMA_IMAGE）：只拉镜像再重启，几秒完成
 docker compose pull app && docker compose up -d
 ```
 
-常用运维：
+两种都是**先构建/拉取成功，再切换容器** —— 失败时旧容器继续跑，站点不中断。
+
+**常用运维**
 
 ```bash
 docker compose logs -f app     # 看日志
@@ -183,15 +131,24 @@ docker compose down            # 停止（保留数据卷）
 docker compose down -v         # 停止并清空数据
 ```
 
-> ⚠️ 纯命令路线**不会自动替换 `JWT_KEY`**：`.env.example` 里放的是占位值，上线前自己改。
-> 用 `./deploy.sh` 则会在首次运行时自动生成随机密钥。
+**定时自动升级**：直接写进宿主 crontab（不需要任何脚本）：
+
+```cron
+0 4 * * * cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1
+```
+
+> ⚠️ **上线前务必改 `.env` 里的 `JWT_KEY`**（`.env.example` 里是占位值）和 `ACCESS_PASSWORD`。
+> 生成随机密钥：`openssl rand -hex 48`（Windows：`-join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })`）。
 >
 > 种子搜索是可选增强，它由宿主机上的另一个进程提供。Docker 下要指向宿主机
 > （`host.docker.internal`，compose 已配好），详见 [docs/DOCKER.md](docs/DOCKER.md#种子搜索可选增强)。
+>
+> 本项目**不使用部署包装脚本** —— 直接用 `docker compose`，报错就是 docker 的原始报错，
+> 不会被脚本的行号与退出码藏一层。
 
 默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:18080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
 
-> 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、自动更新原理与回滚、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
+> 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、更新与定时更新、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
 
 ---
 
@@ -217,7 +174,6 @@ docker compose down -v         # 停止并清空数据
 ```
 短剧聚合/
 ├── ShortDrama.slnx
-├── deploy.sh / deploy.ps1                # 一键部署 + 自动更新（Linux / Windows）
 ├── Dockerfile                            # 单镜像多阶段构建（前端 + 后端）
 ├── docker/entrypoint.sh                  # 容器入口：修正数据卷属主后降权运行
 ├── docker-compose.yml                    # 默认：SQLite 单容器

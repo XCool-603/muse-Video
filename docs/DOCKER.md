@@ -6,13 +6,14 @@
 > 默认配置启用了 22 个第三方公开采集源，使用前请自行评估法律风险。
 > 完整条款见 **[README 的免责声明](../README.md#免责声明)**。
 
-## 一键部署（复制即用）
+## 部署（复制即用）
 
 **Linux / macOS**
 
 ```bash
 git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdrama
-./deploy.sh
+cp .env.example .env                 # 生成配置文件
+docker compose up -d --build
 ```
 
 **Windows（PowerShell）**
@@ -20,78 +21,73 @@ git clone https://github.com/XCool-603/muse-Video.git shortdrama && cd shortdram
 ```powershell
 git clone https://github.com/XCool-603/muse-Video.git shortdrama
 cd shortdrama
-.\deploy.ps1
+Copy-Item .env.example .env
+docker compose up -d --build
 ```
-
-脚本会自动完成：检查 Docker 环境 → 生成 `.env`（含**随机 JWT 密钥**）→ 构建镜像 → 启动容器 → 等待健康检查 → 打印访问地址与访问口令。
 
 打开 <http://localhost:18080> 就能用。首次构建要拉基础镜像并编译前后端，约 3-5 分钟；之后启动只要几秒。
 
-> 不想用脚本，等价的手工命令是 `cp .env.example .env && docker compose up -d --build`。
+> ⚠️ **上线前必须改 `.env` 里的 `JWT_KEY`**（`.env.example` 里是占位值）与 `ACCESS_PASSWORD`。
+> 生成随机密钥：
 >
-> ⚠️ 这条路**不会自动更换 `JWT_KEY`** —— `.env.example` 里放的是占位值，上线前必须自己改。
-> 想让密钥自动随机生成，就用上面的 `./deploy.sh`。
+> ```bash
+> openssl rand -hex 48
+> ```
+>
+> ```powershell
+> -join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
+> ```
 
-## 一键升级（复制即用）
+## 升级（复制即用）
 
-**Linux / macOS**
+**源码模式**（默认，本机构建）：
 
 ```bash
-cd shortdrama && ./deploy.sh --update
+git pull --ff-only && docker compose up -d --build
 ```
 
-**Windows（PowerShell）**
+**镜像模式**（`.env` 里配了 `SHORTDRAMA_IMAGE`，不在本机编译）：
+
+```bash
+docker compose pull app && docker compose up -d
+```
+
+两种都是**先构建/拉取成功，再切换容器** —— 失败时旧容器继续跑，站点不中断。
+镜像模式详见[第七节](#7-构建太慢改用预构建镜像)（含私有包登录、ARM 机器注意事项）。
+
+**定时自动升级**：直接在宿主 crontab 里写原生命令即可（不需要任何脚本）：
+
+```bash
+# 每天 04:00 拉代码并重建；日志写到项目目录下的 logs/
+0 4 * * * cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1
+```
 
 ```powershell
-cd shortdrama; .\deploy.ps1 -Update
+# Windows：用任务计划程序，操作填 docker，参数填 compose up -d --build，起始位置填项目目录
 ```
 
-默认是**源码模式**：`git pull --ff-only` → 构建新镜像 → **构建成功才切换**（构建失败时旧容器继续跑，站点不中断）。
-
-**想几秒升完？改用预构建镜像** —— GitHub Actions 已经替你编译好，你这边只 `docker pull`：
+**只看有没有新版本**：
 
 ```bash
-# 一次性（环境变量优先于 .env，只影响这一次）
-SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest ./deploy.sh --update
+git fetch && git log --oneline HEAD..@{u}
 ```
-
-想让之后每次升级（含定时任务）都走镜像，就写进 `.env`：把 `.env` 里这一行前面的 `#` 去掉
-
-```bash
-SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
-```
-
-（`.env.example` 里已经有这行、只是被注释掉了。别用 `echo >> .env` 追加 —— 脚本按 `grep | head -1` 取第一个值，追加的第二行不会生效。）
-
-此时不再拉代码、不再编译，只做 `docker compose pull app` + `up -d --no-build`。
-详见[第七节](#7-构建太慢改用预构建镜像)（含私有包登录、ARM 机器注意事项）。
-
-**不想手动升？装一次定时任务，以后不用管**：
-
-```bash
-./deploy.sh --install-cron        # Linux / macOS：每天 04:00 自动升级
-.\deploy.ps1 -InstallTask         # Windows
-```
-
-**只想看看有没有新版本**（退出码 `10` = 有新版本，方便接监控）：
-
-```bash
-./deploy.sh --check
-```
-
-> 不用脚本的等价升级命令：源码模式 `git pull && docker compose up -d --build`；
-> 镜像模式 `docker compose pull app && docker compose up -d`。
 
 ---
 
 ## 平台速查
 
-| 平台 | 一键运行 | 一键开启自动更新 |
-|------|---------|-----------------|
-| Linux / macOS | `./deploy.sh` | `./deploy.sh --install-cron` |
-| Windows | `.\deploy.ps1` | `.\deploy.ps1 -InstallTask` |
+| 平台 | 部署 | 升级 | 定时升级 |
+|------|------|------|---------|
+| Linux / macOS | `docker compose up -d --build` | `git pull --ff-only && docker compose up -d --build` | 宿主 crontab（见上） |
+| Windows | `docker compose up -d --build` | 同上 | 任务计划程序（见上） |
 
 默认使用 **SQLite**，数据落在命名卷里，不依赖任何外部服务。想换 PostgreSQL 见[第五节](#五数据库sqlite--postgresql)。
+
+> 📌 **本项目不使用部署包装脚本**（`deploy.sh` / `deploy.ps1` 已移除）。
+> 直接用 `docker compose`：报错就是 docker 的原始报错，不会被脚本的行号和退出码藏一层；
+> 也不用担心脚本把宿主 UID 之类的值固化进构建参数。需要固定的流程用 docker 自己的机制
+> （`depends_on` + `healthcheck`、`build.args`、`env_file`），而不是再包一层。
+
 
 ---
 
@@ -113,7 +109,8 @@ SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
 ```bash
 git clone https://github.com/XCool-603/muse-Video.git shortdrama
 cd shortdrama
-./deploy.sh
+cp .env.example .env
+docker compose up -d --build
 ```
 
 Windows（PowerShell）：
@@ -121,58 +118,43 @@ Windows（PowerShell）：
 ```powershell
 git clone https://github.com/XCool-603/muse-Video.git shortdrama
 cd shortdrama
-.\deploy.ps1
+Copy-Item .env.example .env
+docker compose up -d --build
 ```
 
 > 远端已配好 SSH key 的话，也可以把地址换成 `git@github.com:XCool-603/muse-Video.git`。
 
-脚本会自动完成：检查 Docker 环境 → 生成 `.env`（含随机 JWT 密钥）→ 构建镜像 → 启动容器 → 等待健康检查 → 打印访问信息。
-
 首次构建需要下载基础镜像并编译前后端，大约 **3-5 分钟**；之后再次启动只需几秒。
 
-> 如果提示 `Permission denied`（用 ZIP 下载的源码，或文件系统丢了可执行位），先 `chmod +x deploy.sh`，或者直接用 `bash deploy.sh` 代替 `./deploy.sh`。
-
-### 3. 不想用脚本（纯 Docker 命令）
-
-脚本只是把下面的步骤串起来。**部署**：
-
-```bash
-cp .env.example .env
-docker compose up -d --build
-```
-
-**升级**（按你用的模式选一条）：
-
-```bash
-# 源码模式：拉代码后重建
-git pull && docker compose up -d --build
-
-# 镜像模式（.env 里配了 SHORTDRAMA_IMAGE）：只拉镜像再重启，几秒完成
-docker compose pull app && docker compose up -d
-```
-
-**其他常用**：
+### 3. 常用操作
 
 ```bash
 docker compose logs -f app      # 看日志
 docker compose restart app      # 重启
+docker compose ps               # 看容器状态
 docker compose down             # 停止（保留数据卷）
 docker compose down -v          # 停止并清空数据
 ```
 
-> ⚠️ 纯命令路线不会替换 `JWT_KEY`：`.env.example` 里是占位值，上线前自己改；
-> 或者用 `./deploy.sh`，它在首次运行时会自动生成随机密钥。
+### 4. 常用配置
 
-### 4. 常用参数
+所有可调项都在 `.env`（从 `.env.example` 复制而来，已被 `.gitignore` 忽略）：
 
-| Linux / macOS | Windows | 作用 |
-|---------------|---------|------|
-| `-p 80` / `--port 80` | `-Port 80` | 对外端口，默认 18080 |
-| `--postgres` | `-Postgres` | 改用 PostgreSQL |
-| `--rebuild` | `-Rebuild` | 强制重建（不用缓存） |
-| `--down` | `-Down` | 停止（**保留**数据） |
-| `--purge` | `-Purge` | 停止并删除数据卷（**清空**数据） |
-| `-h` / `--help` | `Get-Help .\deploy.ps1` | 帮助 |
+| 变量 | 默认值 | 作用 |
+|------|--------|------|
+| `APP_PORT` | `18080` | 对外端口（容器内仍是 8080） |
+| `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
+| `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
+| `JWT_KEY` | 占位值 | JWT 签名密钥，**上线前必须替换** |
+| `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式；填镜像地址 = 镜像模式 |
+| `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址（可选功能） |
+| `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
+
+**临时改一次端口**（不改 `.env`）：`APP_PORT=9000 docker compose up -d`。
+**强制不用缓存重建**：`docker compose build --no-cache && docker compose up -d`。
+**改用 PostgreSQL**：见[第五节](#五数据库sqlite--postgresql)。
+
+改完 `.env` 后需要重新创建容器才会生效：`docker compose up -d`。
 
 ---
 
@@ -197,145 +179,94 @@ docker compose down -v          # 停止并清空数据
 
 ---
 
-## 三、自动更新
+## 三、更新与自动更新
 
 源码模式：**拉取最新代码 → 重建镜像 → 重启容器**。不需要镜像仓库，不依赖任何外部服务。
 
 ### 1. 手动更新一次
 
 ```bash
-./deploy.sh --update
+cd <项目目录>
+git pull --ff-only && docker compose up -d --build
 ```
 
-```powershell
-.\deploy.ps1 -Update
-```
+**顺序很重要**：compose 会先把新镜像**构建成功**，再重建容器 —— 构建失败时旧容器继续跑，站点不中断。
+（这正是以前那个部署脚本里唯一有点价值的行为，而 `docker compose` 本身就自带。）
 
-### 2. 定时自动更新（一条命令装好）
+### 2. 定时自动更新（写进宿主 crontab 即可）
 
 **Linux / macOS**
 
 ```bash
-./deploy.sh --install-cron          # 每天 04:00 自动更新
-./deploy.sh --install-cron 03:30    # 自定义时间
-./deploy.sh --uninstall-cron        # 移除
+crontab -e
+```
+
+```cron
+# 每天 04:00 拉代码并重建；日志写到项目目录下的 logs/
+0 4 * * * cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1
+```
+
+```bash
 crontab -l | grep shortdrama        # 查看
+crontab -e                          # 删掉那一行即可取消
 ```
 
-**Windows**
+**Windows**：用「任务计划程序」新建任务，操作填 `docker`、参数填 `compose up -d --build`、
+「起始于」填项目目录；触发设为每天 04:00。
 
-```powershell
-.\deploy.ps1 -InstallTask                    # 每天 04:00 自动更新
-.\deploy.ps1 -InstallTask -TaskTime 03:30    # 自定义时间
-.\deploy.ps1 -UninstallTask                  # 移除
-Get-ScheduledTask -TaskName ShortDramaAutoUpdate   # 查看
-```
-
-装好之后就不需要再管了。更新日志写在项目目录下的 `logs/auto-update.log`。
-
-- Linux/macOS 用 `crontab`，重复执行只会替换那一条，不会叠加
-- Windows 用「任务计划程序」，任务名固定为 `ShortDramaAutoUpdate`，并发策略为 `IgnoreNew`（上一次没跑完时新的一次直接跳过）
+> ⚠️ **cron 的 `PATH` 很短**，通常找不到 `docker` / `git`。两种解法：在 crontab 顶部加
+> `PATH=/usr/local/bin:/usr/bin:/bin`，或者命令里写绝对路径（`/usr/bin/docker`）。
+> 这是"定时任务没跑"最常见的原因。
 
 ### 3. 只想检查有没有新版本
 
 ```bash
-./deploy.sh --check
+cd <项目目录>
+git fetch --quiet && git log --oneline HEAD..@{u}
 ```
 
-```powershell
-.\deploy.ps1 -Check
-```
-
-退出码（方便接监控 / 通知）：
-
-| 退出码 | 含义 |
-|--------|------|
-| `0` | 已是最新版本 |
-| `10` | 有新版本，可更新 |
-| `1` | 检查失败（不是 git 仓库、连不上远端等） |
-
-例：有新版本时发一条通知
+有输出 = 有新版本；无输出 = 已是最新。接监控/通知时用退出码：
 
 ```bash
-./deploy.sh --check
-case $? in
-    0)  echo "已是最新版本" ;;
-    10) echo "短剧聚合有新版本" | mail -s "更新提醒" you@example.com ;;
-    *)  echo "检查失败" ;;
-esac
+git fetch --quiet
+if [ -n "$(git log --oneline HEAD..@{u})" ]; then
+    echo "短剧聚合有新版本" | mail -s "更新提醒" you@example.com
+fi
 ```
 
 ### 4. 更新过程做了什么
 
 | 步骤 | 说明 |
 |------|------|
-| 1. 检查 | `git fetch` 后比较本地与远端，**只读**，不动工作区 |
-| 2. 拉取 | 只用 `git pull --ff-only` 快进，绝不产生意外的合并提交 |
-| 3. 构建 | **先构建新镜像，构建成功才切换**；构建失败时旧容器继续跑，站点不中断 |
-| 4. 重启 | `docker compose up -d` 用新镜像重建容器 |
-| 5. 收尾 | 清理被替换下来的旧镜像层（只删 dangling），等待健康检查 |
-
-为安全起见，以下情况会**拒绝更新并说明原因**，而不是硬来：
-
-- **工作区有未提交的修改** —— 不覆盖你的改动，也不会把半成品代码构建进镜像
-- **本地与远端已分叉** —— 不覆盖本地提交，提示你手动 `git pull --rebase`
-- **另一次更新正在跑** —— 直接跳过（避免定时任务和手动更新撞车）
-
-另外，两处超时保护是给无人值守准备的：
-
-- Linux/macOS：`git fetch` / `git pull` 超过 **300 秒**会被 `timeout` 掐掉
-- Windows：计划任务设有 **1 小时**运行上限
-
-没有这两条的话，一次卡死的网络请求会一直占着更新锁，之后每一次定时更新都只会「跳过」，自动更新就静默停摆了。
+| 1. 拉取 | `git pull --ff-only` 快进，绝不产生意外的合并提交 |
+| 2. 构建 | `docker compose up -d --build` **先构建新镜像**；构建失败时旧容器继续跑 |
+| 3. 切换 | 构建成功后重建容器，健康检查不通过时你能从 `docker compose ps` 立刻看出来 |
 
 ### 5. 更新失败了怎么回滚
 
-每次成功更新后，脚本会打印这一行：
-
+```bash
+cd <项目目录>
+git log --oneline -5                       # 找到上一个正常的提交
+git reset --hard <上一个提交>
+docker compose up -d --build
 ```
-版本变更   a1b2c3d → e4f5g6h
-回滚       git reset --hard a1b2c3d && ./deploy.sh --rebuild
-```
 
-直接执行那条回滚命令即可退回上一个版本并重新构建。
-
-> 注意：代码回滚了，但**数据库结构不会自动回退**。如果新版本包含破坏性的数据库变更，请用第六节的备份恢复。
+> 注意：代码回滚了，但**数据库结构不会自动回退**。如果新版本包含破坏性的数据库变更，
+> 请用第六节的备份恢复。
 
 ### 6. 注意事项
 
-**cron / 计划任务里的环境**
+**私有仓库的凭据**：远端若是 SSH 地址（`git@github.com:...`），定时任务必须有可用的私钥，
+否则报 `Permission denied (publickey)`。改用 HTTPS 地址，或给该用户配置 SSH key。
 
-- Linux：安装脚本会把当前的 `PATH` 一起写进 crontab。cron 默认 `PATH` 很短，通常找不到 `docker` 和 `git`，不写进去会直接失败。
-- Windows：计划任务默认「只在用户登录时运行」，因为 Docker Desktop 需要用户会话。任务里调用的是 `pwsh`（装了就用它），否则回退到 `powershell.exe`。
-
-**私有仓库的凭据**
-
-如果远端是 SSH 地址（`git@github.com:...`），定时任务必须有可用的私钥：
-
-- 改用 HTTPS 地址，或给该用户配置 SSH key
-- 报错 `Permission denied (publickey)` 就是这个原因
-
-**git 属主告警**
-
-仓库属主与执行用户不一致时 git 会拒绝操作：
+**git 属主告警**：仓库属主与执行用户不一致时 git 会拒绝操作：
 
 ```bash
 git config --global --add safe.directory "<仓库绝对路径>"
 ```
 
-**不要在自动更新的仓库里改代码**
-
-自动更新只跟随远端分支。如果你在部署机上直接改代码，工作区变「脏」后自动更新会一直拒绝执行——这是刻意的保护。
-
-**停止自动更新**
-
-```bash
-./deploy.sh --uninstall-cron     # Linux / macOS
-```
-
-```powershell
-.\deploy.ps1 -UninstallTask      # Windows
-```
+**不要在自动更新的仓库里改代码**：定时任务只跟随远端分支。在部署机上直接改代码会让工作区变「脏」，
+`git pull --ff-only` 会失败并保留你的改动（这是好事，但更新就停了）—— 改动请走 `git stash` 或提交到别处。
 
 ### 7. 构建太慢？改用预构建镜像
 
@@ -349,13 +280,16 @@ git config --global --add safe.directory "<仓库绝对路径>"
 SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest
 ```
 
-然后照常部署/更新：
+
+
+然后照常升级：
 
 ```bash
-./deploy.sh --update
+docker compose pull app && docker compose up -d
 ```
 
-此时脚本**不再拉代码、不再编译**，只做 `docker compose pull app` + `up -d --no-build`，几秒完成。镜像没有变化时会直接跳过重启。
+此时**不再拉代码、不再编译**，只做 `docker compose pull app` + `up -d`，几秒完成。
+镜像没有变化时 compose 会直接跳过重启。
 
 **两种模式对比**
 
@@ -375,7 +309,7 @@ GHCR 上的包默认是私有的。如果你没把包改成公开，拉取前需
 echo <你的PAT> | docker login ghcr.io -u <你的GitHub用户名> --password-stdin
 ```
 
-PAT 需要 `read:packages` 权限。登录凭据存在 `~/.docker/config.json`，之后 `--update` 就不用再登了。
+PAT 需要 `read:packages` 权限。登录凭据存在 `~/.docker/config.json`，之后 `docker compose pull` 就不用再登了。
 
 嫌麻烦可以把包设为公开：GitHub → 你的头像 → Your packages → 选中该包 → Package settings → Change visibility → Public。公开后拉取无需任何认证。
 
@@ -475,11 +409,11 @@ openssl rand -hex 48
 会额外拉起 `postgres` 和 `redis` 两个容器：
 
 ```bash
-./deploy.sh --postgres
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 ```
 
 ```powershell
-.\deploy.ps1 -Postgres
+（Windows 同一条命令）
 ```
 
 等价的 compose 命令：
@@ -511,7 +445,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 **升级兼容性已处理**：数据卷只在**首次创建且为空**时继承镜像里的属主；你现在的卷是旧版本（root）
 创建的，里面的 `shortdrama.db` 属主是 root —— 直接切成非 root 会写不进去。
 所以入口脚本 `docker/entrypoint.sh` 会先以 root 做一次 `chown -R app:app /data`，再 `exec` 降权。
-**升级不需要你手动做任何事**，`./deploy.sh --update` 照常用。
+**升级不需要你手动做任何事**，`git pull --ff-only && docker compose up -d --build` 照常用。
 
 设计成失败也不会让站点起不来：拿不到 `gosu`、或 `chown` 失败时，脚本会打印告警并**退回以 root 运行**
 （等于改动前的行为），而不是退出。
@@ -668,7 +602,7 @@ docker run -d --name shortdrama \
 | `未找到 docker 命令` | 没装 Docker，或终端没重启。Windows 装完 Docker Desktop 要重开终端 |
 | `Docker 守护进程未运行` | 启动 Docker Desktop，等托盘图标变为运行中 |
 | `未找到 docker compose（v2）` | 只有 Compose v1（`docker-compose`）。升级 Docker 以获得 `docker compose` |
-| 构建失败，提示连不上仓库 | 网络无法访问 Docker Hub / NuGet / npm registry。给 Docker 配置国内镜像加速后 `--rebuild` |
+| 构建失败，提示连不上仓库 | 网络无法访问 Docker Hub / NuGet / npm registry。给 Docker 配置国内镜像加速后 `docker compose build --no-cache` |
 | 构建很慢或卡住 | 首次构建要拉基础镜像。确认网络与磁盘空间（约需 3-5 GB） |
 | 健康检查超时 | 首次启动要同步数据源，等 1-2 分钟。仍不行就看 `docker compose logs -f app` |
 | 打开站点一直跳 `/gate` | 这是口令门，输入 `ACCESS_PASSWORD` 即可。忘了口令就改 `.env` 再 `docker compose up -d` |
@@ -678,12 +612,12 @@ docker run -d --name shortdrama \
 | 自动更新报 `dubious ownership` | 执行 `git config --global --add safe.directory "<仓库绝对路径>"` |
 | 自动更新没跑 | 看 `logs/auto-update.log`；`crontab -l \| grep shortdrama`（Linux）或 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate`（Windows）确认任务在 |
 | 自动更新报 `无法访问远端`（超过 300 秒无响应） | 网络不通或 SSH 的 22 端口被挡。改用 HTTPS 远端地址 |
-| 自动更新一直「跳过」 | 上一次更新卡死占着锁。Linux 上 `pkill -f 'deploy.sh --update'`；Windows 上结束对应进程。锁释放后即可恢复 |
+| 定时更新一直失败 | 先看 cron 的日志：`PATH` 里没有 `docker`/`git` 是最常见原因（见第三节第 2 小节） |
 | 镜像模式报 `镜像拉取失败` | 包是私有的但没登录：`docker login ghcr.io`；或把包设为公开 |
 | 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（如 ARM 机器拉了 amd64 镜像）。改工作流的 `PLATFORMS` 重新构建 |
 | Actions 里没有自动构建 | 确认 `.github/workflows/docker-publish.yml` 已推送，且仓库 Settings → Actions 允许运行工作流 |
 | 想确认当前是哪种模式 | 看部署完成后打印的「部署方式」一行；或 `grep SHORTDRAMA_IMAGE .env` |
-| 端口被占用 | `./deploy.sh -p 8081` 换个端口，或找出占用端口的进程 |
+| 端口被占用 | `APP_PORT=18081 docker compose up -d` 换个端口，或用 `ss -lntp` 找出占用端口的进程 |
 | 磁盘占用越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像） |
 | 面板「更新容器」报 `invalid endpoint settings: user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把容器**当前的动态 IP** 当成"要保留的静态 IP"回填，而 compose 自动创建的 `shortdrama_default` 网络没有自定义子网，Docker 拒绝 | 别用面板的容器更新，改用 `docker compose up -d`（见下方说明） |
 | `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：报错里的容器可能是别的项目的（先 `docker inspect xxx` 看 `com.docker.compose.project` 标签） | `docker rename xxx xxx-old` 解封（非破坏性）；本仓库的 compose 已不设 `container_name`，不会自己撞名 |
@@ -731,7 +665,7 @@ firewall-cmd --permanent --add-port=18080/tcp && firewall-cmd --reload
 > ⚠️ **8080 是热门端口**（面板、代理、各种测试服务都爱用它），撞车概率高。
 > 所以本项目的**对外默认端口是 18080**；容器内部仍然是 8080 ——
 > 容器内的端口是隔离的，不存在冲突，改它没有收益（还会多改一堆地方）。
-> 想换端口：改 `.env` 里的 `APP_PORT`，或 `./deploy.sh -p 9000` / `.\deploy.ps1 -Port 9000`。
+> 想换端口：改 `.env` 里的 `APP_PORT`，或临时用 `APP_PORT=9000 docker compose up -d`。
 
 
 ### 用 `docker compose` 升级，别用面板的「更新容器」
@@ -752,7 +686,7 @@ cd <项目目录>
 docker compose down            # 删掉旧容器（数据卷保留）
 docker compose up -d           # 按 compose 的期望状态重建
 # 或者一条命令搞定（含拉代码/构建）：
-./deploy.sh --update
+git pull --ff-only && docker compose up -d --build
 ```
 
 如果你必须用面板管理它，就在面板里把该容器的**静态 IP 留空**，或者给网络显式配一个子网
@@ -769,12 +703,12 @@ docker inspect --format '{{.State.Status}} {{.State.Health.Status}}' shortdrama
 ## 十、卸载
 
 ```bash
-./deploy.sh --down     # 停止并移除容器，保留数据
-./deploy.sh --purge    # 停止并移除容器，同时删除数据卷（不可恢复）
+docker compose down             # 停止并移除容器，保留数据
+docker compose down -v          # 停止并移除容器，同时删除数据卷（不可恢复）
 docker rmi shortdrama:latest        # 删除镜像
 ```
 
-Windows 把 `./deploy.sh` 换成 `.\deploy.ps1`。
+Windows 上这些命令完全一样（在项目目录里用 PowerShell 执行即可）。
 
 彻底清理（含所有相关卷）：
 
@@ -789,10 +723,10 @@ docker volume rm <上面列出的卷名>
 
 | 文件 | 作用 |
 |------|------|
-| `deploy.sh` / `deploy.ps1` | 一键部署 + 自动更新脚本 |
 | `docker-compose.yml` | 主配置（SQLite，单容器） |
 | `docker-compose.postgres.yml` | PostgreSQL + Redis 覆盖配置 |
 | `Dockerfile` | 多阶段构建：前端 → 后端 → 运行时，单镜像 |
+| `docker/entrypoint.sh` | 容器入口：修正数据卷属主后降权运行 |
 | `.env.example` | 环境变量模板 |
 | `.dockerignore` | 构建上下文排除清单 |
-| `logs/auto-update.log` | 自动更新日志（运行后生成） |
+| `logs/auto-update.log` | 定时更新日志（按第三节配了 cron 后生成） |

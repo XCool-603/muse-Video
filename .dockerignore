@@ -58,5 +58,3 @@ scripts/
 Dockerfile
 docker-compose*.yml
 .dockerignore
-deploy.ps1
-deploy.sh
