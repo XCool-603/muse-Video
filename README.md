@@ -1,9 +1,49 @@
 # 短剧聚合平台
 
-基于 **.NET 10.0 Minimal API + Vue 3 + Ant Design Vue 4** 的短剧聚合平台，通过统一适配器层聚合多个短剧平台（红果、黄豆、剧果、野果、帝果）的内容，提供**统一搜索、分类浏览、竖屏播放、去广告、收藏与观看历史**能力，并配备完整的管理后台。
+基于 **.NET 10.0 Minimal API + Vue 3 + Ant Design Vue 4** 的短剧聚合平台。通过统一适配器层聚合
+**25 个平台**（22 个苹果CMS 采集源 + 红果/黄果/黄豆等官方源）的内容，提供**统一搜索、按平台浏览、
+竖屏播放、去广告、收藏与观看历史**能力，并配备完整的管理后台；另外可选接入**本地种子搜索与边下边播**。
 
-> ⚠️ **法律合规声明**
-> 本系统仅提供技术框架与演示数据，**不包含任何真实视频内容**。生产使用前，使用方必须确保拥有所有内容的合法版权或授权，并具备必要的运营资质（ICP 备案、信息网络传播视听节目许可证等），遵守《著作权法》《网络安全法》等相关法律法规。
+> ⚠️ **本项目是技术框架，不提供、不存储、不分发任何音视频内容。**
+> 默认配置启用了 22 个**第三方公开采集源**，它们多为未经授权的影视聚合站；
+> 使用前请自行评估法律风险，并确认你所在地区的法律与运营资质要求。
+> **完整条款见 [免责声明](#免责声明)。**
+
+---
+
+## 免责声明
+
+**本项目是技术框架，不提供、不存储、不分发任何音视频内容。**
+
+**1. 内容来源**
+所有可播放内容均来自**第三方公开接口**：苹果CMS 采集站的公开 API、平台官方 H5 页面、
+以及公开种子索引站返回的元数据。本项目的代码仓库里**没有任何视频文件**，
+也不做转存、缓存或二次分发 —— 播放时数据从源站直接流向你的浏览器。
+
+**2. 默认配置即含真实源**
+仓库默认启用了 22 个第三方采集源，并可选接入本地种子搜索。
+这些站点多为**未经授权**的影视聚合站。是否启用、如何使用，由部署者自行判断并承担后果。
+
+**3. 使用者的责任**
+请在**你所在地区法律允许的范围内**使用本项目。你需要自行确认所访问内容的版权状态，
+以及公开运营所需的资质（例如中国大陆的 ICP 备案、《信息网络传播视听节目许可证》等）。
+**不得用于任何商业用途或违法用途。**
+
+**4. 种子搜索的额外提示**
+BitTorrent 是**双向**协议 —— 下载的同时也在向他人上传。在部分国家和地区，
+未经授权传播受版权保护的作品可能构成侵权甚至违法。
+本项目的种子功能只做**公开元数据的聚合检索**，不托管内容、不提供种子文件、
+不协助绕过任何技术保护措施；是否下载、下载什么，完全由使用者决定并承担后果。
+
+**5. 无担保**
+软件按「现状」提供，不附带任何明示或暗示的担保。因使用或无法使用本项目造成的
+任何直接或间接损失，作者不承担责任。
+
+**6. 权利人不适即删**
+如果你是权利人，认为本项目（或默认配置中的某个源）侵犯了你的权益，
+请通过 Issue 联系，我们会**移除相关的源配置或适配器**。本项目不针对任何特定站点。
+
+> 以上内容不构成法律意见。涉及实际运营，请咨询专业律师。
 
 ---
 
@@ -177,34 +217,41 @@ docker compose down -v         # 停止并清空数据
 ```
 短剧聚合/
 ├── ShortDrama.slnx
-├── deploy.sh / deploy.ps1              # 一键部署 + 自动更新
-├── Dockerfile                          # 单镜像多阶段构建（前端 + 后端）
-├── docker-compose.yml                  # 默认：SQLite 单容器
-├── docker-compose.postgres.yml         # 可选：PostgreSQL + Redis
-├── docs/DOCKER.md                      # Docker 部署完整文档
-├── ShortDrama.Domain/                  # 领域层：实体
+├── deploy.sh / deploy.ps1                # 一键部署 + 自动更新（Linux / Windows）
+├── Dockerfile                            # 单镜像多阶段构建（前端 + 后端）
+├── docker/entrypoint.sh                  # 容器入口：修正数据卷属主后降权运行
+├── docker-compose.yml                    # 默认：SQLite 单容器
+├── docker-compose.postgres.yml           # 可选：PostgreSQL + Redis
+├── .env.example                          # 部署环境变量模板（含对外端口、口令、种子服务地址）
+├── scripts/gen-clash-rules.mjs           # 生成「视频 CDN 直连」的 Clash 规则与文档
+├── docs/DOCKER.md                        # Docker 部署完整文档
+├── docs/SOURCES.md                       # 采集源实测清单（46 个候选源的结论）
+├── docs/CLASH-RULES.md                   # 让采集源 CDN 走得通的 Clash 规则
+├── ShortDrama.Domain/                    # 领域层：实体
 │   └── Entities/  Drama / Episode / User / PlayProgress / Favorite / PlatformSource
-├── ShortDrama.Application/             # 应用层：接口、DTO、公共算法
-│   ├── Adapters/  IPlatformAdapter / IAdapterFactory
-│   ├── Services/  IServices / IAdFilterService
-│   ├── DTOs/      Dtos
+├── ShortDrama.Application/               # 应用层：接口、DTO、公共算法
+│   ├── Adapters/  IPlatformAdapter / IAdapterFactory / ILiveCatalogAdapter
+│   ├── Services/  IServices / IAdFilterService / ITorrentService
+│   ├── DTOs/      Dtos / TorrentDtos
 │   └── Common/    TextSimilarity（跨平台去重）
-├── ShortDrama.Infrastructure/          # 基础设施层
+├── ShortDrama.Infrastructure/            # 基础设施层
 │   ├── Data/       AppDbContext / DbSeeder
-│   ├── Adapters/   HongGuo / HuangDou / JuGuo / Generic / AdapterFactory
+│   ├── Adapters/   AppleCms / HongGuoWeb / HuangGuoAi / HongGuo / HuangDou / JuGuo / Generic / AdapterFactory
 │   └── Services/   Aggregation / Drama / Play / Auth / Favorite / Admin / AdFilter
-├── ShortDrama.Api/                     # API 入口层
-│   ├── Endpoints/  Drama / Play / User / Admin
+│                   Torrent（本地种子服务）/ PlayabilityTracker / SourceHealthTracker
+├── ShortDrama.Api/                       # API 入口层
+│   ├── Access/     AccessGateMiddleware（访问口令门）
+│   ├── Endpoints/  Drama / Play / Torrent / User / Admin
 │   ├── wwwroot/    （前端构建产物）
 │   └── Program.cs
-├── ShortDrama.Tests/                   # 单元测试
-└── short-drama-web/                    # 前端
+├── ShortDrama.Tests/                     # 单元测试（114 项）
+└── short-drama-web/                      # 前端
     └── src/
-        ├── api/         request / drama / user / admin / types
-        ├── stores/      user / player
+        ├── api/         request / drama / torrent / user / admin / types
+        ├── stores/      user / player / platform
         ├── router/      路由与鉴权守卫
-        ├── components/  DramaCard / VideoPlayer / EpisodeList / PlatformSelector
-        └── views/       Home / Category / Search / Player / Profile / Login / admin/*
+        ├── components/  DramaCard / VideoPlayer / EpisodeList / PlatformSelector / CardSkeleton
+        └── views/       Home / Category / Search / Player / Torrent / TorrentPlayer / Profile / Login / admin/*
 ```
 
 依赖方向严格单向：`Api → Infrastructure → Application → Domain`。
@@ -237,6 +284,11 @@ docker compose down -v         # 停止并清空数据
 | POST | `/play/progress` | 上报播放进度 | JWT |
 | GET | `/play/progress/{dramaId}` | 查询续播位置 | JWT |
 | GET | `/play/history` | 观看历史 | JWT |
+| GET | `/torrent/status` | 本地种子服务是否可用（没启动时返回可读原因） | 公开 |
+| GET | `/torrent/search?q=&limit=&excludeAdult=` | 种子聚合搜索（默认按相关度排序、默认挡掉疑似成人内容） | 公开 |
+| POST | `/torrent/prepare` | 按磁力创建下载任务，返回文件清单 | 公开 |
+| GET | `/torrent/task/{infoHash}` | 下载任务状态 + 文件清单（含播放地址） | 公开 |
+| GET | `/torrent/stream/{infoHash}/{fileIndex}` | **边下边播**（透传 Range，数据没到会等待） | 公开 |
 | POST | `/user/register` | 注册（首个用户自动成为管理员） | 公开 |
 | POST | `/user/login` | 登录（返回 JWT） | 公开 |
 | GET | `/user/profile` | 个人信息 | JWT |
@@ -492,6 +544,51 @@ dotnet run --project ShortDrama.Api
 
 ---
 
+## 五之五、本地种子搜索（可选增强）
+
+采集源都放不出来的剧，可以走这条路：搜种子 → 边下边播。
+
+**定位**：本平台**不实现 BT 协议**，只把本机另一个项目
+[torrent-search](https://github.com/XCool-603/torrent-search) 的能力转发出来 ——
+搜索、分片校验、HTTP Range 流式播放都是它的强项。本平台负责三件事：
+把接口收在访问口令门之后、把字段映射成前端友好的形状、以及它没启动时给出可读原因。
+
+### 怎么开
+
+```bash
+# 1) 先在本机把种子服务跑起来（默认监听 127.0.0.1:8787）
+cd /path/to/torrent-search
+node bin/magnet-search.mjs serve
+
+# 2) 本平台照常启动即可，导航里的「种子」会自动可用
+```
+
+Docker 部署要**额外注意**：容器里的 `127.0.0.1` 指的是容器自己，不是宿主机。
+compose 已经把地址传成 `host.docker.internal:8787` 并加了 `extra_hosts`，详见
+[docs/DOCKER.md](docs/DOCKER.md#种子搜索可选增强)。不用这个功能就设 `TORRENT_ENABLED=false`，
+或者干脆不管 —— 连不上时页面只提示「种子服务没在运行」，不影响其它功能。
+
+### 边下边播是怎么做的
+
+只服务**已经校验落盘**的分片：磁盘上的文件是按种子长度预分配的，看文件大小判断不出数据是否有效，
+唯一可信的判据是分片 SHA1 校验通过后的位图。请求的数据还没到时接口会**等**（默认最多 30 秒），
+所以「刚加完任务就点播放」也能起播；浏览器常发的 `Range: bytes=0-`（整个文件）不会被整段读进内存，
+而是返回**当前已就绪的连续区间**，播放器据此继续请求后续。
+
+### 两个必须知道的限制
+
+1. **中文短剧的收录很少**。这些公开索引站以英文影视、动漫为主，中文结果里成人内容占比又高。
+   界面默认开启「排除疑似成人内容」（按源的成人分类 + 标题关键词判断），
+   过滤条数会显示在结果上方，可以一键关掉。
+2. **P2P 可能被网络拦掉**。如果 `peer` 握手一直失败（下载停在「正在获取元数据」），
+   多半是代理或运营商在协议层丢弃了 BT 流量 —— 这与本平台无关，
+   用 `node bin/magnet-search.mjs doctor` 可以确诊。
+
+> ⚠️ BitTorrent 是双向协议，下载的同时也在上传。请只用于你有权获取的内容，
+> 并遵守你所在地区的法律 —— 见 [免责声明](#免责声明)。
+
+---
+
 ## 五之二、苹果CMS 采集源（真实视频源）
 
 > 📋 **完整清单见 [docs/SOURCES.md](docs/SOURCES.md)**：官方平台与 12 个启用采集源的域名、短剧分类
@@ -658,11 +755,14 @@ dotnet run --project ShortDrama.Api
 **想要分集体验，优先选 魔都 / 天堂 / 非凡 / 如意 这几个源**；
 无尽与最大虽然入库量最大，但 96% 是全集单文件，分集体验最差。
 
-### 免责声明
+### 关于这些源的合规提醒
 
-`apple-cms-sources.json` 中的源均为**第三方公开采集站**，内容非本系统提供。
+`apple-cms-sources.json` 中的源均为**第三方公开采集站**，内容非本系统提供；
 这些站点多为未经授权的影视聚合站，使用前请自行评估法律风险。
 本系统只提供技术框架与适配能力，不对接入源的内容合法性负责。
+
+> 完整条款（含内容来源、使用者责任、种子搜索的双向协议提示、无担保、权利人不适即删）
+> 见文档开头的 **[免责声明](#免责声明)** —— 只维护那一份，避免多处表述不一致。
 
 
 ### 聚合搜索流程
@@ -906,7 +1006,9 @@ GET /api/v1/drama/platforms
 | Phase 3 播放功能 | 1-2 周 | hls.js 集成、m3u8 去广告代理、进度同步 | ✅ 完成 |
 | Phase 4 用户系统 | 1-2 周 | 注册登录、JWT、收藏、观看历史 | ✅ 完成 |
 | Phase 5 管理后台 | 2 周 | 数据看板、短剧管理、平台源管理 | ✅ 完成 |
-| Phase 6 优化上线 | 1-2 周 | Redis 缓存、CDN 接入、真实平台对接 | 🔜 待接入 |
+| Phase 6 真实源接入 | 2 周 | 22 个苹果CMS 采集源 + 红果/黄果/黄豆官方源；按平台浏览；可播性跟踪 | ✅ 完成 |
+| Phase 7 种子增强 | 1 周 | 接入本地种子搜索与边下边播（可选，见[五之五](#五之五本地种子搜索可选增强)） | ✅ 完成 |
+| Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |
 
 ---
 
