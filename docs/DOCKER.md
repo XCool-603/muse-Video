@@ -156,6 +156,41 @@ docker compose down -v          # 停止并清空数据
 
 改完 `.env` 后需要重新创建容器才会生效：`docker compose up -d`。
 
+### 5. 改运行端口
+
+端口由 **`.env` 里的 `APP_PORT`** 决定；compose 里的 `${APP_PORT:-18080}` 只是**没配 `.env` 时的兜底值**。
+
+> ⚠️ **升级后端口没变？** 因为 `.env` 优先于 compose 的默认值 ——
+> 你现有的 `.env` 里如果还写着 `APP_PORT=8080`，改 compose 的默认值**不会**影响你，必须改 `.env`。
+> （仓库把默认端口从 8080 换成 18080 只是给新部署用的。）
+
+**改法**：
+
+```bash
+cd <项目目录>
+grep '^APP_PORT' .env                          # 先看当前值
+sed -i 's/^APP_PORT=.*/APP_PORT=9000/' .env    # 改成你要的端口（或直接编辑 .env）
+docker compose up -d                           # 重建容器让新端口生效
+```
+
+**确认最终生效的端口** —— 这是唯一可信的检查方式，直接看 compose 解析后的结果：
+
+```bash
+docker compose config | grep -A3 'ports:'
+# 期望：published: "9000"   target: 8080
+```
+
+**别忘了放行新端口**（云安全组 + 宿主防火墙，两处都要，详见[第九节](#九故障排查)）：
+
+```bash
+ufw allow 9000/tcp                                        # Ubuntu / Debian
+firewall-cmd --permanent --add-port=9000/tcp && firewall-cmd --reload   # CentOS / RHEL
+```
+
+> 注意：**只有对外端口要改**。容器内仍然是 8080 —— 容器内的端口是隔离的，
+> 跟着改只会多改一堆地方（`EXPOSE`、`ASPNETCORE_URLS`、健康检查）。
+
+
 ---
 
 ## 二、跑起来之后

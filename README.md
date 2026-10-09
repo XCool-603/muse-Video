@@ -122,6 +122,12 @@ docker compose pull app && docker compose up -d
 
 两种都是**先构建/拉取成功，再切换容器** —— 失败时旧容器继续跑，站点不中断。
 
+> 📌 **端口由 `.env` 里的 `APP_PORT` 决定**（新部署默认 `18080`）。
+> `.env` 优先于 compose 的默认值，所以**升级不会改变你已有的端口** ——
+> 要改端口就编辑 `.env` 里的 `APP_PORT` 再 `docker compose up -d`，
+> 然后用 `docker compose config | grep -A3 'ports:'` 确认生效值，并放行云安全组与宿主防火墙。
+> 详见 [docs/DOCKER.md](docs/DOCKER.md#5-改运行端口)。
+
 **常用运维**
 
 ```bash
