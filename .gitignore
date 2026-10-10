@@ -36,3 +36,10 @@ Thumbs.db
 ## 前端构建产物（由 npm run build 生成，发布时拷贝到 ShortDrama.Api/wwwroot）
 ShortDrama.Api/wwwroot/assets/
 ShortDrama.Api/wwwroot/index.html
+
+## compose 本地覆盖文件（compose 惯例：只在本机用，不进仓库）
+## 用途见 docs/RUNBOOK.md「想只绑本机（前面挂反向代理）」一节
+docker-compose.override.yml
+
+## 多角色交付流水线的过程产物（保留在本地供追溯，不进仓库）
+.dsh-team/

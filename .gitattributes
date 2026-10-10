@@ -8,14 +8,15 @@
 #
 # 仓库里会被 Linux 执行的脚本：
 #   docker/entrypoint.sh   容器入口（Dockerfile 里 COPY 进镜像）
-#   deploy.sh              部署机上的部署/升级脚本
-# 两者都必须是 LF，这里钉死。
+# 必须是 LF，这里钉死。
+# （曾经还有 deploy.sh / deploy.ps1 两个部署包装脚本，已按 docker skill 的规则删除 ——
+#   部署与升级改用原生 docker compose，见 README 与 docs/DOCKER.md。）
 #
 # 下面这些是「字节必须精确」的配置类文件，同样钉成 LF：
 #   .dockerignore   Docker 逐行解析排除规则；行尾带 \r 会让 node_modules/ 之类的
 #                   规则静默失配（构建上下文变大、宿主 node_modules 混进镜像）
 #   *.yml / *.yaml  compose 配置
-#   .env.example    部署脚本用 cut -d= 取值，值尾带 \r 会让口令/密钥多一个字符
+#   .env.example    compose 读取它做变量插值；值尾带 \r 会让口令/密钥多一个字符
 # ============================================================================
 
 *.sh text eol=lf

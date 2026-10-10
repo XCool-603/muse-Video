@@ -210,7 +210,7 @@ firewall-cmd --permanent --add-port=9000/tcp && firewall-cmd --reload   # CentOS
 - 完全关闭：`.env` 里设 `ACCESS_GATE_ENABLED=false`
 - `/health` 与 `/openapi/*` 不受口令门拦截，方便做健康检查和监控
 
-> 上线前请务必：改掉 `ACCESS_PASSWORD`、改掉 `admin123` 密码、确认 `JWT_KEY` 已是随机值（脚本首次运行会自动生成）。
+> 上线前请务必：改掉 `ACCESS_PASSWORD`、改掉 `admin123` 密码、确认 `JWT_KEY` 已换成随机值（生成命令见第一节）。
 
 ---
 
@@ -360,7 +360,7 @@ PLATFORMS: linux/amd64
 
 **改回源码模式**
 
-把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，脚本会自动回到本地构建。
+把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，下一次 `docker compose up -d --build` 就回到本地构建。
 
 ---
 
@@ -374,7 +374,7 @@ PLATFORMS: linux/amd64
 | `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式（本机构建）；填镜像地址 = 镜像模式（拉预构建镜像，更新只要几秒）。见[第三节第 7 小节](#7-构建太慢改用预构建镜像) |
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
-| `JWT_KEY` | 占位值 | JWT 签名密钥，**首次运行脚本会自动替换为随机值** |
+| `JWT_KEY` | 占位值 | JWT 签名密钥，**上线前必须自己替换**（`openssl rand -hex 48`） |
 | `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址。见下方「种子搜索」一节 |
 | `TORRENT_ENABLED` | `true` | 是否启用种子功能（关掉后「种子」入口显示未启用） |
 | `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
@@ -470,8 +470,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 | 卷 | 内容 | 何时创建 |
 |----|------|---------|
 | `shortdrama-data` | SQLite 库文件、运行时数据 | 默认模式 |
-| `shortdrama-pgdata` | PostgreSQL 数据目录 | `--postgres` |
-| `shortdrama-redisdata` | Redis AOF | `--postgres` |
+| `shortdrama-pgdata` | PostgreSQL 数据目录 | 带 `-f docker-compose.postgres.yml` 时 |
+| `shortdrama-redisdata` | Redis AOF | 带 `-f docker-compose.postgres.yml` 时 |
 
 ### 容器以非 root 运行（镜像内置的 app 用户）
 
@@ -642,20 +642,20 @@ docker run -d --name shortdrama \
 | 健康检查超时 | 首次启动要同步数据源，等 1-2 分钟。仍不行就看 `docker compose logs -f app` |
 | 打开站点一直跳 `/gate` | 这是口令门，输入 `ACCESS_PASSWORD` 即可。忘了口令就改 `.env` 再 `docker compose up -d` |
 | 改了 `.env` 但没生效 | 环境变量在创建容器时注入，需要 `docker compose up -d` 重建容器 |
-| 自动更新提示「工作区有未提交的修改」 | 部署机上的代码被改过。`git stash` 或 `git checkout -- .` 后重试 |
-| 自动更新报 `Permission denied (publickey)` | 定时任务环境没有 SSH 私钥，改用 HTTPS 远端或配置 key |
-| 自动更新报 `dubious ownership` | 执行 `git config --global --add safe.directory "<仓库绝对路径>"` |
-| 自动更新没跑 | 看 `logs/auto-update.log`；`crontab -l \| grep shortdrama`（Linux）或 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate`（Windows）确认任务在 |
-| 自动更新报 `无法访问远端`（超过 300 秒无响应） | 网络不通或 SSH 的 22 端口被挡。改用 HTTPS 远端地址 |
+| `git pull --ff-only` 报错、更新停住 | 部署机上的代码被改过（工作区脏）。`git stash` 或 `git checkout -- .` 后重试 |
+| 定时更新报 `Permission denied (publickey)` | 定时任务环境没有 SSH 私钥，改用 HTTPS 远端或配置 key |
+| 定时更新报 `dubious ownership` | 执行 `git config --global --add safe.directory "<仓库绝对路径>"` |
+| 定时更新没跑 | 看 `logs/auto-update.log`（按第三节配了 cron 才有日志）；Linux 用 `crontab -l \| grep shortdrama`、Windows 用 `Get-ScheduledTask` 确认任务在。**Windows 还要确认它不是「只在用户登录时运行」**，否则无人登录时静默不执行 |
+| 定时更新卡住不返回 | git 网络不通。给 `git` 设超时（如 `timeout 300 git pull`），或改用 HTTPS 远端地址 |
 | 定时更新一直失败 | 先看 cron 的日志：`PATH` 里没有 `docker`/`git` 是最常见原因（见第三节第 2 小节） |
 | 镜像模式报 `镜像拉取失败` | 包是私有的但没登录：`docker login ghcr.io`；或把包设为公开 |
 | 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（如 ARM 机器拉了 amd64 镜像）。改工作流的 `PLATFORMS` 重新构建 |
 | Actions 里没有自动构建 | 确认 `.github/workflows/docker-publish.yml` 已推送，且仓库 Settings → Actions 允许运行工作流 |
-| 想确认当前是哪种模式 | 看部署完成后打印的「部署方式」一行；或 `grep SHORTDRAMA_IMAGE .env` |
+| 想确认当前是哪种模式 | `grep '^SHORTDRAMA_IMAGE' .env`：有值 = 镜像模式；无输出（只有注释行）= 源码模式 |
 | 端口被占用 | `APP_PORT=18081 docker compose up -d` 换个端口，或用 `ss -lntp` 找出占用端口的进程 |
 | 磁盘占用越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像） |
-| 面板「更新容器」报 `invalid endpoint settings: user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把容器**当前的动态 IP** 当成"要保留的静态 IP"回填，而 compose 自动创建的 `shortdrama_default` 网络没有自定义子网，Docker 拒绝 | 别用面板的容器更新，改用 `docker compose up -d`（见下方说明） |
-| `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：报错里的容器可能是别的项目的（先 `docker inspect xxx` 看 `com.docker.compose.project` 标签） | `docker rename xxx xxx-old` 解封（非破坏性）；本仓库的 compose 已不设 `container_name`，不会自己撞名 |
+| 面板「更新容器」报 `invalid endpoint settings: user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把容器**当前的动态 IP** 当成"要保留的静态 IP"回填，而 compose 自动创建的网络没有自定义子网，Docker 拒绝。别用面板的容器更新，改用 `docker compose up -d`（见下方说明） |
+| `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：报错里的容器可能是别的项目的（先 `docker inspect xxx` 看 `com.docker.compose.project` 标签）。解封用 `docker rename xxx xxx-old`（非破坏性）；本仓库的 compose 已不设 `container_name`，不会自己撞名 |
 
 ### 端口打不开？按「从内到外」的顺序查，别一上来就换端口
 

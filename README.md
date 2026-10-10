@@ -154,7 +154,12 @@ docker compose down -v         # 停止并清空数据
 
 默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:18080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
 
-> 完整文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、更新与定时更新、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
+> 🚀 **第一次部署？直接看 [docs/RUNBOOK.md](docs/RUNBOOK.md)** —— 按**操作顺序**写的手册：
+> 首次部署 / 升级与回滚 / 改端口 / 定时更新与从旧脚本迁移 / 种子服务 / 备份与排障，
+> 每条命令都标了**在哪执行**与**成功判据**，出问题有「不对时怎么办」。
+> 配套的 [docs/DEPLOY-FACTS.md](docs/DEPLOY-FACTS.md) 把手册引用的每个配置值连 `文件:行` 一起钉住，可机械核对。
+>
+> 主题式文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、更新与定时更新、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
 
 ---
 
@@ -186,7 +191,9 @@ docker compose down -v         # 停止并清空数据
 ├── docker-compose.postgres.yml           # 可选：PostgreSQL + Redis
 ├── .env.example                          # 部署环境变量模板（含对外端口、口令、种子服务地址）
 ├── scripts/gen-clash-rules.mjs           # 生成「视频 CDN 直连」的 Clash 规则与文档
-├── docs/DOCKER.md                        # Docker 部署完整文档
+├── docs/RUNBOOK.md                       # 部署与运维手册（按操作顺序，推荐先看）
+├── docs/DEPLOY-FACTS.md                  # 部署配置事实清单（每个值带 文件:行 出处）
+├── docs/DOCKER.md                        # Docker 部署完整文档（主题式）
 ├── docs/SOURCES.md                       # 采集源实测清单（46 个候选源的结论）
 ├── docs/CLASH-RULES.md                   # 让采集源 CDN 走得通的 Clash 规则
 ├── ShortDrama.Domain/                    # 领域层：实体
