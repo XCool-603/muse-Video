@@ -140,8 +140,13 @@ docker compose down -v         # 停止并清空数据
 **定时自动升级**：直接写进宿主 crontab（不需要任何脚本）：
 
 ```cron
-0 4 * * * cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1
+0 4 * * * (cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build) >> /path/to/shortdrama/logs/auto-update.log 2>&1
 ```
+
+> 📌 两个坑：**① 先 `mkdir -p logs`** —— 仓库里没有这个目录（被 `.gitignore` 忽略），
+> 目录不存在时 shell 的重定向会失败、**整条命令根本不会执行**，表现为「定时任务静默不跑」；
+> **② 括号不能省** —— 少了它 `>>` 只绑定链尾命令，`git pull` 失败的原因不会进日志。
+> 详见 [docs/RUNBOOK.md](docs/RUNBOOK.md) 第五节。
 
 > ⚠️ **上线前务必改 `.env` 里的 `JWT_KEY`**（`.env.example` 里是占位值）和 `ACCESS_PASSWORD`。
 > 生成随机密钥：`openssl rand -hex 48`（Windows：`-join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })`）。

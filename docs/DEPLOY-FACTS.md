@@ -4,6 +4,11 @@
 > 可机械核对。**两者冲突时以仓库文件为准。**
 > **核对方式**：逐行读取仓库文件，取行号与字面值。行号以工作区当前内容为准 —— 后续改动会让行号漂移，**以内容为准**。
 > **诚实标注**：凡本机无法实测的（**本机未安装 Docker**），一律标注「未实测」，不写成结论。
+> **核对快照（重要）**：本清单的核对基准是提交 `687e7d3`（「docs: 新增部署与运维手册（RUNBOOK）与部署配置事实清单；修掉删脚本时漏掉的失效说法」）。
+> 该提交在写入本清单的同时，也补齐了「删除两个包装脚本」时漏改的内容（`.gitattributes` 注释、`docs/DOCKER.md` 的卷表 / 故障排查表 / 4 处失效说法）。
+> **除该提交之外，工作区还有一批尚未提交的改动**（`git status --porcelain -uall` → ` M README.md`、` M docs/DOCKER.md`、` M docs/RUNBOOK.md`）—— 那是同一轮里对**定时更新日志写法**的修复（`mkdir -p logs`、命令加括号、日志写绝对路径）。
+> 本清单的 **F17、F18、F19 与 §2-1 ~ §2-4、§2-11、§2-14、§2-16** 已按**含这批未提交改动的工作区**逐条实测刷新；`HEAD` 仍是 `687e7d3c20b3250bc8a59377c867addcbe7480c9`。
+> **行号与字节数会随改动漂移，核对时以内容为准**：先看本文件给出的字面值，再到目标文件里全文搜索定位，不要死认行号。本轮就实际发生了这件事 —— `README.md` 与 `docs/DOCKER.md` 在核对期间又分别多了 5 行 / 9 行，指向它们后半部分的行号整体下移（`README.md` **+5**、`docs/DOCKER.md` **+9**），本清单已按新行号刷新。
 
 ---
 
@@ -13,7 +18,7 @@
 |---|---|---|
 | 直接读取 | `read` 工具逐行读取指定文件 | 取行号与字面值 |
 | 删除核实 | `git ls-files`、`git log --all --diff-filter=D --name-only`、`git show --stat 09cdd7b` | 证明两个包装脚本已删 |
-| 残留引用 | 全仓库 `Select-String`（模式见 F19，排除 `.git`/`.dsh-team`/`bin`/`obj`/`node_modules`/`dist`） | 找出手册不该照抄的残留 |
+| 残留引用 | 全仓库 `Select-String`（模式见 F19，排除 `.git`/`.dsh-team`/`bin`/`obj`/`node_modules`/`dist`，**并排除本文件自己**） | 找出手册不该照抄的残留 |
 | 字节级检查 | `[System.IO.File]::ReadAllBytes` / `ReadAllText` 检查 BOM 与行尾 | 排除编码坑 |
 | 数据计数 | `ConvertFrom-Json` 解析 `apple-cms-sources.json` | 核实「22 个采集源」 |
 | Docker 实测 | `docker` 命令 | **本机未安装 docker（`CommandNotFoundException`），所有运行期行为未实测** |
@@ -75,7 +80,7 @@
 - `Dockerfile:118` → `VOLUME ["/data"]`
 - `Dockerfile:126` → `    ConnectionStrings__Default="Data Source=/data/shortdrama.db"`（SQLite 文件位置）
 - **命名规则**：`docker-compose.yml` **没有顶层 `name:` 字段**（实测 `Select-String -Path docker-compose.yml -Pattern '^name:'` → **无输出**），也没有 `COMPOSE_PROJECT_NAME`。因此 compose 项目名由**目录名**推导，实际卷名 = `<项目名>_shortdrama-data`。
-- `docs/DOCKER.md:629` 举例为 `shortdrama_shortdrama-data` —— 该例子**仅在 clone 目录名为 `shortdrama` 时成立**（`docs/DOCKER.md:14` 的 clone 命令确实带 `shortdrama`）。
+- `docs/DOCKER.md:638` 举例为 `shortdrama_shortdrama-data` —— 该例子**仅在 clone 目录名为 `shortdrama` 时成立**（`docs/DOCKER.md:14` 的 clone 命令确实带 `shortdrama`）。
 - ⚠️ **本机目录名是中文 `短剧聚合`**（工作目录 `C:\Work\短剧聚合\短剧聚合`）。项目名由目录名推导 + compose 要求项目名只能是小写字母数字/`-`/`_` → 卷名前缀**不会**是 `shortdrama`，甚至有较大概率直接报项目名非法。**未实测**（本机无 docker）。手册必须写成「先 `docker volume ls` 查实际卷名」，或显式 `COMPOSE_PROJECT_NAME=shortdrama` / `-p shortdrama` 固定它。
 
 ### F6 `.env` 的每个变量名与默认值
@@ -94,7 +99,7 @@
 | `SHORTDRAMA_IMAGE` | `:20` | **仅注释行**（`# SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest`），未启用 |
 
 - `.env.example:7` 注明 `.env` 已被 `.gitignore` 忽略；`.gitignore:25` → `.env`。**仓库根目录当前不存在 `.env`**（`Test-Path .env` → `False`）。
-- ⚠️ 因为 `SHORTDRAMA_IMAGE` 在模板里是**注释**，`docs/DOCKER.md:654` 的 `grep SHORTDRAMA_IMAGE .env` 会命中注释行、看起来像「已配了镜像模式」。正确写法是 `grep '^SHORTDRAMA_IMAGE' .env`。
+- ⚠️ 因为 `SHORTDRAMA_IMAGE` 在模板里是**注释**，`docs/DOCKER.md:663` 的 `grep SHORTDRAMA_IMAGE .env` 会命中注释行、看起来像「已配了镜像模式」。正确写法是 `grep '^SHORTDRAMA_IMAGE' .env`。
 - ⚠️ `.env` **不是必需的**：compose 里每个变量都写成 `${VAR:-默认值}`，`README.md:103` 也写了「不执行这行也能跑，用内置默认值」。
 
 ### F7 容器运行用户（注意：用的是镜像内置用户）
@@ -105,7 +110,7 @@
 - `docker/entrypoint.sh:17` → `APP_USER=app`；`:27` → `exec gosu "$APP_USER" "$@"`
 - ⚠️ **`Dockerfile` 里没有 `USER` 指令**（实测 `Select-String -Path Dockerfile -Pattern '^USER'` → **无输出**；相邻指令是 `Dockerfile:118` 的 `VOLUME`、`:120-126` 的 `ENV`、`:136` 的 `ENTRYPOINT`）。**容器配置层（`docker inspect` 的 `Config.User`）仍然是 root**，只有入口脚本用 `gosu` 把业务进程降到 `app`。
   - 所以手册**不要写**「容器以非 root 运行」这种会被 `docker inspect` 打脸的说法。准确表述：**「入口脚本会把业务进程降权到镜像内置的 `app` 用户；容器本身仍以 root 启动（因为要先 chown 数据卷）」**。
-- ⚠️ UID/GID `1654` 只出现在 `Dockerfile:87` 的注释里，仓库内**无实测证据**；`docs/DOCKER.md:504` 自己也写「通常是 1654 —— 以实测为准」。手册不要写死这个数字。
+- ⚠️ UID/GID `1654` 只出现在 `Dockerfile:87` 的注释里，仓库内**无实测证据**；`docs/DOCKER.md:513` 自己也写「通常是 1654 —— 以实测为准」。手册不要写死这个数字。
 - `Dockerfile:133-135` → 想跳过降权：在 compose 里设 `user: "app"`（`:134`），脚本会自动跳过降权分支（`entrypoint.sh:20` 的 `if [ "$(id -u)" = "0" ]` 为假）。
 
 ### F8 入口脚本做的三件事
@@ -126,7 +131,7 @@
 - `ShortDrama.Infrastructure/Data/DbSeeder.cs:151` → `Role = "admin",`
 - `ShortDrama.Infrastructure/Data/DbSeeder.cs:143` → `if (!await db.Users.AnyAsync())` —— **只在用户表为空时创建**（改过密码后再升级不会重置）
 - `ShortDrama.Infrastructure/Data/DbSeeder.cs:156` → 日志 `"已创建默认管理员账号 admin / admin123"`
-- 旁证：`README.md:70`、`README.md:155`、`docs/DOCKER.md:202`、`short-drama-web/src/views/LoginView.vue:60`（登录页提示「演示账号：admin / admin123」）
+- 旁证：`README.md:70`、`README.md:160`、`docs/DOCKER.md:202`、`short-drama-web/src/views/LoginView.vue:60`（登录页提示「演示账号：admin / admin123」）
 - 后台入口 `/admin`：`short-drama-web/src/router/index.ts:64` → `      path: '/admin',`
 
 ### F10 默认访问口令
@@ -155,7 +160,7 @@
 - `docker-compose.yml:59` → `      Torrent__Enabled: "${TORRENT_ENABLED:-true}"`
 - `.env.example:40-41` → `TORRENT_BASE_URL=http://host.docker.internal:8787` / `TORRENT_ENABLED=true`
 - **appsettings 里的默认值是另一个地址**：`ShortDrama.Api/appsettings.json:36` → `    "baseUrl": "http://127.0.0.1:8787",`；`:35` → `    "enabled": true,`
-- ⚠️ **这是最容易写错的一处**：`appsettings.json` 的 `127.0.0.1` 在容器里指**容器自己**，Docker 部署下**必须**用 compose 传的 `host.docker.internal`。`appsettings.json:37` 的注释、`docker-compose.yml:54-57` 的注释、`.env.example:35`、`docs/DOCKER.md:387-391` 都在讲同一件事。
+- ⚠️ **这是最容易写错的一处**：`appsettings.json` 的 `127.0.0.1` 在容器里指**容器自己**，Docker 部署下**必须**用 compose 传的 `host.docker.internal`。`appsettings.json:37` 的注释、`docker-compose.yml:54-57` 的注释、`.env.example:35`、`docs/DOCKER.md:396-400` 都在讲同一件事。
 - 让 `host.docker.internal` 在 Linux 也能解析：`docker-compose.yml:67-68` → `extra_hosts:` + `      - "host.docker.internal:host-gateway"`
 - 相关配置（`appsettings.json:38-42`）：`timeoutSeconds: 30`、`streamWaitSeconds: 30`、`copyBufferBytes: 65536`
 
@@ -170,7 +175,7 @@
 | `redis` | `:41` | `image: redis:7-alpine`（`:42`）、`command: ["redis-server", "--appendonly", "yes"]`（`:44`）、卷 `shortdrama-redisdata:/data`（`:46`）、健康检查 `redis-cli ping`（`:48`，10s/3s/5 见 `:49-51`） |
 
 - 覆盖文件自身的 `volumes:` 段：`:53-57` → `shortdrama-pgdata`（`:54`）、`shortdrama-redisdata`（`:56`），都 `driver: local`
-- 调用方式（`docker-compose.postgres.yml:4`、`docs/DOCKER.md:447`）：`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d`
+- 调用方式（`docker-compose.postgres.yml:4`、`docs/DOCKER.md:456`）：`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d`
 - ⚠️ **`redis` 起来了但应用不用它**：覆盖段只改了数据库 Provider 与连接串，**没有给 `app` 传任何 Redis 连接配置**；全仓库 `*.cs` 搜 `Redis` 只命中一句注释 —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`。手册写「PostgreSQL 模式会启用 Redis 缓存」是错的。
 
 ### F14 compose 里其它硬编码（不在 `.env`，改要动 compose）
@@ -204,26 +209,30 @@
 - `.github/workflows/docker-publish.yml:22` → `  REGISTRY: ghcr.io`
 - `.github/workflows/docker-publish.yml:25` → `  PLATFORMS: linux/amd64`
 - `.github/workflows/docker-publish.yml:58-60` → 标签 `latest`（仅默认分支）、`sha-<short>`、`<tag>`
-- 推导结果：`ghcr.io/xcool-603/muse-video:latest`，与 `.env.example:20`、`docs/DOCKER.md:315` 的示例一致
+- 推导结果：`ghcr.io/xcool-603/muse-video:latest`，与 `.env.example:20`、`docs/DOCKER.md:324` 的示例一致
 - 触发条件（`:15-19`）：push 到 `main`（`:16-17`）、打 `v*` 标签（`:18`）、`workflow_dispatch`（`:19`）
 
 ### F17 编码与行尾（实测字节）
 
-| 文件 | BOM | CRLF 数 | LF 数 |
-|---|---|---|---|
-| `.env.example` | 无 BOM | 0 | 44 |
-| `docker-compose.yml` | 无 BOM | 0 | 89 |
-| `docker-compose.postgres.yml` | 无 BOM | 0 | 57 |
-| `Dockerfile` | 无 BOM | 0 | 137 |
-| `docker/entrypoint.sh` | 无 BOM | 0 | 35 |
-| `.dockerignore` | 无 BOM | 0 | 60 |
-| `README.md` | 无 BOM | 0 | 987 |
-| `docs/DOCKER.md` | 无 BOM | 0 | 767 |
-| `ShortDrama.Api/appsettings.json` | 无 BOM | 0 | 127 |
-| `.gitattributes` | 无 BOM | 0 | 26 |
+| 文件 | 字节（实测） | BOM | CRLF 数 | LF 数 |
+|---|---|---|---|---|
+| `.env.example` | 2152 | 无 BOM | 0 | 44 |
+| `docker-compose.yml` | 3468 | 无 BOM | 0 | 89 |
+| `docker-compose.postgres.yml` | 1785 | 无 BOM | 0 | 57 |
+| `Dockerfile` | 6670 | 无 BOM | 0 | 137 |
+| `docker/entrypoint.sh` | 1441 | 无 BOM | 0 | 35 |
+| `.dockerignore` | 1249 | 无 BOM | 0 | 60 |
+| `README.md` | 48703 | 无 BOM | 0 | 999 |
+| `docs/DOCKER.md` | 32344 | 无 BOM | 0 | 776 |
+| `ShortDrama.Api/appsettings.json` | 7888 | 无 BOM | 0 | 127 |
+| `.gitattributes` | 1433 | 无 BOM | 0 | 27 |
 
+- **测量方式（`字节` 列必须这样量）**：`[System.IO.File]::ReadAllBytes('C:\...\绝对路径').Length` —— **必须传绝对路径**。.NET 的「当前目录」与 PowerShell 的 `$PWD` 不一定是同一个，传相对路径会读到别处或直接抛异常。行数与 `CRLF/LF` 用 `Get-Content <绝对路径> -Encoding UTF8` 计数、逐字节统计 `13` / `10` 的出现次数。
+- 本轮实测（一次性复测 10 个文件）：`.env.example` 2152B/44、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` 1785B/57、`Dockerfile` 6670B/137、`docker/entrypoint.sh` 1441B/35、`.dockerignore` 1249B/60、`README.md` 48703B/999、`docs/DOCKER.md` 32344B/776、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` 1433B/27（**CR 全 0、BOM 全 False**）。
+- **本表本轮的变化**：上一版只有 BOM / CRLF / LF 三列，其中 `README.md` 写 987 行、`.gitattributes` 写 26 行，均已过期，现刷新为 **999 / 27**。**`字节` 列是本轮新增的实测列** —— 上一版把字节数只写在过程记录里（`.dsh-team/deploy-runbook/review/`）而没有进本表，于是「字节数对不上」在清单里查不出来：过程记录里的旧值是 `.gitattributes` 1306B、`README.md` 47547B、`docs/DOCKER.md` 31336B，与本轮实测的 **1433 / 48703 / 32344** 都不符。三个实测值各用 `ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致。
+- ⚠️ **`README.md` 与 `docs/DOCKER.md` 在本轮核对期间又被改过**（就是上面说的那批未提交的 cron 日志修复），所以它们的字节 / 行数是**核对时刻**的值：`README.md` 48703B/999 行、`docs/DOCKER.md` 32344B/776 行。这两个文件之后再改，本表就会再次过期 —— **核对时以内容为准**。
 - 全部 **UTF-8 无 BOM + LF**（`CRLF=0`）。这一点对 `ACCESS_PASSWORD=遵纪守法世界和平` 有实际影响：`.env` 用非 UTF-8 编辑器保存（例如 Windows 记事本存成 GBK）会把中文口令写坏，表现为「口令没错但一直跳 `/gate`」。
-- 可执行位：`.gitattributes:21` → `*.sh text eol=lf`；`Dockerfile:105` → `COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh`；`Dockerfile:103-104` 注释说明 **Windows 上 git 不保留可执行位，`--chmod=755` 必须显式写**，否则容器起来就是 `permission denied: /usr/local/bin/entrypoint.sh`。
+- 可执行位：`.gitattributes:22` → `*.sh text eol=lf`（**行号已从 `:21` 下移到 `:22`**，因为 `.gitattributes` 本轮多了 1 行注释）；`Dockerfile:105` → `COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh`；`Dockerfile:103-104` 注释说明 **Windows 上 git 不保留可执行位，`--chmod=755` 必须显式写**，否则容器起来就是 `permission denied: /usr/local/bin/entrypoint.sh`。
 
 ### F18 两个 deploy 开头的包装脚本（后缀 sh / ps1）是否真的已从仓库删除
 
@@ -231,7 +240,8 @@
 
 验证方式与证据：
 
-1. `git ls-files | Select-String -Pattern 'deploy'` → **无输出**（索引里没有任何路径含 `deploy` 的受控文件）。
+1. `git ls-files | Select-String -Pattern 'deploy[.](sh|ps1)'` → **无输出**（索引里没有任何受控文件的路径是这两个已删脚本）。
+   - ⚠️ **别用裸的 `'deploy'` 当模式**：那会命中**本文件自己的路径** `docs/DEPLOY-FACTS.md`（实测：`git ls-files | Select-String -Pattern 'deploy'` → 只有 `docs/DEPLOY-FACTS.md` 这一行）。那是文件名的巧合，**不是残留**。上一版这里写的是裸 `deploy` 模式，在本文件改名进 `docs/` 之后已经复现不出「无输出」了，本轮已改正。
 2. `Get-ChildItem -Recurse -Force -File -Filter 'deploy.*'` → **无输出**（工作树里也没有）。
 3. `git log --all --diff-filter=D --name-only` → 输出末尾是**被删的两个文件路径各一行**：先 `deploy` + `.ps1`、后 `deploy` + `.sh`（来自删除提交 `09cdd7b0a05e47d5ad7c07a404bf18fcd009b208`，提交标题「删除部署包装脚本：按 docker skill 的规则，改用原生 docker compose」）。
 4. `git show --stat 09cdd7b` → 原样输出如下（**注意：其中两行是被删文件自己的名字，不是现存文件**）：
@@ -268,7 +278,8 @@
 ```
 
 - 拼成一条时的写法：把上面 12 个分支用 `|` 依次连起来，即成完整模式。
-- 第 1 分支用 `deploy[.]` 而不是 `deploy\.`，**语义完全等价**（正则里 `[.]` 与 `\.` 都只匹配一个字面点号），这样本文件的模式声明自己不会命中该模式。用点号转义的那种写法去扫本文件同样是 **0 命中**（见 §5 自检）。
+- 第 1 分支用 `deploy[.]` 而不是 `deploy\.`，**语义完全等价**（正则里 `[.]` 与 `\.` 都只匹配一个字面点号），这样本文件声明的这条分支字面量不会命中它自己。
+- ⚠️ **整条 12 分支模式扫本文件时并不是 0 命中**（本轮实测 **25 行**）：第 2 / 3 / 11 / 12 分支的字样（中文「部署包装」「部署脚本」、任务名、cron 标记）本来就必须逐条写在本文件里。这 25 行全是**元描述**，不是仓库残留，所以扫仓库时必须排除本文件（见下）。真正要求「本文件 0 命中」的是 §0.1 那两条 C3 判据（见 §5 自检）—— 那是另一个、更窄的模式。
 - 复现命令（PowerShell）：
   ```powershell
   Get-ChildItem -Recurse -Force -File |
@@ -278,47 +289,56 @@
 
 **扫描范围**：仓库根目录全递归，排除 `\.git\`、`\.dsh-team\`、`\bin\`、`\obj\`、`\node_modules\`、`\dist\`，`-Encoding UTF8`。
 
-**实测结果：命中 10 行**（旧版本文件写「8 处」是错的，已修正为实测值）。
+> ⚠️ **扫描时必须再排除本文件自己**（`docs/DEPLOY-FACTS.md`）。上一版写的是「请排除本文件 `.dsh-team/` 目录」—— 那时本文件还放在 `.dsh-team/deploy-runbook/work/facts-auditor/` 下；现在它已移到 `docs/`，而 `.dsh-team/` 本身也被 `.gitignore` 忽略（`.gitignore:41-42`）。不排除本文件，就会把本文件的模式声明、残留清单与引用的历史原文一起扫进来 —— 那是**元描述**，不是仓库残留。
 
-> **计数口径（务必按这个读）**：上面那个 `deploy[.]` 版本的模式扫**仓库文件**时命中 10 行。若改用 `deploy\.(sh|ps1)` 这个写法扫**仓库文件**，结果同样是这 10 行（两种写法语义等价；差别只在扫本文件时，`deploy[.]` 版本命中 0，见 §5）。**扫描时请排除本文件 `.dsh-team/` 目录**，否则会把本文件里的模式声明与残留清单一起扫进来，那是元描述、不是仓库残留。
+**实测结果（本轮重扫，四种口径都跑过）：**
 
-其中 **2 行是模式假阳性**（下面 B 表），**8 行是有效命中**。
+| 扫描口径 | 命中行数 |
+|---|---|
+| ① 只按上面 6 个目录排除（**含本文件**） | **54** |
+| ② 6 个目录 + 排除本文件（`docs/DEPLOY-FACTS.md`） | **29** |
+| ③ 6 个目录 + 排除本文件 + 排除 `docs/RUNBOOK.md` | **6**（其中 2 行是标题锚点假阳性） |
+| ④ 口径 ③ 再追加 C 表的三条分支 | **6** |
 
-#### A. 有效命中（8 行）
+- **口径 ①**：本文件自己被扫到 25 行（模式声明里的 12 个分支、引用的历史原文、自检命令），54 = 25 + 29。
+- **口径 ② 的 29 行分布**：`.gitattributes` 1 行、`README.md` 1 行、`docs/DOCKER.md` 4 行（含 2 行锚点假阳性）、`docs/RUNBOOK.md` 23 行。
+- **口径 ③ 的 6 行**：`.gitattributes:12`、`README.md:157`、`docs/DOCKER.md:84`、`:86`、`:155`、`:229`。这是「只算仓库原有文件、不算本轮新写的两份产物」的窄口径。
+- **口径 ② 追加 C 表分支后为 31 行**（比不加时多 2 行，都在 `docs/RUNBOOK.md:137`、`:939`，是「旧脚本当年会…」的历史 / 迁移口径）。
+- 上一版写的「命中 10 行 / 8 行有效」与「扩展后 13 行」**本轮复现不出来**（实测 29 / 31）。原因是那「8 行有效命中」里的 5 行 —— `.gitattributes:11`/`:18`（现 `:12-13`/`:19`）、`docs/DOCKER.md:473-474`（现 `:482-483`）、`docs/DOCKER.md:648`（现 `:657`）—— **已由提交 `687e7d3` 修掉**（见 §2-3、§2-4、§2-16）。
 
-| 位置 | 内容 | 判定 |
+其中 **2 行是模式假阳性**（下面 B 表），其余 27 行全部是「已删除 / 已移除 / 历史 / 迁移 / 用户自建」口径 —— **有效残留 = 0 行**。
+
+#### A. 模式命中的逐条判定（口径 ② 的 29 行）—— **有效残留 = 0 行**
+
+| 位置 | 当前内容 | 判定 |
 |---|---|---|
-| `.gitattributes:11` | `#   ` + `deploy` + `.sh` + `              部署机上的部署/升级脚本`（**注释里写的是完整文件名**） | ❌ **真实残留**：把已删脚本描述成**现存文件**（注释过期）。旧版本文件漏列，见 §2-16 |
-| `.gitattributes:18` | `#   .env.example    部署脚本用 cut -d= 取值，值尾带 \r 会让口令/密钥多一个字符` | ❌ **真实残留**：描述已删脚本的取值方式。旧版本文件漏列，见 §2-16 |
-| `README.md:152` | 「本项目**不使用部署包装脚本** —— 直接用 `docker compose`」 | ✅ **允许**：正是「说明它们已删除」（未提文件名） |
+| `.gitattributes:12` | `# （曾经还有 ` + `deploy` + `.sh` + ` / ` + `deploy` + `.ps1` + ` 两个部署包装脚本，已按 docker skill 的规则删除 ——` | ✅ **允许**：以「已删除」口径点出文件名，不再描述成现存文件（原 `:11` 的残留已修，见 §2-16） |
+| `.gitattributes:19` | `#   .env.example    compose 读取它做变量插值；值尾带 \r 会让口令/密钥多一个字符` | ✅ **已修复**：不再把 `.env` 的取值行为挂在已删脚本上（原 `:18`，见 §2-16） |
+| `README.md:157` | 「本项目**不使用部署包装脚本** —— 直接用 `docker compose`」 | ✅ **允许**：正是「说明它们已删除」（未提文件名） |
 | `docs/DOCKER.md:86` | 「本项目不使用部署包装脚本（`deploy` + `.sh` / `deploy` + `.ps1` 已移除）」 | ✅ **允许**：唯一一处以「已移除」口径点出文件名 |
-| `docs/DOCKER.md:229` | 「（这正是以前那个部署脚本里唯一有点价值的行为，而 `docker compose` 本身就自带。）」 | ⚠️ 历史沿革说明，未提文件名、未教用户执行；可保留但手册不必抄 |
-| `docs/DOCKER.md:473` | 卷表格 `shortdrama-pgdata` 那行的「何时创建」列写的是已删脚本的 `postgres` 参数（**原写法为两个连字符**） | ❌ **已删脚本的参数**，见 §2-3 |
-| `docs/DOCKER.md:474` | 卷表格 `shortdrama-redisdata` 那行的「何时创建」列同样写 `postgres` 参数 | ❌ **已删脚本的参数**，见 §2-3 |
-| `docs/DOCKER.md:648` | 「`Get-ScheduledTask -TaskName ShortDramaAutoUpdate`」 | ❌ **已删脚本创建的任务名**，见 §2-4 |
+| `docs/DOCKER.md:229` | 「（这正是以前那个部署脚本里唯一有点价值的行为，而 `docker compose` 本身就自带。）」 | ✅ **允许**：历史沿革说明，未提文件名、未教用户执行 |
+| `docs/DOCKER.md:482-483` | 卷表「何时创建」列现为「带 `-f docker-compose.postgres.yml` 时」 | ✅ **已修复**：不再用已删脚本的 `postgres` 参数（见 §2-3） |
+| `docs/DOCKER.md:657` | 「Windows 用 `Get-ScheduledTask` 确认任务在」 | ✅ **已修复**：已不含已删脚本创建的任务名（见 §2-4） |
+| `docs/RUNBOOK.md` 23 行（`:12`、`:180`、`:707`、`:711`、`:752`、`:769`、`:770`、`:778`、`:812`、`:837`、`:844`、`:846`、`:862`、`:863`、`:873`、`:877`、`:893`、`:894`、`:910`、`:912`、`:960`、`:972`、`:1237`） | 手册第 1 章与第五章：`# shortdrama-auto-update` 是**新写法**的 crontab 标记注释；`ShortDramaAutoUpdate` 是手册教用户**自己新建**的 Windows 计划任务名；其余是 M1–M8 迁移步骤（查旧任务 → 删旧行 → 写原生命令 → 验证） | ✅ **允许**：全部是「已删除 / 迁移 / 新建」口径，**没有一处把已删脚本当可用命令** |
 
 #### B. 模式假阳性（2 行，**不是**残留）
 
 | 位置 | 内容 | 为什么是假阳性 |
 |---|---|---|
-| `docs/DOCKER.md:84` | 「…想换 PostgreSQL 见[第五节](#五数据库sqlite--postgresql)。」 | 命中的是**标题锚点**里的双连字符，不是脚本参数。实测：该文件里「两个连字符 + postgres」这一串只出现 4 次（`:84`、`:155`、`:473`、`:474`），前两处全是同一锚点 |
+| `docs/DOCKER.md:84` | 「…想换 PostgreSQL 见[第五节](#五数据库sqlite--postgresql)。」 | 命中的是**标题锚点**里的双连字符，不是脚本参数。实测：该文件里「两个连字符 + postgres」这一串只出现 2 次（`:84`、`:155`），且都是同一个锚点 |
 | `docs/DOCKER.md:155` | 「**改用 PostgreSQL**：见[第五节](#五数据库sqlite--postgresql)。」 | 同上，同一锚点的第二次出现 |
 
-> 锚点成因：标题「五、数据库：SQLite / PostgreSQL」里的 `/` 被 GitHub 锚点规则去掉后留下 `sqlite--postgresql` 的双连字符，属正常 Markdown，无需修改。**核对时按有效命中数 8 计，不要把这两行算成残留。**
+> 锚点成因：标题「五、数据库：SQLite / PostgreSQL」里的 `/` 被 GitHub 锚点规则去掉后留下 `sqlite--postgresql` 的双连字符，属正常 Markdown，无需修改。**核对时不要把这两行算成残留。**（上一版说这一串在 `docs/DOCKER.md` 里出现 4 次、其中两处在卷表 —— 那是因为当时卷表里还写着已删参数；本轮实测只剩 `:84`、`:155` 这 2 处锚点。）
 
-#### C. 模式外的失效描述（**模式扫不到，但同样是已删脚本的残留**，3 行）
+#### C. 模式外的失效描述（上一版 3 行，**现已全部清零**）
 
-这 3 行**不含**「部署脚本」字样，只写「脚本」+ 行为，所以上面的模式抓不到它们。若不单独列出，按模式核对的人会漏项。
+上一版在这里列了三行「脚本会自动…」的失效说法，现在是 `docs/DOCKER.md:213`、`:372`、`:386`（原 `:363`、`:377`，因该文件本轮新增 9 行而下移）。本轮实测：
 
-| 位置 | 内容 | 判定 |
-|---|---|---|
-| `docs/DOCKER.md:213` | 「确认 `JWT_KEY` 已是随机值（**脚本首次运行会自动生成**）」 | ❌ 失效描述，见 §2-1 |
-| `docs/DOCKER.md:363` | 「把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，**脚本会自动**回到本地构建」 | ❌ 失效描述，见 §2-2 |
-| `docs/DOCKER.md:377` | 「`JWT_KEY` … **首次运行脚本会自动替换为随机值**」 | ❌ 失效描述，见 §2-1 |
+- 在声明模式后追加 `脚本首次运行` / `脚本会自动` / `首次运行脚本` 三个分支，`docs/DOCKER.md` 内 **0 行命中** —— 三处均已由提交 `687e7d3` 改写成原生命令（见 §2-1、§2-2）。
+- 同一扩展模式扫全仓库（排除本文件）为 **31 行**，比不加时多 2 行，都在 `docs/RUNBOOK.md:137`、`:939`，是「旧脚本当年会…」的历史 / 迁移口径，**不是**教用户执行。
+- 因此 **C 表有效残留 = 0**。
 
-**若要把 C 表也纳入机械扫描**，在声明模式后追加 `|脚本首次运行|脚本会自动|首次运行脚本`，则命中数变为 **13 行**（= A 表 8 行 + B 表 2 行假阳性 + C 表 3 行），有效命中 **11 行**。两种声明方式都自洽，手册与本文件按哪种都行 —— 关键是**声明了哪个模式就用哪个数**。
-
-**结论**：仓库里**没有**任何地方把这两个包装脚本当作可用命令来教用户执行；`docs/DOCKER.md:86` 与 `README.md:152` 以「已移除」的口径提到它们。**但**有 **5 处有效残留**（`.gitattributes:11`、`:18`、`docs/DOCKER.md:473-474`、`docs/DOCKER.md:648`）+ **3 处模式外失效描述**，手册若照抄会写出无法执行的步骤（见 §2）。
+**结论（本轮实测）**：仓库里**没有任何地方**把这两个包装脚本当作可用命令来教用户执行，也**没有任何地方**把它们描述成现存文件 —— **有效残留 = 0 行**。上一版结论里的「5 处有效残留 + 3 处模式外失效描述」已随提交 `687e7d3` 全部修复；现在剩下的命中全部是「已删除 / 已移除 / 历史 / 迁移 / 用户自建」这几种正当口径，手册照抄不会写出无法执行的步骤。
 
 ### F20 已删脚本的参数全集（手册**禁止**引用）
 
@@ -333,7 +353,7 @@
 | `rebuild` | `Rebuild` | `docker compose build --no-cache && docker compose up -d`（`docs/DOCKER.md:154`） |
 | `update` | `Update` | `git pull --ff-only && docker compose up -d --build` |
 | `check` | `Check` | `git fetch && git log --oneline HEAD..@{u}`（`docs/DOCKER.md:72`） |
-| `install-cron [HH:MM]` | `InstallTask` / `TaskTime` | 宿主 crontab / 任务计划程序（`docs/DOCKER.md:58-67`、`:249-250`） |
+| `install-cron [HH:MM]` | `InstallTask` / `TaskTime` | 宿主 crontab / 任务计划程序（`docs/DOCKER.md:58-67`、`:256-259`） |
 | `uninstall-cron` | `UninstallTask` | `crontab -e` 删行（`docs/DOCKER.md:246`） |
 | `down` | `Down` | `docker compose down` |
 | `purge` | `Purge` | `docker compose down -v` |
@@ -346,51 +366,61 @@
 
 ## 2. 文档里容易与仓库事实不一致的点（每条带证据）
 
-> 这些是**手册最可能照抄错**的地方。2-1 ~ 2-4 属于 C3（已删脚本残留）范畴，必须改写；2-16 是 F19 新发现的仓库残留；其余属于事实性偏差。
+> 这些是**手册最可能照抄错**的地方。
+> **注意（本轮刷新）**：**2-1、2-2、2-3、2-4、2-9、2-11、2-14、2-16 记录的问题已修复**，本轮已逐条实测确认并改标为「✅ 已修复」，并保留原问题原文以便追溯（其中 2-9 是**本轮那批未提交改动**顺带修掉的，其余 7 条由提交 `687e7d3` 修掉）。
+> 其余条目（2-5 ~ 2-8、2-10、2-12、2-13、2-15）本轮复测仍然成立，属事实性偏差或未实测项。
 
-### 2-1 ❌ 「JWT_KEY 首次运行脚本会自动替换为随机值」——**没有这个脚本了**
+### 2-1 ✅ **已修复** —— 原「JWT_KEY 首次运行脚本会自动替换为随机值」的失效说法
 
-- 证据（文档）：`docs/DOCKER.md:377` → `| `JWT_KEY` | 占位值 | JWT 签名密钥，**首次运行脚本会自动替换为随机值** |`；`docs/DOCKER.md:213` → 「确认 `JWT_KEY` 已是随机值（脚本首次运行会自动生成）」
-- 证据（仓库现状）：两个包装脚本已删（F18）；`.env.example:31` 仍是占位值 `please-change-this-secret-key-in-production-2025`；`docker-compose.yml:46` 的兜底值也是同一个占位值。
-- **正确表述**：不执行任何脚本时，`JWT_KEY` 会**一直**是占位值，必须由人手动替换。生成方式：`openssl rand -hex 48`（`.env.example:29-30`）。
+- **原问题**（上一版清单记录的仓库残留）：`docs/DOCKER.md:386` 的变量表曾把 `JWT_KEY` 的说明写成「**首次运行脚本会自动替换为随机值**」；`docs/DOCKER.md:213` 曾写「确认 `JWT_KEY` 已是随机值（脚本首次运行会自动生成）」。
+- **当前实测（已修复）**：提交 `687e7d3` 已改写这两处 ——
+  - `docs/DOCKER.md:386` 现为「JWT 签名密钥，**上线前必须自己替换**（`openssl rand -hex 48`）」；
+  - `docs/DOCKER.md:213` 现为「上线前请务必：改掉 `ACCESS_PASSWORD`、改掉 `admin123` 密码、确认 `JWT_KEY` 已换成随机值（生成命令见第一节）。」
+  - 实测命令：`Select-String -Path docs/DOCKER.md -Pattern '脚本首次运行|脚本会自动|首次运行脚本' -Encoding UTF8` → **0 命中**。
+- **不变的事实**（仍然成立）：两个包装脚本已删（F18）；`.env.example:31` 仍是占位值 `please-change-this-secret-key-in-production-2025`；`docker-compose.yml:46` 的兜底值也是同一个占位值。
+- **手册口径**：不执行任何脚本时，`JWT_KEY` 会**一直**是占位值，必须由人手动替换。生成方式：`openssl rand -hex 48`（`.env.example:29-30`）。
 
-### 2-2 ❌ 「清空 SHORTDRAMA_IMAGE，脚本会自动回到本地构建」
+### 2-2 ✅ **已修复** —— 原「清空 SHORTDRAMA_IMAGE，脚本会自动回到本地构建」
 
-- 证据（文档）：`docs/DOCKER.md:363`
-- 证据（仓库现状）：`docker-compose.yml:22` → `image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}`，**兜底值就在 compose 里**，不需要任何脚本。
-- **正确表述**：清空 `.env` 的 `SHORTDRAMA_IMAGE` 后，compose 自己就回落到 `shortdrama:latest` 并走本地构建。
+- **原问题**：`docs/DOCKER.md:372` 曾写「把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，**脚本会自动**回到本地构建。」
+- **当前实测（已修复）**：`docs/DOCKER.md:372` 现为「把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，**下一次 `docker compose up -d --build` 就回到本地构建**。」
+- **不变的事实**：`docker-compose.yml:22` → `image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}`，**兜底值就在 compose 里**，不需要任何脚本。
+- **手册口径**：清空 `.env` 的 `SHORTDRAMA_IMAGE` 后，compose 自己就回落到 `shortdrama:latest` 并走本地构建。
 
-### 2-3 ❌ 卷表格用 `postgres`（原为双连字符写法）当「何时创建」——那是已删脚本的参数
+### 2-3 ✅ **已修复** —— 原「卷表格用已删脚本的 `postgres` 参数当『何时创建』」
 
-- 证据（文档）：`docs/DOCKER.md:473-474` → 卷表格「何时创建」列写的是 `postgres` 参数（**原写法为两个连字符**，见 F20）
-- 证据（已删脚本）：`git show 09cdd7b^:deploy` + `.sh` 里有 `--postgres) USE_POSTGRES=1; shift ;;` 这一行；该文件已不存在。
-- **正确表述**：这两个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:53-57`）。
+- **原问题**：`docs/DOCKER.md:482-483` 的卷表「何时创建」列曾写 `postgres`（**原写法为两个连字符**，见 F20），那是已删脚本的参数。
+- **证据（已删脚本）**：`git show 09cdd7b^:deploy` + `.sh` 里有 `--postgres) USE_POSTGRES=1; shift ;;` 这一行；该文件已不存在。
+- **当前实测（已修复）**：`docs/DOCKER.md:482-483` 现为「带 `-f docker-compose.postgres.yml` 时」（两行同值），已不含已删参数。
+- **手册口径**：这两个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:53-57`）。
 
-### 2-4 ❌ 「Windows 用 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate` 确认任务在」
+### 2-4 ✅ **已修复** —— 原「Windows 用 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate` 确认任务在」
 
-- 证据（文档）：`docs/DOCKER.md:648`
-- 证据（已删脚本）：`git show 09cdd7b^:deploy` + `.ps1` 里有 `$TaskName = 'ShortDramaAutoUpdate'`；该文件已不存在，**现在没有任何东西会创建这个计划任务**。
-- 全仓库只有这一处出现 `ShortDramaAutoUpdate`（实测：F19 模式命中的 10 行里只有 `:648` 含该串）。
-- **正确表述**：Windows 的定时更新由用户自己在「任务计划程序」里建（`docs/DOCKER.md:249-250`），任务名由用户自定；文档给的 `ShortDramaAutoUpdate` 这个名字在当前仓库里没有对应生产者。
+- **原问题**：`docs/DOCKER.md:657` 曾写 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate`。
+- **证据（已删脚本）**：`git show 09cdd7b^:deploy` + `.ps1` 里有 `$TaskName = 'ShortDramaAutoUpdate'`；该文件已不存在，**现在没有任何东西会创建这个计划任务**。
+- **当前实测（已修复）**：`docs/DOCKER.md:657` 现为「…Linux 用 `crontab -l | grep shortdrama`、**Windows 用 `Get-ScheduledTask` 确认任务在**。**Windows 还要确认它不是「只在用户登录时运行」**，否则无人登录时静默不执行」—— **已不含该任务名**。
+  - 实测命令：`Select-String -Path docs/DOCKER.md -Pattern 'ShortDramaAutoUpdate' -Encoding UTF8` → **0 命中**（上一版说「全仓库只有这一处」，现在 `docs/DOCKER.md` 里一处都没有了）。
+  - 现在全仓库出现该任务名的地方只剩 `docs/RUNBOOK.md`（手册第 5 章教用户**自己新建**这个任务名，属新写法，不是残留）。
+- **手册口径**：Windows 的定时更新由用户自己在「任务计划程序」里建（`docs/DOCKER.md:256-259`），任务名由用户自定。
 
 ### 2-5 ⚠️ 卷名举例 `shortdrama_shortdrama-data` 只在目录名叫 `shortdrama` 时成立
 
-- 证据（文档）：`docs/DOCKER.md:629` → 「`docker volume ls` 里看到的会是 `shortdrama_shortdrama-data` 这种形式」；`docs/DOCKER.md:503` 用 `docker volume ls | grep shortdrama-data`
+- 证据（文档）：`docs/DOCKER.md:638` → 「`docker volume ls` 里看到的会是 `shortdrama_shortdrama-data` 这种形式」；`docs/DOCKER.md:512` 用 `docker volume ls | grep shortdrama-data`
 - 证据（仓库）：`docker-compose.yml` 无顶层 `name:`，无 `COMPOSE_PROJECT_NAME`（F5）；compose 项目名由目录名推导。
 - 本机实际目录名是 `短剧聚合`（中文），项目名前缀不会是 `shortdrama`。**未实测**（本机无 docker）。
 - **正确表述**：手册必须写「先 `docker volume ls` 查实际卷名，或用 `docker compose ps -aq app` 取容器 id」，不要写死 `shortdrama_...` 前缀。要固定就用 `COMPOSE_PROJECT_NAME=shortdrama`（或 `docker compose -p shortdrama ...`）。
-- 同源提醒：`docs/DOCKER.md:510-511` 已经警告「别照抄 `-v shortdrama-data:/data`，会新建空卷」——方向是对的，但举例的卷名仍需按实际项目名替换。
+- 同源提醒：`docs/DOCKER.md:519-520` 已经警告「别照抄 `-v shortdrama-data:/data`，会新建空卷」——方向是对的，但举例的卷名仍需按实际项目名替换。
 
 ### 2-6 ⚠️ 「容器以非 root 运行」与 `docker inspect` 不符
 
-- 证据（文档）：`docs/DOCKER.md:476` 小节标题「容器以非 root 运行（镜像内置的 app 用户）」；`:478` 写「镜像里的业务进程以 `app` 运行，不再是 root」
+- 证据（文档）：`docs/DOCKER.md:485` 小节标题「容器以非 root 运行（镜像内置的 app 用户）」；`:487` 写「镜像里的业务进程以 `app` 运行，不再是 root」
 - 证据（仓库）：`Dockerfile` **没有 `USER` 指令**（F7 实测无输出）；`docker/entrypoint.sh:20` 的 `if [ "$(id -u)" = "0" ]` 正说明它以 root 起步。
 - **正确表述**：容器**以 root 启动**，入口脚本做完 `chown` 后用 `gosu` 把业务进程降权到 `app`。写「容器以非 root 运行」会在 `docker inspect <容器> --format '{{.Config.User}}'` 返回空（即 root）时自相矛盾。
 
 ### 2-7 ⚠️ UID/GID `1654` 是注释里的数字，不是实测值
 
-- 证据：`Dockerfile:87` 注释「已经内置了 `app` 用户与 `app` 组（UID/GID 1654）」；`docs/DOCKER.md:478` 直接写成「UID/GID `1654`」；但 `docs/DOCKER.md:504` 自己又写「通常是 1654 —— 以实测为准」。
-- **正确表述**：手册要数字就给实测命令（`docs/DOCKER.md:505` 那条 `docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'`），或干脆只写用户名 `app`（脚本本身就是按用户名操作的，`entrypoint.sh:17`）。
+- 证据：`Dockerfile:87` 注释「已经内置了 `app` 用户与 `app` 组（UID/GID 1654）」；`docs/DOCKER.md:487` 直接写成「UID/GID `1654`」；但 `docs/DOCKER.md:513` 自己又写「通常是 1654 —— 以实测为准」。
+- **正确表述**：手册要数字就给实测命令（`docs/DOCKER.md:514` 那条 `docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'`），或干脆只写用户名 `app`（脚本本身就是按用户名操作的，`entrypoint.sh:17`）。
 
 ### 2-8 ⚠️ 平台速查表把「升级」写成 `--build`，没区分镜像模式
 
@@ -399,23 +429,24 @@
 - **风险**：镜像模式（`.env` 里配了 `SHORTDRAMA_IMAGE`）下执行 `--build` 会在本机重新编译，并把结果打上**远端镜像同名标签**（`docker-compose.yml:22`），下次 `pull` 才纠正。
 - **正确表述**：手册必须按模式分叉，不能只给一条 `--build`。
 
-### 2-9 ⚠️ `logs/auto-update.log` 被当成仓库文件列出，且该目录当前不存在
+### 2-9 ✅ **已修复（本轮顺带刷新）** —— 原「`logs/auto-update.log` 被当成仓库文件列出，且该目录当前不存在」
 
-- 证据（文档）：`docs/DOCKER.md:767` → 文件说明表里列 `| logs/auto-update.log | 定时更新日志（按第三节配了 cron 后生成） |`；`docs/DOCKER.md:62`、`:241` 的 cron 行直接写 `>> logs/auto-update.log 2>&1`
-- 证据（仓库）：`.gitignore:19` → `logs/`（被忽略）；`Test-Path logs` → **False**（目录不存在）
-- **风险**：直接照抄那条 cron，`logs/` 不存在会让重定向立即失败，定时更新一条都跑不成（且只在 cron 邮件里报 `No such file or directory`）。
-- **正确表述**：cron 行前面要加 `mkdir -p logs`，或把日志写到 `/var/log/`、`/tmp/` 等已存在目录。
+- **原问题**：`docs/DOCKER.md` 的两条 cron 示例（`:62`、`:241`）直接写 `>> logs/auto-update.log 2>&1`，而仓库里**没有** `logs/` 目录（`.gitignore:19` → `logs/`；`Test-Path logs` → **False**）—— 照抄会让重定向立即失败，定时更新一条都跑不成。
+- **当前实测（已修复）**：本轮那批未提交改动已把两条 cron 改成 `0 4 * * * (cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build) >> /path/to/shortdrama/logs/auto-update.log 2>&1`（**加了括号** + **日志写绝对路径**），并在 `docs/DOCKER.md:249-254`、`README.md:146-149` 加了 📌 提示，明确要求先 `mkdir -p logs`，并解释「括号不能省」（否则 `cd`/`git pull` 的报错不进日志）。
+- **仍然成立的部分**：`logs/` 目录在仓库里确实不存在（它是运行期产物，被 `.gitignore:19` 忽略）；`docs/DOCKER.md:776` 的文件说明表仍把 `logs/auto-update.log` 列进去（表内已注明「按第三节配了 cron 后生成」，属生成物而非仓库文件）。
+- **手册口径**：cron 行照抄 `docs/DOCKER.md:62` 那条（已带括号与绝对路径），并在前面补 `mkdir -p logs`。
 
 ### 2-10 ⚠️ PostgreSQL 模式的 `redis` 容器起了但应用不连它
 
 - 证据：`docker-compose.postgres.yml:41-51` 定义了 `redis` 服务；但该覆盖文件对 `app` 只改了 `Database__Provider`（`:13`）与 `ConnectionStrings__Default`（`:14`），**没有任何 Redis 配置**；全仓库 `*.cs` 搜 `Redis` 仅命中 `ShortDrama.Infrastructure/DependencyInjection.cs:41` 的一句注释「// 内存缓存（生产可替换为 Redis）」。
-- 文档措辞：`docs/DOCKER.md:444`「会额外拉起 `postgres` 和 `redis` 两个容器」（陈述正确）、`:762`「PostgreSQL + Redis 覆盖配置」。
+- 文档措辞：`docs/DOCKER.md:453`「会额外拉起 `postgres` 和 `redis` 两个容器」（陈述正确）、`:771`「PostgreSQL + Redis 覆盖配置」。
 - **正确表述**：`redis` 会被拉起，但当前代码**不使用**它（缓存仍是进程内内存缓存）；不要写成「PostgreSQL 模式启用了 Redis 缓存」。
 
-### 2-11 ⚠️ `grep SHORTDRAMA_IMAGE .env` 会命中注释行
+### 2-11 ✅ **已修复** —— 原「`grep SHORTDRAMA_IMAGE .env` 会命中注释行」
 
-- 证据：`.env.example:20` 的 `SHORTDRAMA_IMAGE=...` 是**注释**；`docs/DOCKER.md:654` 建议用 `grep SHORTDRAMA_IMAGE .env` 判断当前模式。
-- **正确写法**：`grep '^SHORTDRAMA_IMAGE' .env`（有输出才是真的配了）。
+- **原问题**：`docs/DOCKER.md:663` 曾建议用 `grep SHORTDRAMA_IMAGE .env` 判断当前模式，而 `.env.example:20` 的 `SHORTDRAMA_IMAGE=...` 是**注释**，会命中注释行、看起来像「已配了镜像模式」；同一行还曾写「看部署完成后打印的『部署方式』一行」—— 那一行只有已删脚本才会打印。
+- **当前实测（已修复）**：`docs/DOCKER.md:663` 现为「`grep '^SHORTDRAMA_IMAGE' .env`：有值 = 镜像模式；无输出（只有注释行）= 源码模式」，**「看打印的部署方式」那句也已删除**（实测：`Select-String -Path docs/DOCKER.md -Pattern '部署方式'` → 0 命中）。这两处正是提交 `687e7d3` 修掉的「模式确认方式」失效说法。
+- **不变的事实**：`.env.example:20` 的 `SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest` 仍是**注释行**；要判断模式就用 `grep '^SHORTDRAMA_IMAGE' .env`（有输出才是真的配了）。
 
 ### 2-12 ⚠️ README 说支持 MySQL，compose 只提供 SQLite / PostgreSQL 两条路
 
@@ -425,14 +456,15 @@
 
 ### 2-13 ⚠️ 「健康检查通过」≠「内容就绪」
 
-- 证据：`ShortDrama.Api/Program.cs:162` 的 `/health` 返回静态 JSON，不查数据库、不查采集源；`docs/DOCKER.md:642` 说「首次启动要同步数据源，等 1-2 分钟」
+- 证据：`ShortDrama.Api/Program.cs:162` 的 `/health` 返回静态 JSON，不查数据库、不查采集源；`docs/DOCKER.md:651` 说「首次启动要同步数据源，等 1-2 分钟」
 - 另证：`ShortDrama.Infrastructure/Data/DbSeeder.cs:159` 注释「3) 首次启动同步各平台短剧数据」；`:168` → `_ = Task.Run(async () =>`（首次启动的平台数据同步放在后台任务里，**故意不阻塞 API 启动**）；`:165` → `var timeoutSeconds = config.GetValue("AppleCms:BootstrapTotalTimeoutSeconds", 600);`
 - **正确表述**：`docker compose ps` 显示 `healthy` 只代表进程活着；内容库要等后台播种（默认 600 秒上限）。手册的「验证部署成功」不能只靠 healthcheck。
 
-### 2-14 ⚠️ 故障排查表有一行多出一列，Markdown 渲染会错位
+### 2-14 ✅ **已修复** —— 原「故障排查表有一行多出一列，Markdown 渲染会错位」
 
-- 证据：`docs/DOCKER.md:657` 那一行有 3 个单元格（现象 / 原因 / 处理），而表头 `docs/DOCKER.md:635` 只有 2 列（`| 现象 | 原因与处理 |`）。
-- 影响：渲染成表格时该行会多出一个错位单元格。手册若整表复制需先修。
+- **原问题**：`docs/DOCKER.md:666` 那一行曾有 3 个单元格（现象 / 原因 / 处理），而表头 `docs/DOCKER.md:644` 只有 2 列（`| 现象 | 原因与处理 |`）。
+- **当前实测（已修复）**：提交 `687e7d3` 把两行 3 列单元格合并回 2 列。表头仍在 `docs/DOCKER.md:644`（2 列）；`docs/DOCKER.md:666`、`:667` 现在都是 2 个单元格，表格不再错位。
+- **手册口径**：整表可直接复制。
 
 ### 2-15 ⚠️ 三处「默认值」互相不同，引用时必须说清来源
 
@@ -444,13 +476,15 @@
 
 - **规则**：`.NET` 配置的优先级是「环境变量 > `appsettings.json`」。手册引用「容器里的默认值」时，一律以 `docker-compose.yml` / `.env.example` 为准，不要抄 `appsettings.json`。
 
-### 2-16 ❌ `.gitattributes` 的注释仍把已删脚本当成现存文件（**本轮新发现**）
+### 2-16 ✅ **已修复** —— 原「`.gitattributes` 的注释仍把已删脚本当成现存文件」
 
-- 证据（仓库残留）：`.gitattributes:11` → `#   ` + `deploy` + `.sh` + `              部署机上的部署/升级脚本`（注释里写的是**完整文件名**，按 §0.1 断开书写）；`:18` → `#   .env.example    部署脚本用 cut -d= 取值，值尾带 \r 会让口令/密钥多一个字符`
-- 上下文：`.gitattributes:9-12` 的小节标题是「仓库里会被 Linux 执行的脚本：」，下面只列了两项 —— `docker/entrypoint.sh`（`:10`）与**那个已删的 sh 版脚本**（`:11`）。后者已不存在（F18），于是这一节现在**漏列**、且把一个不存在的文件描述为现存。
-- 影响：`*.sh text eol=lf`（`.gitattributes:21`）本身仍然正确且必要（`docker/entrypoint.sh` 靠它）；`:18` 描述的 `cut -d=` 取值行为也已无生产者（现在由 compose 自己读 `.env`）。
-- **正确表述**：`.gitattributes:11` 应删除或改为「（原部署脚本，已移除）」，`:18` 应改为「compose 读 `.env` 取值」。
-- **这是仓库侧的独立发现，需提给仓库维护者**：F19 声明的模式能抓到这两行（属 A 表有效命中），但旧版本文件漏列，导致按清单核对会漏项。
+- **原问题**（上一版清单记录的仓库残留）：`.gitattributes:11` 曾写 `#   ` + `deploy` + `.sh` + `              部署机上的部署/升级脚本`（注释里写的是**完整文件名**，按 §0.1 断开书写）；`:18` 曾写 `#   .env.example    部署脚本用 cut -d= 取值，值尾带 \r 会让口令/密钥多一个字符`。
+- **当前实测（已修复）**：提交 `687e7d3` 改写了这两处，文件也从 **26 行变成 27 行**（`11` 之后的注释行号整体下移一位）——
+  - `.gitattributes:11` 现为 `# 必须是 LF，这里钉死。`（原来那条把 `deploy` + `.sh` 描述成现存文件的注释已删）；
+  - `.gitattributes:12-13` 新增两行，以**已删除**口径点出文件名：「`# （曾经还有 ` + `deploy` + `.sh` + ` / ` + `deploy` + `.ps1` + ` 两个部署包装脚本，已按 docker skill 的规则删除 ——`」「`#   部署与升级改用原生 docker compose，见 README 与 docs/DOCKER.md。）`」；
+  - `.gitattributes:19`（原 `:18`）现为 `#   .env.example    compose 读取它做变量插值；值尾带 \r 会让口令/密钥多一个字符` —— 不再把 `.env` 的取值行为挂在已删脚本上。
+- **不变的事实**：`*.sh text eol=lf`（`.gitattributes:22`，**原 `:21`**）本身仍然正确且必要（`docker/entrypoint.sh` 靠它）。
+- **结论**：**已修复，无需再提给仓库维护者。** F19 声明的模式本来就能抓到这两行（现仍在 A 表里，但判定已从「真实残留」改为「✅ 允许 / ✅ 已修复」）。
 
 ---
 
@@ -483,34 +517,35 @@
 
 1. **compose 项目名与卷名**：中文目录名 `短剧聚合` 下 `docker compose config` 是否直接报项目名非法，以及实际卷名前缀。验证命令：`docker compose config --format json`（看 `name`）、`docker volume ls | Select-String shortdrama`。本机**未安装 docker**，无法实测。
 2. **`app` 用户实际 UID/GID**：`docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'`。
-3. **首次构建耗时与磁盘占用**：文档写 3-5 分钟 / 3-5 GB（`docs/DOCKER.md:127`、`:641`），仓库内无证据，属经验值。
+3. **首次构建耗时与磁盘占用**：文档写 3-5 分钟 / 3-5 GB（`docs/DOCKER.md:127`、`:650`），仓库内无证据，属经验值。
 4. **`curl` 是否真在运行时镜像里**：`Dockerfile:75` 装了，但未实测镜像。健康检查完全依赖它。
 5. **PostgreSQL 覆盖模式下 `app` 是否真的能连上 `postgres`**：`depends_on: condition: service_healthy` 已配（`docker-compose.postgres.yml:15-17`），但需实测首次建库与 EF 迁移行为。
-6. **`.gitattributes:11`/`:18` 的过期注释是否会被修**：属仓库侧改动，本角色只读，未修改。
+6. ~~**`.gitattributes:11`/`:18` 的过期注释是否会被修**~~ → **已修复**：提交 `687e7d3` 已把注释改写成「曾经还有 … 已删除」口径，`.env` 的 LF 理由也改挂到 compose 上；当前位置是 `.gitattributes:12-13` 与 `:19`（见 §2-16）。**不再是待确认项。**
 
 ---
 
 ## 5. 本文件的自检（C2 / C3）
 
-**C3 —— 两条机械模式扫本文件，命中必须为 0。实跑结果：**
+**C3 —— 两条机械模式扫本文件，命中必须为 0。本轮实跑结果：**
 
 ```powershell
-$f = '<本文件路径>'
+$f = 'C:\Work\短剧聚合\短剧聚合\docs\DEPLOY-FACTS.md'
 
-# 模式一：两个包装脚本的完整文件名（点号转义）
+# 模式一（§0.1）：两个包装脚本的完整文件名（点号转义）
 Select-String -Path $f -Pattern 'deploy\.(sh|ps1)' -AllMatches -Encoding UTF8
-# → 0 命中
+# → 0 命中 ✅
 
-# 模式二：已删参数 —— 逐个分支列在 §F19 的模式声明里，拼成一条后扫本文件
-Select-String -Path $f -Pattern $declaredPattern -AllMatches -Encoding UTF8
-# → 0 命中
+# 模式二（§0.1）：已删参数 —— 6 个分支，前导连字符按 §0.1 约定不写出来
+Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
+# → 0 命中 ✅
 ```
 
-- 模式二**在上一稿曾命中**：命中的是「本文件自己写下的那条模式字面量」和「本文件自己写下的那条自检命令」，都不是真正的引用，但机械判据只认字符串，所以照样算命中。现已把两处都改掉：
+- ⚠️ **两条判据是两个不同的模式，别混**：C3 的「模式二」是 **§0.1** 声明的**参数**模式（6 个分支）；**F19** 用的是另一条**更宽的 12 分支**模式（额外含中文「部署包装 / 部署脚本」、`postgres` 锚点、任务名、cron 标记）。**F19 那条扫本文件会命中 25 行**（本轮实测），因为那几类字样本来就必须逐条写在本文件里 —— 这是**预期行为**，不代表 C3 判据失守。上一版把两者混为一谈，写成了「模式二 → 0 命中」而不说明用的是哪条模式。
+- 模式二**在更早的稿子里曾命中**：命中的是「本文件自己写下的那条模式字面量」和「本文件自己写下的那条自检命令」，都不是真正的引用，但机械判据只认字符串，所以照样算命中。现已把两处都改掉：
   - 模式声明改成**逐分支列表**（§F19），不再出现连成一串的字面量；
-  - 本节的自检命令改用 `$declaredPattern` 变量引用，不再内联那串字面量。
-- 本文件**没有任何地方把已删脚本写成可执行命令**。出现 `deploy` + `.sh` / `deploy` + `.ps1` 断开写法的地方，全部在「已删除」的语境里（F18 的删除证据、F19 的残留清单、§2-16 的仓库残留）。
-- 额外用更宽的模式复扫（`-UninstallTask`、`-Purge`、`-Rebuild`、`-Update`、`-Postgres`、`-TaskTime` 等）→ 仅命中「标题锚点 `#五数据库sqlite--postgresql`」（属正常 Markdown）与 `auto-update.log` 之类的无关串，**无一处是脚本参数**。
+  - 本节的自检命令改用 `$declaredParamPattern` 变量引用，不再内联那串字面量。
+- 本文件**没有任何地方把已删脚本写成可执行命令**。出现 `deploy` + `.sh` / `deploy` + `.ps1` 断开写法的地方，全部在「已删除」的语境里（F18 的删除证据、F19 的残留清单与「已修复」判定、§2-16 的原问题原文）。
+- 额外用更宽的模式复扫本文件（`-UninstallTask`、`-Purge`、`-Rebuild`、`-Update`、`-Postgres`、`-TaskTime` 等）→ 仅命中「标题锚点 `#五数据库sqlite--postgresql`」（属正常 Markdown）与 `auto-update.log`、`shortdrama-auto-update` 之类的无关串 / 元描述，**无一处是脚本参数**。
 
 **C2 —— 事实条目数：**
 
@@ -534,7 +569,11 @@ Select-String -Path $f -Pattern $declaredPattern -AllMatches -Encoding UTF8
 | F16 | 镜像模式镜像名与平台 | ✅ |
 | F17 | 编码与行尾（实测字节） | ✅ |
 | F18 | 两个包装脚本已删（含验证方式） | ✅ |
-| F19 | 现存引用清单（10 行命中 / 8 有效 / 2 假阳性 / 3 模式外） | ✅ |
+| F19 | 现存引用清单（29 行命中 / **有效残留 0** / 2 假阳性 / C 表已清零） | ✅ |
 | F20 | 已删参数全集 | ✅ |
 
-**合计 20 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 16 条「文档易错点」（含本轮新增 §2-16）与 §3 速查表。
+**合计 20 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 16 条「文档易错点」（其中 2-1 ~ 2-4、2-11、2-14、2-16 由提交 `687e7d3` 修复、2-9 由本轮那批未提交改动修复，均已改标为「✅ 已修复」）与 §3 速查表。
+
+> **本文件本轮（定向返工）改动范围**：文档头的核对快照说明、§0 残留引用扫描口径、F17 编码与行尾表（新增「字节」列并刷新过期值）、F18 第 1 条的复现命令、F19 全节（计数与结论按实测重写）、§2 的 2-1 / 2-2 / 2-3 / 2-4 / 2-9 / 2-11 / 2-14 / 2-16、§4 第 6 项与第 3 项的行号、§5 的 C3 说明与 C2 表里 F19 那一行。
+> **另外**：因为 `README.md`（+5 行）与 `docs/DOCKER.md`（+9 行）在本轮核对期间被那批未提交的 cron 日志修复改过，本文件里**所有指向这两个文件的行号引用**都按新行号整体刷新过一遍（`README.md` 后半段 +5、`docs/DOCKER.md` 后半段 +9）。
+> **未改动仓库里的任何其它文件** —— 这一点用 `git status --porcelain -uall` 核过：本文件之外只有 `README.md`、`docs/DOCKER.md`、`docs/RUNBOOK.md` 是 ` M`，而那三个是本轮**别的角色**改的（时间戳早于本文件的最后一次写入，且本角色从未对它们执行过写操作）。

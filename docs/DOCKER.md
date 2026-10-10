@@ -59,7 +59,7 @@ docker compose pull app && docker compose up -d
 
 ```bash
 # 每天 04:00 拉代码并重建；日志写到项目目录下的 logs/
-0 4 * * * cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1
+0 4 * * * (cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build) >> /path/to/shortdrama/logs/auto-update.log 2>&1
 ```
 
 ```powershell
@@ -238,7 +238,7 @@ crontab -e
 
 ```cron
 # 每天 04:00 拉代码并重建；日志写到项目目录下的 logs/
-0 4 * * * cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1
+0 4 * * * (cd /path/to/shortdrama && git pull --ff-only && docker compose up -d --build) >> /path/to/shortdrama/logs/auto-update.log 2>&1
 ```
 
 ```bash
@@ -246,8 +246,17 @@ crontab -l | grep shortdrama        # 查看
 crontab -e                          # 删掉那一行即可取消
 ```
 
+> 📌 两个容易踩的点：
+> **① 括号不能省。** `a && b && c >> log` 里的重定向**只绑定链尾那条命令** ——
+> 写成不带括号的形式时，`cd` 和 `git pull` 的输出（**包括它们失败的原因**）不会进日志，
+> 而这个日志正是你排查「定时更新为什么失败」的唯一依据。
+> **② 日志目录要先建**：`mkdir -p logs`（目录不存在时重定向会直接失败，任务等于没跑）。
+> 路径写成绝对路径，因为重定向是由 cron 的 shell 在外层求值的。
+
 **Windows**：用「任务计划程序」新建任务，操作填 `docker`、参数填 `compose up -d --build`、
-「起始于」填项目目录；触发设为每天 04:00。
+「起始于」填项目目录；触发设为每天 04:00。想留日志就把参数写成
+`-NoProfile -Command "& { cd 'C:\shortdrama'; git pull --ff-only; docker compose up -d --build } *>> 'C:\shortdrama\logs\auto-update.log'"` ——
+`& { ... }` 同样不能省。
 
 > ⚠️ **cron 的 `PATH` 很短**，通常找不到 `docker` / `git`。两种解法：在 crontab 顶部加
 > `PATH=/usr/local/bin:/usr/bin:/bin`，或者命令里写绝对路径（`/usr/bin/docker`）。

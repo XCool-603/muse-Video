@@ -184,16 +184,23 @@ cd shortdrama
 
 ### 1.7 命令标注约定（怎么读下面的命令块）
 
-本手册**每一条命令**都标注了两件事，照着核对就不会「敲了但不知道对不对」：
+本手册的每个**步骤**都标注了**执行位置**与**成功判据**，照着核对就不会「敲了但不知道对不对」
+（内联在「不对时怎么办」里的补救命令不单独标注，按上下文执行即可）：
 
-- **执行位置**，只有三种取值：
+- **执行位置**，常见取值包括：
   - `宿主 shell（任意目录）`：在服务器的普通终端里执行；
   - `宿主 shell（项目目录 <项目目录>）`：先 `cd` 到 clone 出来的 `shortdrama` 目录再执行（compose 命令必须在这里跑）；
-  - `容器内（app）`：命令前面必须带 `docker compose exec app`，在容器里执行。
+  - `容器内（app）`：命令前面必须带 `docker compose exec app`，在容器里执行；
+  - 还有几个变体：Windows 上会写成 `宿主 shell（任意目录，PowerShell）`；个别步骤的执行位置是
+    「你的浏览器」或云厂商控制台（例如放行端口）—— 一律以该步骤里写的为准。
 - **成功判据**：预期输出、退出码，或一条**独立的验证命令**。看不到判据描述的现象，就走该步骤的
   「不对时怎么办」。
 
-> 全文命令均为 Linux/macOS 语法；Windows 只在语法不同的地方单独给出 PowerShell 版本。
+> 全文命令**以 Linux 为主**，macOS 上绝大多数可以直接用；写法不同的地方有：
+> `grep -vE '^\s*#|^\s*$'` 里的 `\s` 要写成 `[[:space:]]`（BSD grep 不认 `\s`）；
+> `ss -lntp` 要换成 `netstat -an | grep LISTEN`（macOS 没有 `ss`）；
+> 2.7 的 `ufw` / `firewall-cmd` 与迁移章节里的 `/etc/cron.d`、`systemctl` 是 Linux 专有，macOS 上跳过。
+> Windows 只在语法不同的地方单独给出 PowerShell 版本。
 > 所有 compose 命令都假设你已经 `cd` 到项目目录。
 >
 > 以**表格**形式给出的命令，其「执行位置」与「成功判据」写在表格的列里，或写在表格正上方的一句话说明里；
@@ -239,7 +246,7 @@ docker compose version
 
 ```bash
 cp .env.example .env
-grep -vE '^\s*#|^\s*$' .env | wc -l
+grep -vE '^\s*#|^\s*$' .env | wc -l          # macOS：\s 换成 [[:space:]]
 ```
 
 **成功判据**：最后一条命令输出 **`7`**（即 `.env` 里有 7 个生效变量，与 1.2 一致）。
@@ -324,8 +331,10 @@ docker compose logs --tail=50 app
 - `docker compose ps` 的 `STATUS` 列出现 `Up ... (healthy)`；
 - 日志里没有 `EACCES`、没有 `SQLite Error 14: unable to open database file`、没有反复重启的堆栈。
 
-**不对时怎么办**：健康检查的 `start_period` 是 40 秒（`docker-compose.yml:78`），首次启动还要同步数据源，
-**等 1-2 分钟**再判断。仍不 healthy 就 `docker compose logs -f app` 跟日志；权限类报错见 7.6。
+**不对时怎么办**：健康检查的 `start_period` 是 40 秒（`docker-compose.yml:78`）—— 它探的 `/health` 是
+**静态响应**（`Program.cs:162`），通过只说明进程起来了，**不代表数据源已同步、站点内容已齐**。
+首次启动要同步数据源 / 建库，**等 1-2 分钟**站点内容才完整。仍不 healthy 就 `docker compose logs -f app`
+跟日志；权限类报错见 7.6。
 
 ### 2.7 步骤 7：放行端口（外网访问必做，两处都要）
 
@@ -342,7 +351,7 @@ sudo firewall-cmd --permanent --add-port=18080/tcp && sudo firewall-cmd --reload
 **成功判据**：
 
 ```bash
-ss -lntp | grep 18080
+ss -lntp | grep 18080                       # macOS：netstat -an | grep LISTEN
 ```
 
 输出里的绑定地址是 `0.0.0.0:18080` 或 `*:18080`（**不是** `127.0.0.1:18080`），说明宿主在监听且对所有网卡开放。
@@ -695,12 +704,16 @@ crontab -e
 
 ```cron
 PATH=/usr/local/bin:/usr/bin:/bin
-0 4 * * * cd /opt/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1 # shortdrama-auto-update
+0 4 * * * (cd /opt/shortdrama && git pull --ff-only && docker compose up -d --build) >> /opt/shortdrama/logs/auto-update.log 2>&1 # shortdrama-auto-update
 ```
 
 - 第 1 行补上 `PATH`，否则 cron 找不到 `docker` / `git`（这是「定时任务没跑」最常见的原因）；
 - 行尾的 `# shortdrama-auto-update` 是**标记注释**，卸载/迁移时按它整行删除；
-- `cd` 是必须的：compose 命令必须在项目目录里执行，且日志路径是相对目录的。
+- `cd` 是必须的：compose 命令必须在项目目录里执行；**整条链要用 `( ... )` 包起来再重定向** ——
+  否则 `>>` 只绑定链尾那条 `docker compose`，`cd` / `git pull` 的输出（**包括它失败的原因**）
+  不会进日志，而这个日志正是排查「定时更新为什么失败」的依据；
+- 日志路径写成绝对路径（`/opt/shortdrama/logs/auto-update.log`），不再依赖当前目录；
+  该目录必须先建好，见 5.1。
 
 **成功判据**：下面这段内容会出现在 `crontab -l` 的输出里。
 
@@ -710,13 +723,15 @@ PATH=/usr/local/bin:/usr/bin:/bin
 crontab -l | grep shortdrama
 ```
 
-**成功判据**：输出里能看到上面那条完整命令（含 `cd ... && git pull --ff-only && docker compose up -d --build`）。
+**成功判据**：输出里能看到上面那条完整命令（含 `(cd ... && git pull --ff-only && docker compose up -d --build)`
+与结尾的 `>> /opt/shortdrama/logs/auto-update.log 2>&1`）。
 
 **不对时怎么办**：
 
 - 没看到 → 保存时出错，重新 `crontab -e`；
-- 到了 04:00 没动静 → 先**手动跑一遍那条命令**（`cd /opt/shortdrama && git pull --ff-only && docker compose up -d --build`），
-  手动能跑通说明是 cron 环境问题（`PATH`、`HOME`、`safe.directory`）；再 `tail -n 50 logs/auto-update.log` 看日志。
+- 到了 04:00 没动静 → 先**手动跑一遍那条命令**（`cd /opt/shortdrama && git pull --ff-only && docker compose up -d --build`，
+  不加重定向，输出直接看屏幕），手动能跑通说明是 cron 环境问题（`PATH`、`HOME`、`safe.directory`）；
+  再 `tail -n 50 /opt/shortdrama/logs/auto-update.log` 看日志。
 
 ### 5.3 Windows：用任务计划程序（原生 `docker compose`）
 
@@ -727,7 +742,7 @@ crontab -l | grep shortdrama
 ```powershell
 $proj = 'C:\shortdrama'      # 换成你的项目绝对路径（ASCII 名）
 $action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
-    -Argument "-NoProfile -Command `"cd '$proj'; git pull --ff-only; docker compose up -d --build *>> logs\auto-update.log`"" `
+    -Argument "-NoProfile -Command `"& { cd '$proj'; git pull --ff-only; docker compose up -d --build } *>> logs\auto-update.log`"" `
     -WorkingDirectory $proj
 $trigger  = New-ScheduledTaskTrigger -Daily -At 04:00
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew `
@@ -742,6 +757,8 @@ Register-ScheduledTask -TaskName 'ShortDramaAutoUpdate' -Action $action -Trigger
 - 没装 PowerShell 7 就把 `pwsh.exe` 换成 `powershell.exe`；
 - `-MultipleInstances IgnoreNew`：上一次还没跑完时，这一次直接跳过，不叠加；
 - `-WorkingDirectory` 必须设对，否则 compose 找不到 `docker-compose.yml`；
+- 命令里的 `& { ... }` 不能省：`*>>` 只作用于紧跟它的那一条命令，不把整条链包起来的话，
+  `cd` / `git pull` 的输出（**包括它失败的原因**）不会进日志；
 - **必须让任务在未登录时也能运行**（`-LogonType S4U`，或图形界面选「不管用户是否登录都要运行」），
   否则宿主上没人登录时任务不会执行，而且不会有任何报错。`S4U` 不存密码，但要求该账户具备
   「作为批处理作业登录」权限；目标机不支持 `S4U` 时改用 `-LogonType Password` 并另外提供该账户的密码。
@@ -761,7 +778,7 @@ Get-ScheduledTaskInfo -TaskName ShortDramaAutoUpdate | Select-Object LastRunTime
 `ShortDramaAutoUpdate`，并选**「不管用户是否登录都要运行」**（默认是「只在用户登录时运行」，
 选错就会在无人登录时静默不执行；选好后点确定时会要求输入该账户密码）→ 触发器「每天 04:00」→
 操作「启动程序」：程序 `pwsh.exe`，
-参数 `-NoProfile -Command "cd 'C:\shortdrama'; git pull --ff-only; docker compose up -d --build *>> logs\auto-update.log"`，
+参数 `-NoProfile -Command "& { cd 'C:\shortdrama'; git pull --ff-only; docker compose up -d --build } *>> logs\auto-update.log"`，
 **「起始于」填项目目录** → 设置里勾「如果错过计划开始时间，请尽快启动任务」，
 并选「如果任务已在运行，则以下规则适用：不启动新实例」。
 
@@ -904,10 +921,14 @@ Get-Content 'C:\shortdrama\logs\auto-update.log' -Tail 20
 **执行位置**：宿主 shell（任意目录，Linux/macOS）
 
 ```bash
-cd /opt/shortdrama && git pull --ff-only && docker compose up -d --build >> logs/auto-update.log 2>&1; tail -n 20 logs/auto-update.log
+cd /opt/shortdrama
+(git pull --ff-only && docker compose up -d --build) >> logs/auto-update.log 2>&1; rc=$?
+echo "退出码=$rc"        # 必须紧跟在上面那条链之后取，否则拿到的是 tail 的退出码
+tail -n 20 logs/auto-update.log
 ```
 
-**成功判据**：命令退出码 0（`echo $?`），日志有本次输出，`docker compose ps` 仍是 `Up ... (healthy)`。
+**成功判据**：`退出码=0`（上面已直接打印出来，不必再敲 `echo $?`），且日志有本次输出；
+`docker compose ps` 仍是 `Up ... (healthy)`。
 
 #### 步骤 M6：清理残留
 
