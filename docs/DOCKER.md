@@ -149,14 +149,46 @@ docker compose down -v          # 停止并清空数据
 | `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式；填镜像地址 = 镜像模式 |
 | `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址（可选功能） |
 | `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
+| `COMPOSE_PROJECT_NAME` | 未设（用目录名） | 容器名/卷名的前缀，见下方「容器名是怎么来的」 |
 
 **临时改一次端口**（不改 `.env`）：`APP_PORT=9000 docker compose up -d`。
 **强制不用缓存重建**：`docker compose build --no-cache && docker compose up -d`。
 **改用 PostgreSQL**：见[第五节](#五数据库sqlite--postgresql)。
 
+### 5. 容器名是怎么来的（想按自己的项目名命名就看这里）
+
+**本项目不写死任何容器名** —— 两个 compose 文件里 `container_name` 出现 **0 次**。
+容器名一律由 Compose 按下面的规则生成：
+
+```
+容器名 = <项目名>-<服务名>-1        例如  shortdrama-app-1
+卷名   = <项目名>_<卷名>            例如  shortdrama_shortdrama-data
+```
+
+**项目名默认取「你执行 `docker compose` 时所在的目录名」**（会被规范化成小写、非法字符换成 `-`）。
+所以目录叫 `shortdrama` → 容器就是 `shortdrama-app-1`；目录名是中文就会得到一个中文前缀的容器名。
+
+想自己定，两种方式（优先级从高到低）：
+
+```bash
+# ① 一次性：命令行 -p
+docker compose -p mydrama up -d --build          # → mydrama-app-1
+
+# ② 持久：写进 .env（.env.example 末尾有这一段，取消注释即可）
+COMPOSE_PROJECT_NAME=mydrama
+```
+
+> ⚠️ **改项目名等于换项目**：卷名会跟着变，**旧数据卷不会被复用**（Compose 会建一套新的空卷）。
+> 已经跑过且有数据时，先 `docker volume ls | grep shortdrama` 记下现名，再决定要不要改。
+
+> 💡 **为什么我们不写死容器名**：写死名字会关掉 Compose 的项目名前缀，
+> 同一台机器上从两个目录部署同一份 compose 就必然撞名；
+> 更糟的是报错里的名字可能属于**完全无关的另一个项目**（`Conflict. The container name "/xxx" is already in use`），
+> 让人对着自己的 compose 白查半天。让 Compose 自动加前缀，就永远不会跨项目撞名。
+
 改完 `.env` 后需要重新创建容器才会生效：`docker compose up -d`。
 
-### 5. 改运行端口
+### 6. 改运行端口
 
 端口由 **`.env` 里的 `APP_PORT`** 决定；compose 里的 `${APP_PORT:-18080}` 只是**没配 `.env` 时的兜底值**。
 

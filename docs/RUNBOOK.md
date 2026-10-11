@@ -48,6 +48,7 @@
 | 容器内端口 | **8080**（固定，不要改） | `Dockerfile:140`、`Dockerfile:147` |
 | 数据卷逻辑名 | `shortdrama-data` | `docker-compose.yml:72`、`:87-89` |
 | 数据卷实际名 | `<项目名>_shortdrama-data`，例如 `shortdrama_shortdrama-data` | `docs/DOCKER.md` 第六节「数据卷、备份与恢复」 |
+| 容器名 | `<项目名>-app-1`，例如 `shortdrama-app-1`。**项目名默认取部署目录名**；要按自己的项目名命名，用 `.env` 的 `COMPOSE_PROJECT_NAME` 或 `docker compose -p <名字>` | `.env.example` 末尾「容器名 / 卷名的前缀」、`docs/DOCKER.md` 第一节「5. 容器名是怎么来的」 |
 | 容器内数据路径 | `/data`，SQLite 文件 `/data/shortdrama.db` | `docker-compose.yml:37`、`Dockerfile:137` |
 | `.env` 生效变量 | **7 个**：`APP_PORT`、`ACCESS_GATE_ENABLED`、`ACCESS_PASSWORD`、`JWT_KEY`、`TORRENT_BASE_URL`、`TORRENT_ENABLED`、`POSTGRES_PASSWORD` | `.env.example:11-44` |
 | `.env` 里被注释掉的变量 | `SHORTDRAMA_IMAGE`（默认注释；填了就是「镜像模式」） | `.env.example:20` |

@@ -90,7 +90,7 @@
 
 ### F6 `.env` 的每个变量名与默认值
 
-来源文件：`.env.example`（共 44 行）。**7 个活动变量 + 1 个注释掉的变量**：
+来源文件：`.env.example`（共 57 行）。**7 个活动变量 + 2 个注释掉的变量**（`SHORTDRAMA_IMAGE`、`COMPOSE_PROJECT_NAME`）：
 
 | 变量 | `.env.example` 行 | 默认值（字面） |
 |---|---|---|
@@ -220,7 +220,7 @@
 
 | 文件 | 字节（实测） | BOM | CRLF 数 | LF 数 |
 |---|---|---|---|---|
-| `.env.example` | 2152 | 无 BOM | 0 | 44 |
+| `.env.example` | 2986 | 无 BOM | 0 | 57 |
 | `docker-compose.yml` | 3468 | 无 BOM | 0 | 89 |
 | `docker-compose.postgres.yml` | 2004 | 无 BOM | 0 | 49 |
 | `Dockerfile` | 8164 | 无 BOM | 0 | 156 |
@@ -232,7 +232,7 @@
 | `.gitattributes` | 2022 | 无 BOM | 0 | 38 |
 
 - **测量方式（`字节` 列必须这样量）**：`[System.IO.File]::ReadAllBytes('C:\...\绝对路径').Length` —— **必须传绝对路径**。.NET 的「当前目录」与 PowerShell 的 `$PWD` 不一定是同一个，传相对路径会读到别处或直接抛异常。行数与 `CRLF/LF` 用 `Get-Content <绝对路径> -Encoding UTF8` 计数、逐字节统计 `13` / `10` 的出现次数。
-- 本轮实测（一次性复测 10 个文件，`ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致）：`.env.example` 2152B/44、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` **2004B/49**（本次删 `redis` 服务后重测，上一版是 1785B/57）、`Dockerfile` **8164B/156**、`docker/entrypoint.sh` 1441B/35、`.dockerignore` **1999B/71**、`README.md` 48703B/999、`docs/DOCKER.md` **36559B/863**、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` **2022B/38**（**CR 全 0、BOM 全 False**）。
+- 本轮实测（一次性复测 10 个文件，`ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致）：`.env.example` 2986B/57、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` **2004B/49**（本次删 `redis` 服务后重测，上一版是 1785B/57）、`Dockerfile` **8164B/156**、`docker/entrypoint.sh` 1441B/35、`.dockerignore` **1999B/71**、`README.md` 48703B/999、`docs/DOCKER.md` **36559B/863**、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` **2022B/38**（**CR 全 0、BOM 全 False**）。
 - **本次（`Dockerfile` / `.dockerignore` 改动后）的变化**：`Dockerfile` **6670B / 137 行 → 8164B / 156 行**、`.dockerignore` **1249B / 60 行 → 1999B / 71 行**（中间又修过一次"只匹配根目录"的模式，见 F23）。这两个文件的字节数用 `ReadAllBytes` 与 `Get-Item -LiteralPath <绝对路径>.Length` **两种方式交叉验证**，结果一致（**8164 / 1999**）；`CR` 逐字节计数为 **0**，BOM 为 **False**。
 - **本次（`docker-compose.postgres.yml` 删除 `redis` 服务后）的变化**：该文件 **1785B / 57 行 → 2004B / 49 行**（净减 8 行；`git diff --numstat` 实测 **+7 / -15**。删除的 15 行 = `redis` 服务块 **12 行**（含其后一个空行）+ `volumes:` 里的 `shortdrama-redisdata` **2 行** + 文件头那句「额外拉起 postgres 与 redis 两个容器」**1 行**；新增的 7 行 = 改写后的文件头那句 **1 行** + 新增的 **6 行** ⚠️ 说明注释）。**测量方式与证据（本次实跑）**：
   - `[System.IO.File]::ReadAllBytes('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml').Length` → **2004**；`(Get-Item -LiteralPath <同一绝对路径>).Length` → **2004**（两种方式交叉验证一致）；
