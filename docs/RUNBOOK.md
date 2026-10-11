@@ -31,7 +31,7 @@
 ### 1.1 部署形态（先知道你要部署的是什么）
 
 - **单容器**：前端（Vue3 + Vite）与后端（.NET 10）打进同一个镜像，静态资源由 .NET 直接托管，
-  **不需要额外的 Nginx 容器**（`Dockerfile:1-9`）。
+  **不需要额外的 Nginx 容器**（`Dockerfile:1-11`）。
 - **compose 只有一个服务，服务名是 `app`**（`docker-compose.yml:17`）。
   所有 compose 子命令都用服务名操作：`docker compose logs app`、`docker compose exec app ...`。
 - **compose 刻意不设 `container_name`**（`docker-compose.yml:23-26`），所以容器名形如
@@ -45,31 +45,37 @@
 |---|---|---|
 | compose 服务名 | `app` | `docker-compose.yml:17` |
 | 对外端口 | `${APP_PORT:-18080}` → **默认 18080** | `docker-compose.yml:30` |
-| 容器内端口 | **8080**（固定，不要改） | `Dockerfile:121`、`Dockerfile:128` |
+| 容器内端口 | **8080**（固定，不要改） | `Dockerfile:140`、`Dockerfile:147` |
 | 数据卷逻辑名 | `shortdrama-data` | `docker-compose.yml:72`、`:87-89` |
-| 数据卷实际名 | `<项目名>_shortdrama-data`，例如 `shortdrama_shortdrama-data` | `docs/DOCKER.md:629` |
-| 容器内数据路径 | `/data`，SQLite 文件 `/data/shortdrama.db` | `docker-compose.yml:37`、`Dockerfile:118` |
+| 数据卷实际名 | `<项目名>_shortdrama-data`，例如 `shortdrama_shortdrama-data` | `docs/DOCKER.md` 第六节「数据卷、备份与恢复」 |
+| 容器内数据路径 | `/data`，SQLite 文件 `/data/shortdrama.db` | `docker-compose.yml:37`、`Dockerfile:137` |
 | `.env` 生效变量 | **7 个**：`APP_PORT`、`ACCESS_GATE_ENABLED`、`ACCESS_PASSWORD`、`JWT_KEY`、`TORRENT_BASE_URL`、`TORRENT_ENABLED`、`POSTGRES_PASSWORD` | `.env.example:11-44` |
 | `.env` 里被注释掉的变量 | `SHORTDRAMA_IMAGE`（默认注释；填了就是「镜像模式」） | `.env.example:20` |
 | 默认访问口令 | `遵纪守法世界和平` | `.env.example:25`、`docker-compose.yml:42` |
-| 健康检查 | `GET /health`，返回 `{"status":"healthy",...}` | `docker-compose.yml:75`、`Dockerfile:130-131`、`ShortDrama.Api/Program.cs:162` |
-| 管理后台 | `/admin`，默认账号 `admin` / `admin123` | `README.md:155`、`ShortDrama.Infrastructure/Data/DbSeeder.cs:147-151` |
-| 站点首页 | `http://<宿主IP>:18080` | `docs/DOCKER.md:200` |
-| 运行身份 | 镜像内置的非 root 用户 `app`：**容器仍以 root 启动**（要先给数据卷 `chown`），入口脚本再用 `gosu` 把业务进程降权到 `app`。UID/GID 以容器内实测为准（`docker compose exec app id`），**不要写死数字** | `Dockerfile:84-98`、`Dockerfile:111-114`、`docker/entrypoint.sh:17-31` |
+| 健康检查 | `GET /health`，返回 `{"status":"healthy",...}` | `docker-compose.yml:75`、`Dockerfile:149-150`、`ShortDrama.Api/Program.cs:162` |
+| 管理后台 | `/admin`，默认账号 `admin` / `admin123` | `README.md` 第四节「容器化部署」、`ShortDrama.Infrastructure/Data/DbSeeder.cs:147-151` |
+| 站点首页 | `http://<宿主IP>:18080` | `docs/DOCKER.md` 第二节「跑起来之后」 |
+| 运行身份 | 镜像内置的非 root 用户 `app`：**容器仍以 root 启动**（要先给数据卷 `chown`），入口脚本再用 `gosu` 把业务进程降权到 `app`。UID/GID 以容器内实测为准（`docker compose exec app sh -c 'grep ^Uid /proc/1/status'` —— ⚠️ **不是** `docker compose exec app id`，那条输出 `0` 是正常的），**不要写死数字** | `Dockerfile:94-108`、`Dockerfile:127-133`、`docker/entrypoint.sh:17-31` |
 | 容器日志上限 | json-file，10MB × 3 个文件 | `docker-compose.yml:81-85` |
-| 时区 | `Asia/Shanghai` | `Dockerfile:81` |
+| 时区 | `Asia/Shanghai` | `Dockerfile:91` |
 
 > `/health` 与 `/openapi/*` **不受访问口令门拦截**（`ShortDrama.Api/Access/AccessGateMiddleware.cs:74`、
-> `README.md:904`），所以健康检查和监控可以直接打这两个路径。
+> `README.md` 第十一节「访问口令门」），所以健康检查和监控可以直接打这两个路径。
 >
 > ⚠️ **「容器以非 root 运行」这句话不准确，别照着理解**：`Dockerfile` 里**没有 `USER` 指令**
 > （已用 `^USER` 精确核对，无匹配），所以 `docker inspect <容器> --format '{{.Config.User}}'`
 > 会返回空（即 root）。真正发生的是：容器以 **root 启动** → 入口脚本先 `chown -R app:app /data`
 > （兼容旧版本 root 属主的卷）→ 再用 `gosu app` 降权 → `exec` 交棒给 dotnet。
 > 所以 **业务进程**是非 root 的 `app`，而**容器配置层**是 root —— 两者不矛盾，验证方式见 2.9 第 8 条。
-> `app` 的 UID/GID 由基础镜像决定（`Dockerfile:87` 注释里写的 1654 只是注释，仓库内**无实测证据**），
-> 需要数字时**实测**：`docker compose exec app id`（`Dockerfile:110-114` 的构建期自检也是按
-> **用户名**比较，而不是数字 UID）。
+> `app` 的 UID/GID 由基础镜像决定（`Dockerfile:97` 注释里写的 1654 只是注释，仓库内**无实测证据**），
+> 需要数字时**实测** —— 但注意**不要**用 `docker compose exec app id`：`docker exec` 起的是新进程、
+> 用的是容器配置里的用户（root），它输出 `uid=0(root)` 是正常的。要看业务进程的身份：
+>
+> ```bash
+> docker compose exec app sh -c 'grep ^Uid /proc/1/status'
+> ```
+>
+> （`Dockerfile:127-133` 的构建期自检也是按**用户名**比较，而不是数字 UID，正是为了不依赖这个数字。）
 
 ### 1.3 上线前必须改的 3 项
 
@@ -145,7 +151,7 @@ Windows（PowerShell，**执行位置**同上）：
 | Docker Desktop | 最新版 | Windows / macOS 用；**必须处于运行状态**（托盘图标显示「运行中」） |
 | Docker Compose | v2（`docker compose` 子命令） | 随 Docker Desktop 自带。只有 `docker-compose`（v1）不行 |
 | git | 任意 | **只有「定时自动更新」需要**；纯手工升级也可以不装 |
-| 磁盘 | 首次构建约需 3-5 GB | `docs/DOCKER.md:641` |
+| 磁盘 | 首次构建约需 3-5 GB | `docs/DOCKER.md` 第九节「故障排查」 |
 | 端口 | 默认对外 `18080/tcp`（可改） | 云服务器要在安全组 + 宿主防火墙两处放行 |
 
 ### 1.5 部署目录必须是 ASCII 名（很重要，且很容易踩）
@@ -390,7 +396,7 @@ ss -lntp | grep 18080                       # macOS：netstat -an | grep LISTEN
 | 5 | `docker compose logs --tail=50 app` | 无 `EACCES`、无 `SQLite Error 14` | 见 7.6 |
 | 6 | `docker volume ls \| grep shortdrama-data` | 看到 `<项目名>_shortdrama-data`（默认 `shortdrama_shortdrama-data`） | 没看到 → 卷没建起来，看 `docker compose ps -a` |
 | 7 | `docker compose exec app curl -fsS http://localhost:8080/health` | 输出同上（**执行位置：容器内 app**，同时验证镜像里 `curl` 可用） | 报 `curl: not found` → 镜像不对，重新 `--build` |
-| 8 | `docker compose exec app id` | 输出 `uid=<非0>(app) gid=<非0>(app)` —— 也就是**用户名是 `app`、UID 不是 0**（UID 具体数字由基础镜像决定，用这条命令实测，**不要照抄任何写死的数字**）（**执行位置：容器内 app**，证明业务进程不是 root 在跑） | 显示 `uid=0(root)` → 入口脚本降权失败，看容器日志里的 gosu 告警 |
+| 8 | `docker compose exec app sh -c 'grep ^Uid /proc/1/status'` | 第 1 列**不是 0**（例如 `Uid:` 后面是 1654）—— 也就是**业务进程 PID 1 不是 root 在跑**。（**执行位置：容器内 app**）⚠️ **别用 `docker compose exec app id` 判断**：`docker exec` 起的是**新进程**、用的是容器配置里的用户（root），**它输出 `uid=0(root)` 是正常的**，不代表降权失败 —— 本镜像刻意让入口脚本以 root 起步（先修正旧数据卷属主）再 `exec gosu app` 降权 | 第 1 列出现 `0` → 入口脚本降权失败，看容器日志里的 gosu 告警 |
 
 ---
 
@@ -442,7 +448,7 @@ git pull --ff-only && docker compose up -d --build
 - 随后 `docker compose ps` 的 `STATUS` 回到 `Up ... (healthy)`。
 
 **为什么安全**：compose 会**先把新镜像构建成功，再重建容器**。构建失败时旧容器继续跑，站点不中断
-（`docs/DOCKER.md:228`）。
+（`docs/DOCKER.md` 第三节「更新与自动更新」）。
 
 **不对时怎么办**：
 
@@ -522,8 +528,8 @@ docker compose up -d --build
 
 | 层 | 写在哪 | 当前值 | 作用 |
 |---|---|---|---|
-| 应用监听端口 | `Dockerfile:121` 的 `ASPNETCORE_URLS=http://+:8080` | 容器内 `8080` | 真正决定进程听哪个端口 |
-| 容器内端口 | `Dockerfile:128` 的 `EXPOSE 8080` | `8080` | 只是文档/`-P` 的依据，**不改变实际监听** |
+| 应用监听端口 | `Dockerfile:140` 的 `ASPNETCORE_URLS=http://+:8080` | 容器内 `8080` | 真正决定进程听哪个端口 |
+| 容器内端口 | `Dockerfile:147` 的 `EXPOSE 8080` | `8080` | 只是文档/`-P` 的依据，**不改变实际监听** |
 | 对外映射 | `docker-compose.yml:30` 的 `"${APP_PORT:-18080}:8080"` | 宿主 `18080` → 容器 `8080` | 把容器端口发布到宿主 |
 
 **只改对外端口**。容器内保持 8080 —— 容器内的端口是隔离的，改它只会多改一堆地方
@@ -621,7 +627,7 @@ APP_PORT=9000 docker compose config | grep -A3 'ports:'
 
 ### 4.6 想只绑本机（前面挂反向代理）—— 用 override 文件，别改被跟踪的 compose
 
-反向代理方案（Caddy / Nginx 配置样例见 `docs/DOCKER.md:555-595`）通常希望容器只监听 `127.0.0.1`。
+反向代理方案（Caddy / Nginx 配置样例见 `docs/DOCKER.md` 第七节「反向代理与 HTTPS」）通常希望容器只监听 `127.0.0.1`。
 **不要直接改 `docker-compose.yml`**：它被 git 跟踪，改脏了 `git pull --ff-only` 会失败，定时更新就停了。
 
 正确做法是新建一个 **`docker-compose.override.yml`**（Compose 会自动加载它，且它不在仓库里，不会弄脏工作区）。
@@ -995,7 +1001,7 @@ grep -rn -e deploy -e shortdrama /etc/cron.d/ /etc/crontab /etc/cron.daily/ /etc
 ## 六、种子服务（可选）
 
 > 「种子」页的搜索与边下边播由**另一个项目 `torrent-search`** 提供，它是**宿主机上的独立进程**
-> （默认监听 `127.0.0.1:8787`）。本平台的容器只做转发（`docs/DOCKER.md:382-391`）。
+> （默认监听 `127.0.0.1:8787`）。本平台的容器只做转发（`docs/DOCKER.md` 第四节「配置」（种子搜索））。
 > 不用这个功能可以完全跳过本章，不影响其它任何功能。
 
 ### 6.1 核心坑：容器里的 `127.0.0.1` 不是宿主机
@@ -1093,7 +1099,7 @@ sed -i 's/^TORRENT_ENABLED=.*/TORRENT_ENABLED=false/' .env && docker compose up 
 | `shortdrama-pgdata` | PostgreSQL 数据目录 | 用了 PostgreSQL 覆盖配置 | `docker-compose.postgres.yml:30`、`:54` |
 | `shortdrama-redisdata` | Redis AOF | 用了 PostgreSQL 覆盖配置 | `docker-compose.postgres.yml:46`、`:56` |
 
-> ⚠️ **Compose 会给卷名加项目前缀**：实际名字形如 `shortdrama_shortdrama-data`（`docs/DOCKER.md:629`）。
+> ⚠️ **Compose 会给卷名加项目前缀**：实际名字形如 `shortdrama_shortdrama-data`（`docs/DOCKER.md` 第六节「数据卷、备份与恢复」）。
 > 写裸名 `-v shortdrama-data:/data` 会**新建一个空卷** —— 你以为在改旧卷，其实什么都没改
 > （备份时更危险：会备份出一个空文件）。先查实际名字：
 
@@ -1188,7 +1194,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
 
 **成功判据**：命令无报错，退出码 0；`docker compose ... ps` 仍全部 `Up`。
 
-> **切换数据库不会自动迁移数据**：SQLite 里的旧数据需要另行导出导入（`docs/DOCKER.md:462`）。
+> **切换数据库不会自动迁移数据**：SQLite 里的旧数据需要另行导出导入（`docs/DOCKER.md` 第五节「数据库：SQLite / PostgreSQL」）。
 > PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml:37-39`），需要直连调试时取消 `ports` 的注释。
 
 ### 7.5 卸载
@@ -1230,7 +1236,7 @@ docker volume rm <上面列出的卷名>
 | 改了 `.env` 但没生效 | 环境变量在**创建容器时**注入，必须 `docker compose up -d` 重建容器 |
 | 健康检查一直 `starting` | 首次启动要同步数据源，等 1-2 分钟；仍不行看 `docker compose logs -f app` |
 | 日志报 `SQLite Error 14: unable to open database file` | 数据卷属主不对（老卷是 root 属主）。入口脚本本应自动修好；仍出现就手动修（见下方「升级后写不进数据卷」） |
-| 日志报 `EACCES` / `permission denied` | 同上（数据卷属主不对）。**特例**：如果你按 `Dockerfile:133-135` 的说明在 compose 里设了 `user: "app"`（容器直接以 `app` 身份启动，入口脚本的降权分支被跳过），那么启动时**不会**再有那次 `chown`，必须先把卷属主改成 `app` —— 见下方「升级后写不进数据卷」 |
+| 日志报 `EACCES` / `permission denied` | 同上（数据卷属主不对）。**特例**：如果你按 `Dockerfile:152-154` 的说明在 compose 里设了 `user: "app"`（容器直接以 `app` 身份启动，入口脚本的降权分支被跳过），那么启动时**不会**再有那次 `chown`，必须先把卷属主改成 `app` —— 见下方「升级后写不进数据卷」 |
 | 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（ARM 机器拉了 amd64）。改工作流 `PLATFORMS` 后重新构建（见 3.4） |
 | `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：`docker inspect xxx --format '{{index .Config.Labels "com.docker.compose.project"}}'` 看归属；是别人的就 `docker rename xxx xxx-old` 解封，**别删** |
 | 面板「更新容器」报 `user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把动态 IP 固化成静态 IP。改用 `docker compose down && docker compose up -d`；或在面板里把静态 IP 留空 |

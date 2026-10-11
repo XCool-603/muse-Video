@@ -6,13 +6,22 @@
 #
 # 构建：docker build -t shortdrama .
 # 运行：docker run -d -p 18080:8080 -v shortdrama-data:/data shortdrama
+#
+# 多架构：两个**构建**阶段都声明了 --platform=$BUILDPLATFORM（跑在构建机原生架构上），
+# 最终阶段不声明（必须是目标架构）。原因见下方阶段 1 的注释。
 # ============================================================================
 
 
 # ---------------------------------------------------------------------------
 # 阶段 1：构建前端
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS web
+# --platform=$BUILDPLATFORM：让构建阶段跑在**构建机的原生架构**上。
+# 这两个构建阶段产出的都是架构无关的东西（Vue 打出来的 JS/CSS；.NET 用
+# /p:UseAppHost=false 发布，得到的是 IL 而不是原生可执行文件），跟着目标架构走没有意义 ——
+# 而多架构构建（CI 里加 linux/arm64）时，不声明就会让整段构建落到 QEMU 模拟上，慢几十倍。
+# ⚠️ 最终阶段（final）**不能**加这一行：它必须是目标架构。
+# 需要 BuildKit（本文件本来就用 --chmod，已经依赖它）。
+FROM --platform=$BUILDPLATFORM node:20-alpine AS web
 WORKDIR /web
 
 # 先只拷贝依赖清单，利用层缓存（依赖没变时跳过 npm ci）
@@ -26,7 +35,8 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # 阶段 2：构建后端
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api
+# 同样跑在构建机原生架构上（原因见阶段 1）；发布出来的是 IL，与架构无关。
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS api
 WORKDIR /src
 
 # 先只拷贝 csproj，利用层缓存（代码改了但依赖没变时跳过 restore）
@@ -104,14 +114,23 @@ COPY --from=api --chown=app:app /app/publish .
 # permission denied: /usr/local/bin/entrypoint.sh。
 COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# 构建期自检：把「权限没配对」这类问题在**构建时**就暴露出来，
-# 而不是等容器起来才在运行时报 EACCES（那时排查成本高得多，也容易误判成代码问题）。
-# 三条分别覆盖：内置用户是否存在、入口脚本可执行位、数据目录属主。
+# 构建期自检：把「权限没配对」「运行期依赖缺了」这类问题在**构建时**就暴露出来，
+# 而不是等容器起来才报 EACCES、或健康检查永远 unhealthy（那时排查成本高得多，
+# 也容易误判成代码问题）。六条分别覆盖：
+#   1. 内置 app 用户确实存在（基础镜像换代时会变）
+#   2. 入口脚本有可执行位（Windows 宿主最容易丢）
+#   3. /data 属主正确（SQLite 要在这里写库）
+#   4. HOME 属主正确（DP key、~/.cache 要写这里）
+#   5. curl 在（HEALTHCHECK 完全依赖它，aspnet 基础镜像默认不带）
+#   6. gosu 在（入口脚本靠它降权；缺了会退回 root 运行）
 # 按**用户名**比较而不是数字 UID —— 内置用户的 UID 由基础镜像决定，不该在这里写死。
 RUN id app >/dev/null \
  && test -x /usr/local/bin/entrypoint.sh \
  && test "$(stat -c '%U:%G' /data)" = "app:app" \
- && echo "自检通过：app 用户存在、入口脚本可执行、/data 属主为 app:app"
+ && test "$(stat -c '%U:%G' /home/app)" = "app:app" \
+ && command -v curl >/dev/null \
+ && command -v gosu >/dev/null \
+ && echo "自检通过：app 用户存在、入口脚本可执行、/data 与 /home/app 属主正确、curl 与 gosu 均在"
 
 # 数据目录（SQLite 库文件落在这里，compose 里挂成卷）
 # 命名卷**首次创建且为空**时会继承这里的属主；已存在的旧卷不会 —— 那由入口脚本兜底。

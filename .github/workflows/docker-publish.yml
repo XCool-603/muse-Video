@@ -20,8 +20,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # 目标平台。只有 ARM 机器（如 Oracle 免费机、部分 ARM VPS）才需要加 linux/arm64；
-  # 加 arm64 后构建时间会明显变长（QEMU 模拟）。
+  # 目标平台。只有 ARM 机器（如 Oracle 免费机、部分 ARM VPS）才需要加 linux/arm64。
+  # Dockerfile 的两个**构建**阶段声明了 --platform=$BUILDPLATFORM，跑在构建机的原生架构上
+  # （它们产出的是架构无关的 JS/CSS 与 IL），所以加 arm64 的额外代价主要是
+  # "多拉一份运行时基础镜像 + 多推一份镜像"，而不是整段构建都落到 QEMU 上。
   PLATFORMS: linux/amd64
 
 jobs:

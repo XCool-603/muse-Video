@@ -160,6 +160,18 @@ docker compose down -v          # 停止并清空数据
 
 端口由 **`.env` 里的 `APP_PORT`** 决定；compose 里的 `${APP_PORT:-18080}` 只是**没配 `.env` 时的兜底值**。
 
+**三处端口必须同时存在且一致**，缺任何一处都会表现为"打不开"：
+
+| 层 | 写在哪 | 作用 | 漏了会怎样 |
+|---|---|---|---|
+| 应用监听 | `Dockerfile` 的 `ASPNETCORE_URLS=http://+:8080` | 真正决定进程听哪个端口 | 容器内没人在听，映射再对也没用 |
+| 容器内端口 | `Dockerfile` 的 `EXPOSE 8080` | 只是文档与 `-P` 的依据，**不改变实际监听** | 不影响连通，但别人看不出该映哪个端口 |
+| 对外映射 | compose 的 `ports: "${APP_PORT:-18080}:8080"` | 把容器内端口发布到宿主 | 宿主上没有 LISTEN，外网必然访问不到 |
+
+> ⚠️ 别把 `expose:` 当 `ports:` 用 —— `expose` 只对**同一网络内的其它容器**可见，
+> **不会**发布到宿主。排查顺序（容器在跑吗 → 宿主在监听吗 → 本机 curl 通吗 → 外网）
+> 见[第九节](#九故障排查)。
+
 > ⚠️ **升级后端口没变？** 因为 `.env` 优先于 compose 的默认值 ——
 > 你现有的 `.env` 里如果还写着 `APP_PORT=8080`，改 compose 的默认值**不会**影响你，必须改 `.env`。
 > （仓库把默认端口从 8080 换成 18080 只是给新部署用的。）
@@ -365,7 +377,33 @@ PAT 需要 `read:packages` 权限。登录凭据存在 `~/.docker/config.json`�
 PLATFORMS: linux/amd64
 ```
 
-改成 `linux/amd64,linux/arm64`。注意加 arm64 后 CI 构建时间会明显变长（QEMU 模拟）。架构不匹配的表现是容器起来就退出，日志里报 `exec format error`。
+改成 `linux/amd64,linux/arm64`。
+
+> 💡 **编译阶段不会走 QEMU。** Dockerfile 的两个构建阶段都声明了 `--platform=$BUILDPLATFORM`，
+> 跑在构建机的**原生架构**上，而它们产出的又是架构无关的东西（前端打出来的 JS/CSS；
+> .NET 用 `/p:UseAppHost=false` 发布，得到的是 IL 而不是原生可执行文件）。
+> 所以加 arm64 的主要代价是"多拉一份运行时基础镜像 + 多推一份镜像"，
+> 而不是"整段构建慢几十倍"。
+>
+> ⚠️ 反过来说：**`final` 阶段千万不要加 `--platform=$BUILDPLATFORM`** ——
+> 它必须是目标架构，否则会构建出与目标平台不符的镜像。
+
+本地给 ARM 机器构建（需要 buildx）：
+
+```bash
+docker buildx build --platform linux/arm64 -t shortdrama:arm64 --load .
+```
+
+架构不匹配的表现是容器起来就退出，日志里报 `exec format error`。
+
+**基础镜像要不要钉 digest**
+
+Dockerfile 用的是浮动标签（`node:20-alpine`、`mcr.microsoft.com/dotnet/aspnet:10.0`）：
+好处是自动吃到上游安全更新，代价是偶发"昨天能构建、今天不能"（上游改了标签指向）。
+
+要极致可复现就把 `FROM` 换成 `FROM <镜像>@sha256:...`，但那样每次安全更新都得手动改 digest，
+与本项目"一条命令跟进最新"的取向冲突。**默认选择浮动标签**，并把"构建突然失败"列进
+[第九节](#九故障排查)的排查路径。
 
 **改回源码模式**
 
@@ -484,7 +522,9 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 
 ### 容器以非 root 运行（镜像内置的 app 用户）
 
-镜像里的业务进程以 `app` 运行，不再是 root。`app` 是 **.NET 官方镜像内置**的非 root 用户（UID/GID `1654`），我们不再自建用户 —— 自建一个同名用户会因组名重复而构建失败（`groupadd` 退出码 9）。`/data` 是唯一需要写的路径。
+镜像里的业务进程以 `app` 运行，不再是 root。`app` 是 **.NET 官方镜像内置**的非 root 用户
+（UID/GID 通常为 `1654`，**以容器内实测为准** —— 见下方「怎么确认业务进程真的以 `app` 运行」），
+我们不再自建用户 —— 自建一个同名用户会因组名重复而构建失败（`groupadd` 退出码 9）。`/data` 是唯一需要写的路径。
 
 **升级兼容性已处理**：数据卷只在**首次创建且为空**时继承镜像里的属主；你现在的卷是旧版本（root）
 创建的，里面的 `shortdrama.db` 属主是 root —— 直接切成非 root 会写不进去。
@@ -504,6 +544,53 @@ services:
 
 此时脚本以 `app` 身份启动，会自动跳过降权分支。前提是 `/data` 已经属于 `app`；
 否则容器会因写不了 SQLite 而启动失败，日志里是 `SQLite Error 14: unable to open database file`。
+
+#### 怎么确认业务进程真的以 `app` 运行
+
+> ⚠️ **别用 `docker compose exec app id -u` 判断 —— 它会输出 `0`。**
+> 本镜像刻意让入口脚本**以 root 起步**（先修正旧数据卷属主），再 `exec gosu app` 降权；
+> 而 `docker exec` 起的是一个**新进程**，用的是容器配置里的用户（root），
+> 不是被降权后的业务进程。所以那条命令测的是"我 exec 进去的身份"，不是"应用跑在什么身份下"。
+
+要看真正的业务进程（PID 1）身份：
+
+```bash
+docker compose exec app sh -c 'grep ^Uid /proc/1/status'
+# 期望：Uid: 后面是**非 0** 的数字（app 的 UID，由基础镜像决定，别写死）
+# 出现 0 才说明降权没生效
+```
+
+`/proc` 不需要额外装 `ps`/`procps`，在精简镜像里最可靠。也可以从宿主侧看：
+
+```bash
+docker top $(docker compose ps -q app) -o pid,user,cmd
+# 第一行是 PID 1（dotnet），USER 列不应是 root
+```
+
+#### 进阶：只读根文件系统（可选加固）
+
+应用只写两处：`/data`（SQLite 与运行时数据）和 `/home/app`（DataProtection key、缓存）。
+所以可以开只读根，挡掉"应用偷偷往别处写文件"：
+
+```yaml
+services:
+  app:
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - shortdrama-data:/data
+      - shortdrama-home:/home/app
+
+# 顶层声明（少了这段 compose 会报 undefined volume）
+volumes:
+  shortdrama-data:
+  shortdrama-home:      # 只读根模式下必须给 /home/app 一个可写卷
+```
+
+> ⚠️ 开了之后若日志出现 `Read-only file system`，**加挂载点或 `tmpfs`，不要退回可写根** ——
+> 那等于把加固关掉，而问题（应用在写非预期路径）依然存在。
+> 入口脚本的 `chown` 发生在启动早期，不受只读根影响。
 
 手动把已有卷改属主（可选，正常升级用不到 —— 入口脚本启动时会自己修）：
 
@@ -647,7 +734,7 @@ docker run -d --name shortdrama \
 | `Docker 守护进程未运行` | 启动 Docker Desktop，等托盘图标变为运行中 |
 | `未找到 docker compose（v2）` | 只有 Compose v1（`docker-compose`）。升级 Docker 以获得 `docker compose` |
 | 构建失败，提示连不上仓库 | 网络无法访问 Docker Hub / NuGet / npm registry。给 Docker 配置国内镜像加速后 `docker compose build --no-cache` |
-| 构建很慢或卡住 | 首次构建要拉基础镜像。确认网络与磁盘空间（约需 3-5 GB） |
+| 构建很慢或卡住 | 首次构建要拉基础镜像。确认网络与磁盘空间（约需 3-5 GB）；想知道是哪一层没命中缓存，用 `docker build --progress=plain -t shortdrama .` 看每层的 `CACHED` 标记 |
 | 健康检查超时 | 首次启动要同步数据源，等 1-2 分钟。仍不行就看 `docker compose logs -f app` |
 | 打开站点一直跳 `/gate` | 这是口令门，输入 `ACCESS_PASSWORD` 即可。忘了口令就改 `.env` 再 `docker compose up -d` |
 | 改了 `.env` 但没生效 | 环境变量在创建容器时注入，需要 `docker compose up -d` 重建容器 |

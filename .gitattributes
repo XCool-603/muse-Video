@@ -17,11 +17,22 @@
 #                   规则静默失配（构建上下文变大、宿主 node_modules 混进镜像）
 #   *.yml / *.yaml  compose 配置
 #   .env.example    compose 读取它做变量插值；值尾带 \r 会让口令/密钥多一个字符
+#
+# 兜底：**所有文本文件都规范成 LF**（`* text=auto eol=lf`）。
+# 为什么不止钉那几个脚本：docs/DEPLOY-FACTS.md 把每个配置文件的**字节数与 CR=0**
+# 都钉成了可核对的事实，而 core.autocrlf=true 的机器检出的却是 CRLF ——
+# 不兜底的话，"同一份提交在不同机器上字节不同"，那些事实就失去意义。
+# 二进制文件由 git 自动识别，不受影响。
 # ============================================================================
 
+* text=auto eol=lf
+
+# 下面几条是显式声明（意图更清楚，也防止将来有人把兜底那行删掉）
 *.sh text eol=lf
 Dockerfile text eol=lf
 .dockerignore text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 .env.example text eol=lf
+*.md text eol=lf
+*.json text eol=lf

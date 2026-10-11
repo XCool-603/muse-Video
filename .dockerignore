@@ -11,9 +11,11 @@
 .vs/
 
 # 本地 SQLite 库（不要打进镜像，容器里用卷）
-*.db
-*.db-shm
-*.db-wal
+# ⚠️ 必须写 **/ 前缀：Docker 的 * 不跨 /，只写 *.db 只能匹配根目录，
+#    而本地开发库在 ShortDrama.Api/shortdrama.db —— 那是用户数据，不该上传给 daemon。
+**/*.db
+**/*.db-shm
+**/*.db-wal
 
 # ---- 前端 ----
 **/node_modules/
@@ -34,9 +36,10 @@ ShortDrama.Api/wwwroot/
 # ---- 密钥：不进构建上下文 ----
 # .env 里有 JWT_KEY 与访问口令。虽然 Dockerfile 从不 COPY 它（只拷指定目录），
 # 但构建上下文会整包上传给 daemon，没必要把它带过去。
-.env
-.env.*
-!.env.example
+# 同样用 **/ 前缀：子目录里的 .env.local（前端可能有）也要排掉。
+**/.env
+**/.env.*
+!**/.env.example
 
 # ---- 测试产物 ----
 **/TestResults/
@@ -44,15 +47,23 @@ ShortDrama.Api/wwwroot/
 coverage*.xml
 
 # ---- 文档与杂项 ----
-*.md
+# 同样要 **/ 前缀：否则 docs/ 下的 .md 会全部进上下文（体积白白变大）
+**/*.md
 !README.md
 LICENSE
-*.log
+**/*.log
 logs/
+
+# 备份目录：SQLite 备份被上面的 *.db 覆盖，但 PostgreSQL 的 .sql 转储不会 ——
+# 一份几百 MB 的库转储进构建上下文毫无意义（docs/RUNBOOK.md 第七节让用户把备份放这里）
+backup/
 
 # ---- 与镜像无关的开发脚本 ----
 # scripts/ 只在开发机上跑（例如生成 Clash 规则），构建用不到
 scripts/
+
+# 多角色交付流水线的过程产物（QA 报告、事实基线等，仅存在于开发机）
+.dsh-team/
 
 # ---- Docker 自身 ----
 Dockerfile

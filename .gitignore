@@ -21,6 +21,10 @@ logs/
 npm-debug.log*
 yarn-error.log*
 
+## 数据库备份（docs/RUNBOOK.md 第七节让用户把备份放这里）
+## *.db 已被上面覆盖，但 PostgreSQL 的 .sql 转储不会 —— 几百 MB 的库转储不该进仓库
+backup/
+
 ## 环境变量
 .env
 .env.local
