@@ -13,6 +13,7 @@
 > **文档类引用改为章节引用（本次，因 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 在核对期间被改动）**：这三个文档会经常改，行号必然漂移；因此本文件里**所有指向这三个文档的引用**（实测：`docs/DOCKER.md` 58 处、`README.md` 7 处、`docs/RUNBOOK.md` 2 处显式引用，另有若干承接上文的裸 `:行号`）一律改成**章节 / 标题引用**，形如 `docs/DOCKER.md §六「数据卷、备份与恢复」`、`docs/RUNBOOK.md §5.5「从旧脚本时代迁移」→「步骤 M6：清理残留」`、`README.md §一「快速开始」→「4. 容器化部署（推荐）」`。每一处都**实际打开目标文档、按内容重新定位**后才挂章节，确认该章节确实讲了清单声称的内容。
 > **同一轮保留行号的引用**：**代码与配置文件**（`Dockerfile`、`docker-compose*.yml`、`*.cs`、`*.json`、`docker/entrypoint.sh`）改动少，行号更精确，**继续保留行号**；上一轮刚校准的 `Dockerfile` / `.dockerignore` 引用本轮**一字未动**。
 > **同时刷新（本次）**：F17 表里 `docs/DOCKER.md` 改为实测 **36559B / 863 行**、`.gitattributes` 改为实测 **2022B / 38 行**；`.gitattributes` 的 `*.sh text eol=lf` 行号刷新为 **`:31`**，清单里其余指向 `.gitattributes` 的行号引用同步核对。§4 第 7 项那条「待专门刷新一轮」的待办已由本轮完成。
+> **再次刷新（本次，因 `docker-compose.postgres.yml` 删除了 `redis` 服务）**：该覆盖文件**删掉了 `redis` 服务与 `shortdrama-redisdata` 卷** —— 应用用的是进程内内存缓存（`AddMemoryCache`），**根本不连 Redis**；那个容器是纯累赘，还会让部署机上的 `redis` 这个名字被反复申请、撞上别的项目留下的同名容器（`Conflict. The container name "/redis" is already in use`）。文件因此从 **1785B / 57 行缩到 2004B / 49 行**（净减 8 行：删掉 `redis` 服务与 `shortdrama-redisdata` 两行声明，文件头新增一段 ⚠️ 说明注释；`git diff --numstat` 实测 **+7 / -15**）。本次刷新的节：**F13**（服务从 3 个减到 2 个，该文件全部行号与字面值重测）、**F17**（该文件的字节 / 行数，并新增「本次变化」一条）、**§2-3**（卷表里已没有 `shortdrama-redisdata` 这一行）、**§2-10**（问题已修复，改标「✅ 已修复」）、**§2-12**、**§3 速查表**、**§4 第 5 项**、**§5 的 C2 表**里指向该文件的行号与条数。同时**逐条核查了 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述**（结论与实测命令见 §2-10）：**三者都没有与事实不符的 redis 表述**；核查中顺带发现的**非 redis** 行号漂移记入新增的 **§2-17**，本次**只报告、不改这三个文件**。
 
 ---
 
@@ -170,17 +171,16 @@
 
 ### F13 PostgreSQL 覆盖文件包含哪几个服务
 
-文件 `docker-compose.postgres.yml`（**实测 57 行**）。**3 个服务**：
+文件 `docker-compose.postgres.yml`（**本次实测 2004 字节 / 49 行**，CR=0、无 BOM）。**2 个服务**（`redis` 服务与 `shortdrama-redisdata` 卷已于本次删除，见 §2-10）：
 
 | 服务 | 定义位置 | 关键值 |
 |---|---|---|
-| `app` | `:11` | 覆盖 `Database__Provider: PostgreSql`（`:13`）、`ConnectionStrings__Default: "Host=postgres;Port=5432;Database=shortdrama;Username=shortdrama;Password=${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:14`）、`depends_on: postgres: condition: service_healthy`（`:15-17`） |
-| `postgres` | `:19` | `image: postgres:16-alpine`（`:20`）、`POSTGRES_DB/USER: shortdrama`（`:23-24`）、`POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:25`）、`TZ: Asia/Shanghai`（`:26`）、`POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"`（`:28`）、卷 `shortdrama-pgdata:/var/lib/postgresql/data`（`:30`）、健康检查 `pg_isready -U shortdrama -d shortdrama`（`:32`，10s/5s/10/20s 见 `:33-36`）、**端口默认注释掉**（`:37-39`） |
-| `redis` | `:41` | `image: redis:7-alpine`（`:42`）、`command: ["redis-server", "--appendonly", "yes"]`（`:44`）、卷 `shortdrama-redisdata:/data`（`:46`）、健康检查 `redis-cli ping`（`:48`，10s/3s/5 见 `:49-51`） |
+| `app` | `:17` | 覆盖 `Database__Provider: PostgreSql`（`:19`）、`ConnectionStrings__Default: "Host=postgres;Port=5432;Database=shortdrama;Username=shortdrama;Password=${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:20`）、`depends_on: postgres: condition: service_healthy`（`:21-23`） |
+| `postgres` | `:25` | `image: postgres:16-alpine`（`:26`）、`restart: unless-stopped`（`:27`）、`POSTGRES_DB` / `POSTGRES_USER: shortdrama`（`:29-30`）、`POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:31`）、`TZ: Asia/Shanghai`（`:32`）、`POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"`（`:34`）、卷 `shortdrama-pgdata:/var/lib/postgresql/data`（`:36`）、健康检查 `pg_isready -U shortdrama -d shortdrama`（`:38`，10s/5s/10/20s 见 `:39-42`）、**端口默认注释掉**（`:43-45`，其中 `:43` 是说明注释、`:44` 是 `# ports:`、`:45` 是 `#   - "5432:5432"`） |
 
-- 覆盖文件自身的 `volumes:` 段：`:53-57` → `shortdrama-pgdata`（`:54`）、`shortdrama-redisdata`（`:56`），都 `driver: local`
+- 覆盖文件自身的 `volumes:` 段：`:47-49` → **只剩 `shortdrama-pgdata`**（`:48`）、`driver: local`（`:49`）。**`shortdrama-redisdata` 已随 `redis` 服务一起删除**（实测该文件内 `redisdata` 命中 **0 行**）。
 - 调用方式（`docker-compose.postgres.yml:4`、`docs/DOCKER.md` §五「数据库：SQLite / PostgreSQL」→「PostgreSQL（可选）」）：`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d`
-- ⚠️ **`redis` 起来了但应用不用它**：覆盖段只改了数据库 Provider 与连接串，**没有给 `app` 传任何 Redis 连接配置**；全仓库 `*.cs` 搜 `Redis` 只命中一句注释 —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`。手册写「PostgreSQL 模式会启用 Redis 缓存」是错的。
+- ✅ **应用不连 Redis（这条事实结论仍然成立）**：覆盖段只改了数据库 Provider 与连接串，**没有给 `app` 传任何 Redis 连接配置**；全仓库 `*.cs` 搜 `Redis` 只命中一句注释 —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`，紧接着 `:42` → `            services.AddMemoryCache();`。**应用用的是进程内内存缓存**。手册写「PostgreSQL 模式会启用 Redis 缓存」是错的；现在连「会额外拉起一个没人连的 `redis` 容器」这个坑也不存在了。
 
 ### F14 compose 里其它硬编码（不在 `.env`，改要动 compose）
 
@@ -222,7 +222,7 @@
 |---|---|---|---|---|
 | `.env.example` | 2152 | 无 BOM | 0 | 44 |
 | `docker-compose.yml` | 3468 | 无 BOM | 0 | 89 |
-| `docker-compose.postgres.yml` | 1785 | 无 BOM | 0 | 57 |
+| `docker-compose.postgres.yml` | 2004 | 无 BOM | 0 | 49 |
 | `Dockerfile` | 8164 | 无 BOM | 0 | 156 |
 | `docker/entrypoint.sh` | 1441 | 无 BOM | 0 | 35 |
 | `.dockerignore` | 1999 | 无 BOM | 0 | 71 |
@@ -232,8 +232,13 @@
 | `.gitattributes` | 2022 | 无 BOM | 0 | 38 |
 
 - **测量方式（`字节` 列必须这样量）**：`[System.IO.File]::ReadAllBytes('C:\...\绝对路径').Length` —— **必须传绝对路径**。.NET 的「当前目录」与 PowerShell 的 `$PWD` 不一定是同一个，传相对路径会读到别处或直接抛异常。行数与 `CRLF/LF` 用 `Get-Content <绝对路径> -Encoding UTF8` 计数、逐字节统计 `13` / `10` 的出现次数。
-- 本轮实测（一次性复测 10 个文件，`ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致）：`.env.example` 2152B/44、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` 1785B/57、`Dockerfile` **8164B/156**、`docker/entrypoint.sh` 1441B/35、`.dockerignore` **1999B/71**、`README.md` 48703B/999、`docs/DOCKER.md` **36559B/863**、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` **2022B/38**（**CR 全 0、BOM 全 False**）。
+- 本轮实测（一次性复测 10 个文件，`ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致）：`.env.example` 2152B/44、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` **2004B/49**（本次删 `redis` 服务后重测，上一版是 1785B/57）、`Dockerfile` **8164B/156**、`docker/entrypoint.sh` 1441B/35、`.dockerignore` **1999B/71**、`README.md` 48703B/999、`docs/DOCKER.md` **36559B/863**、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` **2022B/38**（**CR 全 0、BOM 全 False**）。
 - **本次（`Dockerfile` / `.dockerignore` 改动后）的变化**：`Dockerfile` **6670B / 137 行 → 8164B / 156 行**、`.dockerignore` **1249B / 60 行 → 1999B / 71 行**（中间又修过一次"只匹配根目录"的模式，见 F23）。这两个文件的字节数用 `ReadAllBytes` 与 `Get-Item -LiteralPath <绝对路径>.Length` **两种方式交叉验证**，结果一致（**8164 / 1999**）；`CR` 逐字节计数为 **0**，BOM 为 **False**。
+- **本次（`docker-compose.postgres.yml` 删除 `redis` 服务后）的变化**：该文件 **1785B / 57 行 → 2004B / 49 行**（净减 8 行；`git diff --numstat` 实测 **+7 / -15**。删除的 15 行 = `redis` 服务块 **12 行**（含其后一个空行）+ `volumes:` 里的 `shortdrama-redisdata` **2 行** + 文件头那句「额外拉起 postgres 与 redis 两个容器」**1 行**；新增的 7 行 = 改写后的文件头那句 **1 行** + 新增的 **6 行** ⚠️ 说明注释）。**测量方式与证据（本次实跑）**：
+  - `[System.IO.File]::ReadAllBytes('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml').Length` → **2004**；`(Get-Item -LiteralPath <同一绝对路径>).Length` → **2004**（两种方式交叉验证一致）；
+  - 逐字节统计该文件：`LF(0x0A)` = **49**、`CR(0x0D)` = **0**、BOM = **False**；
+  - `SHA256` = `05C5EDFEF9EE41FA8EE56CDB116F33E72E6CEB58BE87636578D6868A1D4CF8D7`，`LastWriteTime` = **2026-10-11 14:23:20**；
+  - 旧值交叉验证：`git cat-file -s HEAD:docker-compose.postgres.yml` → **1785**（字节），`git show HEAD:docker-compose.postgres.yml` 重建后为 **57 行** —— 与上一版记的 1785B/57 吻合，说明变化确实来自本次删 `redis`。
 - **本轮（「文档类引用改为章节引用」那一轮）复测并刷新了这两行**：
   - `docs/DOCKER.md` 实测 **36559B / 863 行**（上一版刻意留旧，写的是 32344B / 776）—— 该文件在核对期间被改过**三次**（先 +67 行到 843 行，核对期间又 +20 行到 863 行：新增「三处端口必须同时存在且一致」表、只读根模式的顶层 `volumes:` 声明、把「Uid: 1654」改成「非 0 的数字」等）。**测量基准**：`LastWriteTime` = 2026-10-11 13:51:11，SHA256 = `95749E63F086C70045AE73B05A07DC188266E6F3EEF84475F12B2245B9C44FEB`；
   - `.gitattributes` 实测 **2022B / 38 行**（上一版刻意留旧，写的是 1433B / 27）—— 该文件多了 11 行（新增 `* text=auto eol=lf` 兜底与几条显式声明）。
@@ -427,7 +432,8 @@
 
 > 这些是**手册最可能照抄错**的地方。
 > **注意（本轮刷新）**：**2-1、2-2、2-3、2-4、2-9、2-11、2-14、2-16 记录的问题已修复**，本轮已逐条实测确认并改标为「✅ 已修复」，并保留原问题原文以便追溯（其中 2-9 是**本轮那批未提交改动**顺带修掉的，其余 7 条由提交 `687e7d3` 修掉）。
-> 其余条目（2-5 ~ 2-8、2-10、2-12、2-13、2-15）本轮复测仍然成立，属事实性偏差或未实测项。
+> 其余条目（2-5 ~ 2-8、2-12、2-13、2-15）本轮复测仍然成立，属事实性偏差或未实测项。
+> **本次新增**：**2-10 也已修复** —— `docker-compose.postgres.yml` 已删掉 `redis` 服务与 `shortdrama-redisdata` 卷（见 F13），该条已改标「✅ 已修复」；同时新增 **2-17**，记录核查 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 时顺带发现的**非 redis** 行号漂移（`docs/RUNBOOK.md` 里指向该覆盖文件的两处行号已过期），**本次只报告、不改这三个文件**。
 
 ### 2-1 ✅ **已修复** —— 原「JWT_KEY 首次运行脚本会自动替换为随机值」的失效说法
 
@@ -450,8 +456,8 @@
 
 - **原问题**：`docs/DOCKER.md` §六「数据卷、备份与恢复」→「数据卷」的卷表「何时创建」列曾写 `postgres`（**原写法为两个连字符**，见 F20），那是已删脚本的参数。
 - **证据（已删脚本）**：`git show 09cdd7b^:deploy` + `.sh` 里有 `--postgres) USE_POSTGRES=1; shift ;;` 这一行；该文件已不存在。
-- **当前实测（已修复）**：同一卷表的「何时创建」列现为「带 `-f docker-compose.postgres.yml` 时」（`shortdrama-pgdata` 与 `shortdrama-redisdata` 两行同值），已不含已删参数。
-- **手册口径**：这两个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:53-57`）。
+- **当前实测（已修复）**：同一卷表的「何时创建」列现为「带 `-f docker-compose.postgres.yml` 时」，已不含已删参数。**该卷表现只剩 `shortdrama-pgdata` 一行** —— `shortdrama-redisdata` 已随 `redis` 服务一起删除（本次实测：`docs/DOCKER.md` 全文搜 `redisdata` → **0 命中**，见 §2-10）。
+- **手册口径**：这个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:47-49`）。
 
 ### 2-4 ✅ **已修复** —— 原「Windows 用 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate` 确认任务在」
 
@@ -496,11 +502,20 @@
 - **仍然成立的部分**：`logs/` 目录在仓库里确实不存在（它是运行期产物，被 `.gitignore:19` 忽略）；`docs/DOCKER.md` §「附：文件说明」表仍把 `logs/auto-update.log` 列进去（表内已注明「按第三节配了 cron 后生成」，属生成物而非仓库文件）。
 - **手册口径**：cron 行照抄 `docs/DOCKER.md` §「升级（复制即用）」的「定时自动升级」代码块那条（已带括号与绝对路径），并在前面补 `mkdir -p logs`。
 
-### 2-10 ⚠️ PostgreSQL 模式的 `redis` 容器起了但应用不连它
+### 2-10 ✅ **已修复** —— 原「PostgreSQL 模式的 `redis` 容器起了但应用不连它」
 
-- 证据：`docker-compose.postgres.yml:41-51` 定义了 `redis` 服务；但该覆盖文件对 `app` 只改了 `Database__Provider`（`:13`）与 `ConnectionStrings__Default`（`:14`），**没有任何 Redis 配置**；全仓库 `*.cs` 搜 `Redis` 仅命中 `ShortDrama.Infrastructure/DependencyInjection.cs:41` 的一句注释「// 内存缓存（生产可替换为 Redis）」。
-- 文档措辞：`docs/DOCKER.md` §五「数据库：SQLite / PostgreSQL」→「PostgreSQL（可选）」的「会额外拉起 `postgres` 和 `redis` 两个容器」（陈述正确）、`docs/DOCKER.md` §「附：文件说明」表里的「PostgreSQL + Redis 覆盖配置」。
-- **正确表述**：`redis` 会被拉起，但当前代码**不使用**它（缓存仍是进程内内存缓存）；不要写成「PostgreSQL 模式启用了 Redis 缓存」。
+- **原问题**（上一版清单记录的事实）：`docker-compose.postgres.yml` 曾定义一个 `redis` 服务（`image: redis:7-alpine`、`command: ["redis-server", "--appendonly", "yes"]`、卷 `shortdrama-redisdata:/data`、健康检查 `redis-cli ping`），但该覆盖文件对 `app` 只改了 `Database__Provider` 与 `ConnectionStrings__Default`，**没有任何 Redis 配置** —— 于是那个容器**起来了却没人连**：白白多一个故障面，还会让部署机上的 `redis` 这个名字被反复申请、撞上别的项目留下的同名容器。
+- **当前实测（已修复）**：该覆盖文件现在**只有 `app` 与 `postgres` 两个服务**（`docker-compose.postgres.yml:17`、`:25`），顶层 `volumes:` 段**只剩 `shortdrama-pgdata`**（`:47-49`）。实测命令与输出：
+  - `[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml', [Text.Encoding]::UTF8).Count` → **49**（文件 **2004 字节**、`CR=0`、无 BOM）；
+  - 同一份内容用 `^\s*redis:` 匹配 → **0 行**；用 `redisdata` 匹配 → **0 行**；
+  - `git diff --numstat -- docker-compose.postgres.yml` → **`7  15`**（新增 7 行、删除 15 行，净减 8 行）；删除的 15 行 = `redis` 服务块 **12 行** + `volumes:` 里的 `shortdrama-redisdata` **2 行** + 文件头那句「额外拉起 postgres 与 redis 两个容器」**1 行**；
+  - 文件头 `:9-13` 现在是一段 ⚠️ 注释，原文写「这里**不提供 Redis**。应用现在用的是进程内内存缓存（`AddMemoryCache`），根本不连接 Redis —— 起一个没人连的容器只会多一个故障面：它曾经让部署机上的 `redis` 这个名字被反复申请，撞上别的项目留下的同名容器（报错 `Conflict. The container name "/redis" is already in use`，而那个容器压根不是本项目的）。将来真要上分布式缓存再加，届时也**不要写 `container_name`**，让 Compose 自己加项目前缀。」；`:6` 也从「额外拉起 postgres 与 redis 两个容器」改成「额外拉起一个 postgres 容器」。
+- **不变的事实结论（仍然成立）**：应用用的是**进程内内存缓存**，**不连 Redis** —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`、`:42` → `            services.AddMemoryCache();`。手册**不要**写「PostgreSQL 模式启用了 Redis 缓存」，也**不要**再让用户去找 `shortdrama-redisdata` 卷或 `redis` 容器。
+- **`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述核查（本次逐条实测，只报告不改）**：
+  - `docs/DOCKER.md`：§五「数据库：SQLite / PostgreSQL」→「PostgreSQL（可选）」现写「会额外拉起 `postgres` 容器：」（**已去掉 redis**）；§「附：文件说明」表现写「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（**不含 Redis**）」；§六「数据卷、备份与恢复」→「数据卷」的卷表**只剩 `shortdrama-pgdata` 一行**。实测：该文件搜 `redis|Redis|REDIS` → 仅 §「附：文件说明」表里那一行（即「不含 Redis」），搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
+  - `docs/RUNBOOK.md`：§7.4「PostgreSQL 模式（可选）」现写「启用（会额外拉起 `postgres` 容器）：」、成功判据现写「`ps` 里 `app`、`postgres` 两个服务都是 `Up`」。实测：该文件搜 `redis|Redis|REDIS` → **0 命中**，搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
+  - `README.md`：只有两处提到 Redis，都是**技术栈 / 路线图**口径 —— §二「技术栈」表的缓存行 → `| 缓存 | IMemoryCache（可换 Redis） | - |`（陈述的是**当前用 IMemoryCache**，与事实一致）、§十三「开发路线图」表里 `| Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |`（Redis 属**待做**项）。实测：该文件搜 `redisdata` / `两个容器` → **0 命中**。**未发现与事实不符的 redis 表述。**
+  - ⚠️ **顺带发现（不是 redis 表述问题）**：`docs/RUNBOOK.md` 里两处指向 `docker-compose.postgres.yml` 的**行号已因本次删除而过期** —— 记入 **§2-17**，本次**不改该文件**。
 
 ### 2-11 ✅ **已修复** —— 原「`grep SHORTDRAMA_IMAGE .env` 会命中注释行」
 
@@ -511,7 +526,7 @@
 ### 2-12 ⚠️ README 说支持 MySQL，compose 只提供 SQLite / PostgreSQL 两条路
 
 - 证据：`README.md` §一「快速开始」→「环境要求」表 → `| 数据库 | SQLite（默认，零配置） / PostgreSQL 16+ / MySQL 8+ |`；`ShortDrama.Api/appsettings.json:119` → `"_MySql": "Server=localhost;Database=shortdrama;User=root;Password=xxx"`（是**注释掉的示例键**）
-- 证据（compose）：`docker-compose.yml:36` 只有 `Database__Provider: Sqlite`；`docker-compose.postgres.yml:13` 只有 `PostgreSql`。没有 MySQL 覆盖文件。
+- 证据（compose）：`docker-compose.yml:36` 只有 `Database__Provider: Sqlite`；`docker-compose.postgres.yml:19` 只有 `PostgreSql`。没有 MySQL 覆盖文件。
 - **正确表述**：容器部署手册只讲 SQLite 与 PostgreSQL；MySQL 属于「框架代码支持、仓库未提供部署编排」。
 
 ### 2-13 ⚠️ 「健康检查通过」≠「内容就绪」
@@ -546,6 +561,15 @@
 - **不变的事实**：`*.sh text eol=lf`（**本轮实测在 `.gitattributes:31`**；上一版记的 `:22`、更早的 `:21` 都已过期）本身仍然正确且必要（`docker/entrypoint.sh` 靠它）。
 - **结论**：**已修复，无需再提给仓库维护者。** F19 声明的模式本来就能抓到这两行（现仍在 A 表里，但判定已从「真实残留」改为「✅ 允许 / ✅ 已修复」）。
 
+### 2-17 ⚠️ `docs/RUNBOOK.md` 里指向 `docker-compose.postgres.yml` 的两处行号已过期（**非 redis 表述问题**）
+
+- **成因**：`docker-compose.postgres.yml` 本次删掉了 `redis` 服务与 `shortdrama-redisdata` 卷（**1785B / 57 行 → 2004B / 49 行**，见 F13 / F17），该文件后半段的行号整体上移。
+- **实测（只读核查，本次未改这三个文档）**：
+  - `docs/RUNBOOK.md` §7.1「数据卷与「卷名前缀」（备份前必须看懂）」的卷表（**实测该行在 `:1099`**）→ 写「`docker-compose.postgres.yml` 的 `:30`、`:54`」（**这两个是过期值**）；实际 `shortdrama-pgdata:/var/lib/postgresql/data` 在 **`:36`**，顶层 `volumes:` 里的 `shortdrama-pgdata:` 声明在 **`:48`**（`driver: local` 在 `:49`，整段是 `:47-49`）。**过期的 `:30` 与 `:54` 现在分别指向 `POSTGRES_USER: shortdrama` 与 `#   - "5432:5432"`**，均不是卷声明。
+  - `docs/RUNBOOK.md` §7.4「PostgreSQL 模式（可选）」的提示块（**实测该行在 `:1197`**）→ 「PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml` 的 `:37-39`，**过期值**）」；实际注释块在 **`:43-45`**（`:43` 是说明注释「默认不对外暴露端口；需要直连调试时取消注释」、`:44` 是 `# ports:`、`:45` 是 `#   - "5432:5432"`）。
+  - 复现命令：`[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml', [Text.Encoding]::UTF8)` 逐行回读上述 6 个行号。
+- **建议**：把这两处改成**内容 / 章节引用**（例如「`docker-compose.postgres.yml` 里 `shortdrama-pgdata` 的卷声明」「`docker-compose.postgres.yml` 里注释掉的 `ports:`」），或按实测刷新为 `:36` / `:48` 与 `:44-45`。**本次任务范围只允许改 `docs/DEPLOY-FACTS.md`，故只报告、不修改 `docs/RUNBOOK.md`**（已记入本次交付的 open questions）。
+
 ---
 
 ## 3. 手册可直接引用的事实速查（一页版）
@@ -564,7 +588,7 @@
 | 默认口令 | `遵纪守法世界和平`（`docker-compose.yml:42`） |
 | 口令门开关 | `ACCESS_GATE_ENABLED` → `AccessGate__Enabled`（`docker-compose.yml:41`） |
 | 种子服务地址 | `http://host.docker.internal:8787`（`docker-compose.yml:58`）；开关 `TORRENT_ENABLED`（`:59`） |
-| PG 覆盖文件 | `app` / `postgres` / `redis` 三个服务（`docker-compose.postgres.yml:11,19,41`） |
+| PG 覆盖文件 | `app` / `postgres` **两个**服务（`docker-compose.postgres.yml:17,25`；`redis` 服务已删除，见 F13 / §2-10） |
 | 容器用户 | 镜像内置 `app`；容器以 root 启动、入口脚本 `gosu` 降权（`entrypoint.sh:17,20,27`） |
 | 入口脚本三件事 | chown `/data`（`entrypoint.sh:22`）→ `gosu app` 降权（`:27`）→ `exec "$@"`（`:35`） |
 | 镜像模式镜像 | `ghcr.io/xcool-603/muse-video:latest`（`docker-publish.yml:40,56`） |
@@ -580,7 +604,7 @@
 2. **`app` 用户实际 UID/GID**：`docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'`。
 3. **首次构建耗时与磁盘占用**：文档写 3-5 分钟 / 3-5 GB（`docs/DOCKER.md` §一「30 秒上手」→「2. 一条命令」、§九「故障排查」表内「构建很慢或卡住」那一行），仓库内无证据，属经验值。
 4. **`curl` 是否真在运行时镜像里**：`Dockerfile:85` 装了（构建期自检第 5 条 `Dockerfile:131` 也会在构建时确认它存在），但未实测镜像。健康检查完全依赖它。
-5. **PostgreSQL 覆盖模式下 `app` 是否真的能连上 `postgres`**：`depends_on: condition: service_healthy` 已配（`docker-compose.postgres.yml:15-17`），但需实测首次建库与 EF 迁移行为。
+5. **PostgreSQL 覆盖模式下 `app` 是否真的能连上 `postgres`**：`depends_on: condition: service_healthy` 已配（`docker-compose.postgres.yml:21-23`），但需实测首次建库与 EF 迁移行为。
 6. ~~**`.gitattributes:11`/`:18` 的过期注释是否会被修**~~ → **已修复**：提交 `687e7d3` 已把注释改写成「曾经还有 … 已删除」口径，`.env` 的 LF 理由也改挂到 compose 上；当前位置是 `.gitattributes:12-13` 与 `:19`（见 §2-16）。**不再是待确认项。**
 7. ✅ **已完成（本轮）：`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的引用已改成章节引用，`.gitattributes` 的行号与 F17 的字节数已刷新。** 上一版这里是一条「待专门刷新一轮」的待办，本轮已执行：
    - `docs/DOCKER.md` 实测 **36559B / 863 行**（核对期间被改过三次）—— F17 表已改；本文件里 **58 处 `docs/DOCKER.md:<行号>`** 引用已逐条**打开目标文档、按内容重新定位**，并改成**章节引用**（形如 `docs/DOCKER.md §六「数据卷、备份与恢复」`）；
@@ -630,7 +654,7 @@ Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
 | F10 | 默认访问口令 | ✅ |
 | F11 | 口令门开关变量 | ✅ |
 | F12 | 种子服务默认地址与启用变量 | ✅ |
-| F13 | PostgreSQL 覆盖文件的 3 个服务 | ✅ |
+| F13 | PostgreSQL 覆盖文件的 2 个服务 | ✅ |
 | F14 | compose 其它硬编码 | ✅ |
 | F15 | 默认采集源数量 | ✅ |
 | F16 | 镜像模式镜像名与平台 | ✅ |
@@ -642,7 +666,7 @@ Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
 | F22 | 构建期自检的六条（逐条 文件:行 + 命令） | ✅ |
 | F23 | `.dockerignore` 排除清单（含本轮新增两条） | ✅ |
 
-**合计 23 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 16 条「文档易错点」（其中 2-1 ~ 2-4、2-11、2-14、2-16 由提交 `687e7d3` 修复、2-9 由本轮那批未提交改动修复，均已改标为「✅ 已修复」）与 §3 速查表。
+**合计 23 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 **17 条**「文档易错点」（其中 2-1 ~ 2-4、2-11、2-14、2-16 由提交 `687e7d3` 修复、2-9 由那一批未提交改动修复、**2-10 由本次删除 `redis` 服务修复**，均已改标为「✅ 已修复」；2-17 是本次核查顺带发现的非 redis 行号漂移，**只报告不改**）与 §3 速查表。
 
 > **本文件本轮（定向返工）改动范围**：文档头的核对快照说明、§0 残留引用扫描口径、F17 编码与行尾表（新增「字节」列并刷新过期值）、F18 第 1 条的复现命令、F19 全节（计数与结论按实测重写）、§2 的 2-1 / 2-2 / 2-3 / 2-4 / 2-9 / 2-11 / 2-14 / 2-16、§4 第 6 项与第 3 项的行号、§5 的 C3 说明与 C2 表里 F19 那一行。
 > **另外**：因为 `README.md`（+5 行）与 `docs/DOCKER.md`（+9 行）在本轮核对期间被那批未提交的 cron 日志修复改过，本文件里**所有指向这两个文件的行号引用**都按新行号整体刷新过一遍（`README.md` 后半段 +5、`docs/DOCKER.md` 后半段 +9）。
@@ -664,3 +688,8 @@ Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
 > 成因：`.dockerignore` 在二次修改（`*.db`→`**/*.db` 等「只匹配根目录」修复）后，只同步了部分引用，漏改了上面 4 处。
 > **本轮另已用脚本把本文件里所有 `.dockerignore:NN` 与 F23 的裸行号引用逐条回读核对，全部指向正确内容。**
 > ⚠️ **测量时刻提醒**：`docs/DOCKER.md` 在本轮核对期间**又被改过一次**（核对开始时 843 行 → 结束时 863 行：新增「三处端口必须同时存在且一致」表、只读根模式的顶层 `volumes:` 声明、把「Uid: 1654」改成「非 0 的数字」等）。F17 给的是**最后一次复测**的值；该文件之后若再改，F17 的字节 / 行数会再次过期 —— 但**本文件对它的引用已经是章节引用，不受行号漂移影响**。
+
+> **本次刷新（因 `docker-compose.postgres.yml` 删除 `redis` 服务）改动范围**：文档头核对快照、**F13**（服务 3 个 → **2 个**；`app` / `postgres` 与顶层 `volumes:` 段的全部行号与字面值按 49 行版本重测，并补上 `restart: unless-stopped`、文件头 `:9-13` 的 ⚠️ 说明注释、`shortdrama-redisdata` 已删除的实测）、**F17**（`docker-compose.postgres.yml` 1785B/57 → **2004B/49**，并新增一条「本次变化」，含 `ReadAllBytes` / `Get-Item .Length` 交叉验证、`CR=0`、`SHA256` 与 `LastWriteTime`）、**§2-3**（卷表只剩 `shortdrama-pgdata` 一行；该覆盖文件顶层 `volumes:` 段 `:53-57` → `:47-49`）、**§2-10**（改标「✅ 已修复」并重写为现状 + 三个文档的 redis 表述核查结论）、**新增 §2-17**、**§2-12**（`:13` → `:19`）、**§3 速查表**（PG 覆盖文件那一行）、**§4 第 5 项**（`:15-17` → `:21-23`）、**§5 的 C2 表**（F13 条数）与合计条的「§2 条数 16 → 17」。
+> **未改动任何指向 `Dockerfile` / `.dockerignore` 的引用** —— 上一轮刚校准过，本次**一字未动**（`Dockerfile:` / `.dockerignore:` 的行号引用，以及 F3、F4、F5、F7、F8、F18 第 5 条、F21、F22、F23 的数值均保持原样）。
+> **本角色本次只写了 `docs/DEPLOY-FACTS.md` 这一个文件**；`docker-compose.postgres.yml`、`docs/DOCKER.md`、`docs/RUNBOOK.md`、`README.md` 是**别人**改的，本角色只读实测、未写入（用 `git status --porcelain -uall` 核过）。行尾保持 **LF**（改完后逐字节复测本文件 `CR=0`），未引入 §0.1 的禁用串。
+> **本次对三个文档的核查结论**：`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 里**没有**与事实不符的 redis 表述（实测命令与逐条结论见 §2-10）；唯一发现的是 `docs/RUNBOOK.md` 两处**非 redis** 的行号漂移（见 §2-17），已记入本次交付的 open questions，**未改这三个文件**。

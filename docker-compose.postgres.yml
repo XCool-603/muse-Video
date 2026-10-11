@@ -3,8 +3,14 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 #
-# 会把 app 切到 PostgreSQL，并额外拉起 postgres 与 redis 两个容器。
+# 会把 app 切到 PostgreSQL，并额外拉起一个 postgres 容器。
 # 适合多实例部署或数据量较大的场景；个人自用直接用默认的 SQLite 即可。
+#
+# ⚠️ 这里**不提供 Redis**。应用现在用的是进程内内存缓存（AddMemoryCache），
+#    根本不连接 Redis —— 起一个没人连的容器只会多一个故障面：
+#    它曾经让部署机上的 `redis` 这个名字被反复申请，撞上别的项目留下的同名容器
+#    （报错 `Conflict. The container name "/redis" is already in use`，而那个容器压根不是本项目的）。
+#    将来真要上分布式缓存再加，届时也**不要写 `container_name`**，让 Compose 自己加项目前缀。
 # ============================================================================
 
 services:
@@ -38,20 +44,6 @@ services:
     # ports:
     #   - "5432:5432"
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - shortdrama-redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
 volumes:
   shortdrama-pgdata:
-    driver: local
-  shortdrama-redisdata:
     driver: local

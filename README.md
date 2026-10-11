@@ -193,7 +193,7 @@ docker compose down -v         # 停止并清空数据
 ├── Dockerfile                            # 单镜像多阶段构建（前端 + 后端）
 ├── docker/entrypoint.sh                  # 容器入口：修正数据卷属主后降权运行
 ├── docker-compose.yml                    # 默认：SQLite 单容器
-├── docker-compose.postgres.yml           # 可选：PostgreSQL + Redis
+├── docker-compose.postgres.yml           # 可选：PostgreSQL
 ├── .env.example                          # 部署环境变量模板（含对外端口、口令、种子服务地址）
 ├── scripts/gen-clash-rules.mjs           # 生成「视频 CDN 直连」的 Clash 规则与文档
 ├── docs/RUNBOOK.md                       # 部署与运维手册（按操作顺序，推荐先看）
@@ -786,7 +786,7 @@ GET /api/v1/drama/search?q=逆袭
 ```
 前端请求 /play/{id}/{ep}
    │
-   ▼ 鉴权 + 权限校验 + Redis/内存缓存查询
+   ▼ 鉴权 + 权限校验 + 内存缓存查询
 后端返回 /api/v1/play/stream/{id}/{ep}.m3u8（代理地址）+ 续播位置
    │
    ▼ hls.js 拉取代理地址

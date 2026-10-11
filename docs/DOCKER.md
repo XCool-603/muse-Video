@@ -488,7 +488,7 @@ openssl rand -hex 48
 
 ### PostgreSQL（可选）
 
-会额外拉起 `postgres` 和 `redis` 两个容器：
+会额外拉起 `postgres` 容器：
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
@@ -504,7 +504,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 ```
 
-- 数据卷：`shortdrama-pgdata`（数据库）、`shortdrama-redisdata`（Redis AOF）
+- 数据卷：`shortdrama-pgdata`（数据库）
 - `postgres` 默认**不对外暴露端口**；需要直连调试时，取消 `docker-compose.postgres.yml` 里 `ports` 的注释
 - 切换数据库不会自动迁移已有数据，SQLite 里的旧数据需要另行导出导入
 
@@ -518,7 +518,6 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 |----|------|---------|
 | `shortdrama-data` | SQLite 库文件、运行时数据 | 默认模式 |
 | `shortdrama-pgdata` | PostgreSQL 数据目录 | 带 `-f docker-compose.postgres.yml` 时 |
-| `shortdrama-redisdata` | Redis AOF | 带 `-f docker-compose.postgres.yml` 时 |
 
 ### 容器以非 root 运行（镜像内置的 app 用户）
 
@@ -855,7 +854,7 @@ docker volume rm <上面列出的卷名>
 | 文件 | 作用 |
 |------|------|
 | `docker-compose.yml` | 主配置（SQLite，单容器） |
-| `docker-compose.postgres.yml` | PostgreSQL + Redis 覆盖配置 |
+| `docker-compose.postgres.yml` | PostgreSQL 覆盖配置（不含 Redis） |
 | `Dockerfile` | 多阶段构建：前端 → 后端 → 运行时，单镜像 |
 | `docker/entrypoint.sh` | 容器入口：修正数据卷属主后降权运行 |
 | `.env.example` | 环境变量模板 |

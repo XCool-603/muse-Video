@@ -966,7 +966,7 @@ grep -rn -e deploy -e shortdrama /etc/cron.d/ /etc/crontab /etc/cron.daily/ /etc
 | 移除定时自动更新 | `crontab -l \| grep -v -e 'shortdrama-auto-update' -e 'deploy' \| crontab -` / `Unregister-ScheduledTask -TaskName ShortDramaAutoUpdate -Confirm:$false` | 宿主 shell（任意目录） | `crontab -l` 不再有该行 / 任务查询无输出 |
 | 改对外端口 | 编辑 `.env` 的 `APP_PORT` 后 `docker compose up -d` | 宿主 shell（项目目录） | `docker compose config \| grep -A3 'ports:'` 显示新端口 |
 | 强制不用缓存重建 | `docker compose build --no-cache && docker compose up -d` | 宿主 shell（项目目录） | 构建日志里没有 `CACHED`，容器起来后 healthy |
-| 切到 PostgreSQL | `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` | 宿主 shell（项目目录） | `docker compose ps` 里 `app`、`postgres`、`redis` 都在（见 7.4） |
+| 切到 PostgreSQL | `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` | 宿主 shell（项目目录） | `docker compose ps` 里 `app`、`postgres` 都在（见 7.4） |
 | 停止（保留数据） | `docker compose down` | 宿主 shell（项目目录） | `docker compose ps` 无容器；`docker volume ls \| grep shortdrama` 卷还在 |
 | 停止并清空数据 | `docker compose down -v` | 宿主 shell（项目目录） | 容器与 `shortdrama-data` 卷都没了（**不可恢复**） |
 
@@ -1096,8 +1096,7 @@ sed -i 's/^TORRENT_ENABLED=.*/TORRENT_ENABLED=false/' .env && docker compose up 
 | 卷逻辑名 | 内容 | 何时存在 | 证据 |
 |---|---|---|---|
 | `shortdrama-data` | SQLite 库文件、运行时数据 | 默认模式 | `docker-compose.yml:72`、`:87-89` |
-| `shortdrama-pgdata` | PostgreSQL 数据目录 | 用了 PostgreSQL 覆盖配置 | `docker-compose.postgres.yml:30`、`:54` |
-| `shortdrama-redisdata` | Redis AOF | 用了 PostgreSQL 覆盖配置 | `docker-compose.postgres.yml:46`、`:56` |
+| `shortdrama-pgdata` | PostgreSQL 数据目录 | 用了 PostgreSQL 覆盖配置 | `docker-compose.postgres.yml:36`（卷挂载）、`:48`（顶层 volumes 声明） |
 
 > ⚠️ **Compose 会给卷名加项目前缀**：实际名字形如 `shortdrama_shortdrama-data`（`docs/DOCKER.md` 第六节「数据卷、备份与恢复」）。
 > 写裸名 `-v shortdrama-data:/data` 会**新建一个空卷** —— 你以为在改旧卷，其实什么都没改
@@ -1153,7 +1152,7 @@ docker compose logs --tail=30 app
 
 ### 7.4 PostgreSQL 模式（可选）
 
-启用（会额外拉起 `postgres` 与 `redis` 两个容器）：
+启用（会额外拉起 `postgres` 容器）：
 
 **执行位置**：宿主 shell（项目目录）
 
@@ -1162,7 +1161,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml ps
 ```
 
-**成功判据**：`ps` 里 `app`、`postgres`、`redis` 三个服务都是 `Up`（`postgres`/`redis` 应为 healthy）。
+**成功判据**：`ps` 里 `app`、`postgres` 两个服务都是 `Up`（`postgres` 应为 healthy）。
 
 > ⚠️ **用了 `-f` 之后，以后所有 compose 命令都必须带上同样两个 `-f`**，否则 compose 会按默认的
 > SQLite 配置重建 `app` 容器（配置漂移，表现是「数据库突然空了」）。建议在 `.env` 里固化：
@@ -1195,7 +1194,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
 **成功判据**：命令无报错，退出码 0；`docker compose ... ps` 仍全部 `Up`。
 
 > **切换数据库不会自动迁移数据**：SQLite 里的旧数据需要另行导出导入（`docs/DOCKER.md` 第五节「数据库：SQLite / PostgreSQL」）。
-> PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml:37-39`），需要直连调试时取消 `ports` 的注释。
+> PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml:43-45`），需要直连调试时取消 `ports` 的注释。
 
 ### 7.5 卸载
 
