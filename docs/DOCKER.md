@@ -104,6 +104,14 @@ git fetch && git log --oneline HEAD..@{u}
 
 > Docker Desktop 必须处于运行状态。托盘图标显示「运行中」后再执行下面的命令。
 
+> ⚠️ **目录名必须是 ASCII（纯英文数字）**：Compose 拿**你执行命令时所在的目录名**当项目名，
+> 而项目名只允许 `a-z0-9_-`。目录名里如果**一个 ASCII 字符都没有**（例如 `短剧聚合`），
+> 项目名会变成空串，`docker compose` 会**直接拒绝执行**并报 `project name must not be empty`
+> —— 一个容器都不会起来。所以下面第 2 步的 `clone` 一定要给一个 ASCII 目录名（示例用 `shortdrama`）；
+> 已经克隆到中文目录里了，就 `cd` 进去后用 `docker compose -p shortdrama up -d --build`
+> 或在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释（`.env.example:67`）。规则与四种情况的完整对照见
+> 下面「5. 容器名是怎么来的」。
+
 ### 2. 一条命令
 
 ```bash
@@ -157,7 +165,8 @@ docker compose down -v          # 停止并清空数据
 
 ### 5. 容器名是怎么来的（想按自己的项目名命名就看这里）
 
-**本项目不写死任何容器名** —— 两个 compose 文件里 `container_name` 出现 **0 次**。
+**本项目不写死任何容器名** —— 两个 compose 文件里 `container_name:` **键**出现 **0 次**
+（`docker-compose.yml:23`、`docker-compose.postgres.yml:13` 只是注释里提到这个词）。
 容器名一律由 Compose 按下面的规则生成：
 
 ```
@@ -165,8 +174,46 @@ docker compose down -v          # 停止并清空数据
 卷名   = <项目名>_<卷名>            例如  shortdrama_shortdrama-data
 ```
 
-**项目名默认取「你执行 `docker compose` 时所在的目录名」**（会被规范化成小写、非法字符换成 `-`）。
-所以目录叫 `shortdrama` → 容器就是 `shortdrama-app-1`；目录名是中文就会得到一个中文前缀的容器名。
+**项目名默认取「你执行 `docker compose` 时所在的目录名」**，并做两步规范化：
+**① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_` 这四类字符，其余字符一律「删掉」**
+（**不是**换成 `-`），最后再砍掉开头的 `-` / `_`。
+
+所以目录名直接决定项目名，四种情况的结果**完全不同**：
+
+| 目录名 | 规范化后的项目名 | 容器名 | 结果 |
+|---|---|---|---|
+| `shortdrama` | `shortdrama` | `shortdrama-app-1` | 正常 |
+| `ShortDrama`（含大写） | `shortdrama` | `shortdrama-app-1` | 正常 |
+| `short drama`（含空格） | `shortdrama` | `shortdrama-app-1` | 正常 |
+| `短剧聚合`（纯中文） | **空串** | —— | **`docker compose` 直接拒绝执行** |
+
+- 前三种「跑得起来」，但项目名可能**不是你以为的那个**（`ShortDrama` → `shortdrama`）；
+- 第四种是**纯中文 / 纯非 ASCII 目录名**（`短剧聚合`、`短剧聚合-平台` 之类）：
+  中文字符会被全部删掉，规范化结果是**空串**。Compose 不接受空项目名，**所有
+  `docker compose` 子命令都会立刻失败**，报：
+
+  ```
+  project name must not be empty
+  ```
+
+  **一个容器、一个卷都不会被创建** —— 不存在「中文前缀的容器名」这种东西。
+  ⚠️ **本仓库当前的工作目录就是 `C:\Work\短剧聚合\短剧聚合`（中文）**，所以在这个目录里
+  直接敲 `docker compose up -d` **必然报上面这个错**。必须先做下面两件事之一。
+- 混合目录名（中文 + ASCII，例如 `短剧聚合-drama`）不会报错，但项目名是**ASCII 那一半**
+  （`drama`）—— 换个目录名就可能与别的项目**撞前缀**，不建议。
+
+> **上面这套规则怎么来的**（写文档的机器上没装 docker，所以是**源码级核对**、不是实跑）：
+> 规范化规则逐字来自 Compose 官方实现 `compose-go` 的 `NormalizeProjectName()`
+> ——`regexp.MustCompile("[a-z0-9_-]")` + `strings.ToLower` + `TrimLeft(s, "_-")`，
+> 也就是「**只保留**这四类字符」而不是「把别的换成 `-`」；空项目名的报错来自同一仓库的
+> `loader.go`（`errors.New("project name must not be empty")`），并被两个官方单元测试
+> （`cli/options_test.go` 的 "by name must not come from root directory"、
+> `loader/loader_test.go` 的 "default" 用例）断言。官方文档
+> <https://docs.docker.com/compose/how-tos/project-name/> 也写明项目名
+> 「must contain only lowercase letters, decimal digits, dashes, and underscores」。
+> 本仓库内可复现的复算脚本：
+> `.dsh-team/deploy-polish/work/consistency-auditor/verify-project-name.ps1`
+> （不依赖 docker，逐字符复算上表 4 个目录名 + 4 个边界情形）。
 
 想自己定，两种方式（优先级从高到低）：
 
@@ -174,7 +221,7 @@ docker compose down -v          # 停止并清空数据
 # ① 一次性：命令行 -p
 docker compose -p mydrama up -d --build          # → mydrama-app-1
 
-# ② 持久：写进 .env（.env.example 末尾有这一段，取消注释即可）
+# ② 持久：写进 .env（`.env.example:46-67` 有这一段，把最后一行取消注释即可）
 COMPOSE_PROJECT_NAME=mydrama
 ```
 
