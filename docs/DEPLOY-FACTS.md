@@ -13,7 +13,19 @@
 > **文档类引用改为章节引用（本次，因 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 在核对期间被改动）**：这三个文档会经常改，行号必然漂移；因此本文件里**所有指向这三个文档的引用**（实测：`docs/DOCKER.md` 58 处、`README.md` 7 处、`docs/RUNBOOK.md` 2 处显式引用，另有若干承接上文的裸 `:行号`）一律改成**章节 / 标题引用**，形如 `docs/DOCKER.md §六「数据卷、备份与恢复」`、`docs/RUNBOOK.md §5.5「从旧脚本时代迁移」→「步骤 M6：清理残留」`、`README.md §一「快速开始」→「4. 容器化部署（推荐）」`。每一处都**实际打开目标文档、按内容重新定位**后才挂章节，确认该章节确实讲了清单声称的内容。
 > **同一轮保留行号的引用**：**代码与配置文件**（`Dockerfile`、`docker-compose*.yml`、`*.cs`、`*.json`、`docker/entrypoint.sh`）改动少，行号更精确，**继续保留行号**；上一轮刚校准的 `Dockerfile` / `.dockerignore` 引用本轮**一字未动**。
 > **同时刷新（本次）**：F17 表里 `docs/DOCKER.md` 改为实测 **36559B / 863 行**、`.gitattributes` 改为实测 **2022B / 38 行**；`.gitattributes` 的 `*.sh text eol=lf` 行号刷新为 **`:31`**，清单里其余指向 `.gitattributes` 的行号引用同步核对。§4 第 7 项那条「待专门刷新一轮」的待办已由本轮完成。
-> **再次刷新（本次，因 `docker-compose.postgres.yml` 删除了 `redis` 服务）**：该覆盖文件**删掉了 `redis` 服务与 `shortdrama-redisdata` 卷** —— 应用用的是进程内内存缓存（`AddMemoryCache`），**根本不连 Redis**；那个容器是纯累赘，还会让部署机上的 `redis` 这个名字被反复申请、撞上别的项目留下的同名容器（`Conflict. The container name "/redis" is already in use`）。文件因此从 **1785B / 57 行缩到 2004B / 49 行**（净减 8 行：删掉 `redis` 服务与 `shortdrama-redisdata` 两行声明，文件头新增一段 ⚠️ 说明注释；`git diff --numstat` 实测 **+7 / -15**）。本次刷新的节：**F13**（服务从 3 个减到 2 个，该文件全部行号与字面值重测）、**F17**（该文件的字节 / 行数，并新增「本次变化」一条）、**§2-3**（卷表里已没有 `shortdrama-redisdata` 这一行）、**§2-10**（问题已修复，改标「✅ 已修复」）、**§2-12**、**§3 速查表**、**§4 第 5 项**、**§5 的 C2 表**里指向该文件的行号与条数。同时**逐条核查了 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述**（结论与实测命令见 §2-10）：**三者都没有与事实不符的 redis 表述**；核查中顺带发现的**非 redis** 行号漂移记入新增的 **§2-17**，本次**只报告、不改这三个文件**。
+> **本次刷新（跨文档一致性核对轮，本角色 = consistency-auditor）**：本轮做的事是**跨文档一致性核对** —— 把「服务名 / 容器名规则 / 卷名规则 / 端口三层 / `.env` 变量名与默认值 / 健康检查路径」这六类事实在 `README.md`、`docs/DOCKER.md`、`docs/RUNBOOK.md`、`.env.example`、两个 compose 与本文件之间逐条并排比对（核对表见 `.dsh-team/deploy-polish/work/consistency-auditor/CONSISTENCY.md`：**六类均为「一致」**。⚠️ 其中**类②「容器名规则」在本轮核对时是一处真矛盾** —— 「中文 / 非 ASCII 目录名会得到什么项目名前缀」在 `docs/DOCKER.md` §一「5. 容器名是怎么来的」与 `docs/RUNBOOK.md` §1.5「部署目录必须是 ASCII 名」之间说法互斥，且 `docs/DOCKER.md` 自身两句也不自洽；**该矛盾已由别的角色在第 1 轮返工中闭环**（四处口径统一成「只保留 `a-z0-9_-`、其余删掉 → 纯中文 → 空串 → `project name must not be empty`」，见文末「第 1 轮返工」段与本文件 F1 / §4 第 1 项）。⚠️ **本段下面几条给出的 `.env.example` / `docs/DOCKER.md` / `docs/RUNBOOK.md` 字节与行号是「核对时刻」的值，已被第 1 轮返工刷新** —— 以文末「第 1 轮返工」段、F6 与 F17 的**当前值**为准）。顺带把本文件里**已被后续提交改过期**的数字与引用按实测刷新：
+> - **F5**：补上「`.env.example:46-67` 已用**注释形式**提供 `COMPOSE_PROJECT_NAME`（第 1 轮返工后为 `:67`；返工前是 `:57`）」这个新事实，并实测两个 compose 里该变量命中 **0 行**；
+> - **F6**：变量表新增 `COMPOSE_PROJECT_NAME`（第 1 轮返工后 `:67`；返工前 `:57`，仅注释行）；`.gitignore:25` → 实测 **`:29`**；
+> - **F16**：工作流的 5 处行号按当前文件重测（`:40` / `:56` / `:25` / `:58-60` → **`:42` / `:58` / `:27` / `:60-62`**），§3 速查表同步；
+> - **F17**：`README.md` **48703B → 48689B**、`docs/DOCKER.md` **36559B / 863 行 → 38191B / 894 行**（提交 `c3513f9` 的 +31 行）、**新增 `docs/RUNBOOK.md` 一行**（**79010B / 1490 行**，且注明它本轮正在被另一角色改写）；
+> - **F19**：「命中位置快照」的行号整体重测（`docs/DOCKER.md` 命中行 **84、86、156、273**；`docs/RUNBOOK.md` 命中行见该节），**四种口径的计数实测 53 / 29 / 6 / 6**（上一版口径 ① 记的是 54，差的那 1 行是**本角色自己**按 §0.1 约定改写掉的 §2-3 里那处已删参数字面量。⚠️ **第 1 轮返工后重测为 52 / 29 / 6 / 6** —— 口径 ① 又少 1 行，因为本文件不再逐字抄 `docs/DOCKER.md` 的标题锚点，见文末「第 1 轮返工」段）；`.gitignore:41-42` → 实测 **`:49`**；
+> - **§2-17**：上一版「只报告」的两处行号漂移**已被后续提交改对**（实测 `docs/RUNBOOK.md:1280` 与 `:1378`），改标 **✅ 已修复**；**第 1 轮返工后同样两处又漂到 `:1321` 与 `:1419`（RUNBOOK 长到 1531 行），内容未变**；
+> - **§3 速查表**：卷名规则一行补上「项目名来自执行目录名 + `.env.example:67`/`-p` 可固定」，并**新增「容器名规则」一行**；
+> - **§4 第 7 项**按本次实测更新，**新增第 8 项**记录「`docs/RUNBOOK.md` 字节 / 行数待新节落定后重测」。
+> **本文件里的正文值一律以「本次刷新」段落为准**；更早的「本轮 / 本次刷新」段落是**该轮的实测记录**，文档之后一改就会过期，**不要拿它们当现状**。
+> **再次刷新（那一轮，因 `docker-compose.postgres.yml` 删除了 `redis` 服务）**：该覆盖文件**删掉了 `redis` 服务与 `shortdrama-redisdata` 卷** —— 应用用的是进程内内存缓存（`AddMemoryCache`），**根本不连 Redis**；那个容器是纯累赘，还会让部署机上的 `redis` 这个名字被反复申请、撞上别的项目留下的同名容器（`Conflict. The container name "/redis" is already in use`）。文件因此从 **1785B / 57 行缩到 2004B / 49 行**（净减 8 行：删掉 `redis` 服务与 `shortdrama-redisdata` 两行声明，文件头新增一段 ⚠️ 说明注释；`git diff --numstat` 实测 **+7 / -15**）。本次刷新的节：**F13**（服务从 3 个减到 2 个，该文件全部行号与字面值重测）、**F17**（该文件的字节 / 行数，并新增「本次变化」一条）、**§2-3**（卷表里已没有 `shortdrama-redisdata` 这一行）、**§2-10**（问题已修复，改标「✅ 已修复」）、**§2-12**、**§3 速查表**、**§4 第 5 项**、**§5 的 C2 表**里指向该文件的行号与条数。同时**逐条核查了 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述**（结论与实测命令见 §2-10）：**三者都没有与事实不符的 redis 表述**；核查中顺带发现的**非 redis** 行号漂移记入新增的 **§2-17**，本次**只报告、不改这三个文件**。
+
+> **第 2 轮返工（本角色 = consistency-auditor）**：本轮只做两件事 —— **① 修掉产品初筛 B1**：§2-10 里对 `docs/RUNBOOK.md` 的 redis 实测数字失效（上一版记「搜 `redis|Redis|REDIS` → **0 命中**」，而 `docs/RUNBOOK.md` §1.8「部署前自检」落定后该文件已有 **3 行** `redis` 字样 —— `:257` / `:344` / `:363`，全部是「别的项目的容器名 / 迁移提示」口径）。**该行的结论「未发现与事实不符的 redis 表述」仍然成立，失效的只是它的证据数字**，本轮已按实测改成 3 行并附复现命令；同一段的 `docs/DOCKER.md`（**1 行**，`:936`）与 `README.md`（**2 行**，`:178` / `:985`）两个子条也一并补上了实测行号，三个子条现在口径统一、都可复现。**② C6 同步**：`docs/RUNBOOK.md` 在第 2 轮返工期间又被写入一次（**82252B → 82280B**，行数仍 1531），F17 表、「第 1 轮返工后重测」条、§4 第 7 / 8 项与文末「第 1 轮返工」段的对应数字已全部同步为 **82280B / 1531 行**（`LastWriteTime` = 2026-10-12 11:50:19，SHA256 前 16 位 `87AB86F53D91EAE8`）。**本轮未改任何别的文件**（核对表见 `.dsh-team/deploy-polish/work/consistency-auditor/CONSISTENCY.md`，该目录被 `.gitignore:49` 忽略）。
 
 ---
 
@@ -43,7 +55,9 @@
 | `deploy` + `.ps1` | 原 Windows 包装脚本 |
 | 「两个 deploy 开头的包装脚本（后缀 sh / ps1）」 | 同上两者的合称 |
 
-同理，F20 的参数表**一律去掉前导连字符**书写：`update` / `install-cron` / `uninstall-cron` / `purge` / `rebuild` / `InstallTask` 等。**原写法是在参数名前面加两个连字符**（PowerShell 版是一个连字符）。这样做是为了满足机械判据，**不是**说这些参数可以不写连字符就能用 —— 它们本身已全部失效（见 F20）。
+同理，**本文件全文一律不写出已删参数的原写法**（即不在参数名前加连字符），覆盖 F20 登记的**全部**参数，不只是其中几个：sh 版的 `p` / `port` / `postgres` / `rebuild` / `update` / `check` / `install-cron` / `uninstall-cron` / `down` / `purge`，ps1 版的 `Port` / `Postgres` / `Rebuild` / `Update` / `Check` / `InstallTask` / `TaskTime` / `UninstallTask` / `Down` / `Purge`。**原写法是在参数名前面加两个连字符**（PowerShell 版是一个连字符）。F20 的参数表、§2 的引用、§5 的自检一律按此书写。这样做是为了满足机械判据，**不是**说这些参数可以不写连字符就能用 —— 它们本身已全部失效（见 F20）。
+
+**同一条约定也适用于 Markdown 标题锚点**：`docs/DOCKER.md` 第五节的标题「五、数据库：SQLite / PostgreSQL」在 GitHub 锚点规则下会变成「`sqlite` + 两个连字符 + `postgresql`」，而这个字面量恰好等于已删 sh 脚本 `postgres` 参数的原写法。因此本文件引用该锚点时**一律用断开写法**（`sqlite` + 两个连字符 + `postgresql`），**不再逐字抄锚点** —— 否则 C5 的机械判据会命中这 3 行，结论就只能靠人工判断「这是锚点、不是参数」。
 
 ---
 
@@ -54,6 +68,10 @@
 - `docker-compose.yml:17` → `  app:`
 - **服务名是 `app`**。全仓库所有运维命令都用 `app` 指代它（`docker compose logs -f app` 等）。
 - `docker-compose.yml:23-26` 注释明确说明：**刻意不设 `container_name`**（`:23` 原文「刻意不设 container_name：固定名字会关掉 Compose 的项目名前缀」）。实测 `Select-String -Path docker-compose.yml -Pattern 'container_name'` 只命中 `:23` 这一行注释，**没有任何生效的 `container_name` 键**。容器实际名字形如 `<项目名>-app-1`。手册里任何地方都不该出现写死的容器名（如 `shortdrama`）。
+- ✅ **「中文 / 非 ASCII 目录名会得到什么项目名前缀」本轮已裁决并统一（原为文档之间的矛盾）**：规范化只做两步 —— **① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_`，其余字符一律「删掉」**（**不是**换成 `-`），最后再砍掉开头的 `-` / `_`。因此纯中文 / 纯非 ASCII 目录名（例如 `短剧聚合`）规范化结果是**空串**，Compose 报 `project name must not be empty` 并**拒绝执行任何子命令**，**不会**得到「中文前缀的容器名」。四处口径已统一为这一句：`docs/DOCKER.md` §一「5. 容器名是怎么来的」（含四种目录名的对照表）、`docs/RUNBOOK.md` §1.5「部署目录必须是 ASCII 名」（含同一张对照表）、`.env.example:46-67` 的括注、本文件 §3 速查表的「容器名规则」一行。
+- **裁决依据（源码级，非实跑）**：写文档的机器上**没有 docker**，所以用上游官方实现逐字核对 —— `compose-go` 的 `NormalizeProjectName()` = `regexp.MustCompile("[a-z0-9_-]")` + `strings.ToLower` + `strings.TrimLeft(s, "_-")`；空项目名由 `loader.go` 的 `errors.New("project name must not be empty")` 抛出（`SkipValidation` 默认为 false，Compose CLI 不跳过该校验），并被 `cli/options_test.go` 的 "by name must not come from root directory" 与 `loader/loader_test.go` 的 "default" 两个官方用例断言。官方文档 <https://docs.docker.com/compose/how-tos/project-name/> 同样写明项目名「must contain only lowercase letters, decimal digits, dashes, and underscores」。本仓库内可复现的复算脚本（不依赖 docker）：`.dsh-team/deploy-polish/work/consistency-auditor/verify-project-name.ps1`。
+- **混合目录名**（中文 + ASCII，例如 `短剧聚合-drama`）不报错，但项目名只取 ASCII 那一半（`drama`）—— 可能与其他项目撞前缀，手册不建议。
+- ⚠️ **本仓库当前工作目录 `C:\Work\短剧聚合\短剧聚合` 就是纯中文**，因此在这台机器上直接跑任何 `docker compose` 子命令**必然**报 `project name must not be empty`；必须显式设 `COMPOSE_PROJECT_NAME=shortdrama`（`.env.example:67`）或加 `-p shortdrama`。
 
 ### F2 对外端口：完整写法与默认值
 
@@ -84,13 +102,13 @@
 - `docker-compose.yml:87-89` → 顶层 `volumes:` 声明 `shortdrama-data:` / `driver: local`
 - `Dockerfile:137` → `VOLUME ["/data"]`
 - `Dockerfile:145` → `    ConnectionStrings__Default="Data Source=/data/shortdrama.db"`（SQLite 文件位置）
-- **命名规则**：`docker-compose.yml` **没有顶层 `name:` 字段**（实测 `Select-String -Path docker-compose.yml -Pattern '^name:'` → **无输出**），也没有 `COMPOSE_PROJECT_NAME`。因此 compose 项目名由**目录名**推导，实际卷名 = `<项目名>_shortdrama-data`。
+- **命名规则**：`docker-compose.yml` **没有顶层 `name:` 字段**（实测 `Select-String -Path docker-compose.yml -Pattern '^name:'` → **无输出**），也没有 `COMPOSE_PROJECT_NAME`（**本次刷新实测**：对两个 compose 文件搜 `COMPOSE_PROJECT_NAME` → **0 行**；`docker-compose.postgres.yml` 同样既无顶层 `name:` 也无该变量）。⚠️ **但 `.env.example` 里有它**：`:46-67` 是「容器名 / 卷名的前缀」段，`:67` 是**注释形式**的 `# COMPOSE_PROJECT_NAME=shortdrama` —— **不取消注释就不生效**（该段 `:52` 还把「只保留 `a-z0-9_-`、其余字符删掉」与四种目录名的对照写进了注释）。因此不显式设它时，compose 项目名由**目录名**推导，实际卷名 = `<项目名>_shortdrama-data`、容器名 = `<项目名>-<服务名>-1`。
 - `docs/DOCKER.md` §八「常用运维命令」（单镜像方式那段之后的说明）举例为 `shortdrama_shortdrama-data` —— 该例子**仅在 clone 目录名为 `shortdrama` 时成立**（`docs/DOCKER.md` §「部署（复制即用）」的 Linux/macOS 代码块里的 clone 命令确实带 `shortdrama`）。
-- ⚠️ **本机目录名是中文 `短剧聚合`**（工作目录 `C:\Work\短剧聚合\短剧聚合`）。项目名由目录名推导 + compose 要求项目名只能是小写字母数字/`-`/`_` → 卷名前缀**不会**是 `shortdrama`，甚至有较大概率直接报项目名非法。**未实测**（本机无 docker）。手册必须写成「先 `docker volume ls` 查实际卷名」，或显式 `COMPOSE_PROJECT_NAME=shortdrama` / `-p shortdrama` 固定它。
+- ⚠️ **本机目录名是中文 `短剧聚合`**（工作目录 `C:\Work\短剧聚合\短剧聚合`）。项目名由目录名推导 + Compose 的项目名规范化只保留 `a-z0-9_-`（**其余字符删掉，不是换成 `-`**）→ 纯中文目录名规范化后是**空串** → **必然**报 `project name must not be empty`（裁决依据见 F1；本机无 docker，故为源码级核对而非实跑）。因此卷名前缀**不会**是 `shortdrama`，**也根本不会创建任何卷 / 容器**，除非显式固定项目名。手册必须写成「先 `docker volume ls` 查实际卷名」，或显式 `COMPOSE_PROJECT_NAME=shortdrama`（`.env.example:67`）/ `-p shortdrama` 固定它。
 
 ### F6 `.env` 的每个变量名与默认值
 
-来源文件：`.env.example`（共 57 行）。**7 个活动变量 + 2 个注释掉的变量**（`SHORTDRAMA_IMAGE`、`COMPOSE_PROJECT_NAME`）：
+来源文件：`.env.example`（**第 1 轮返工后实测 67 行 / 3670 字节**；上一版是 57 行 / 2986 字节 —— 本轮「容器名 / 卷名的前缀」段从 12 行长到 22 行，见 F5 与 F17）。**7 个活动变量 + 2 个注释掉的变量**（`SHORTDRAMA_IMAGE`、`COMPOSE_PROJECT_NAME`）：
 
 | 变量 | `.env.example` 行 | 默认值（字面） |
 |---|---|---|
@@ -102,8 +120,9 @@
 | `TORRENT_ENABLED` | `:41` | `true` |
 | `POSTGRES_PASSWORD` | `:44` | `shortdrama_pwd` |
 | `SHORTDRAMA_IMAGE` | `:20` | **仅注释行**（`# SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest`），未启用 |
+| `COMPOSE_PROJECT_NAME` | `:67` | **仅注释行**（`# COMPOSE_PROJECT_NAME=shortdrama`），未启用；它上方的 `:46-66` 是命名规则说明（见 F5） |
 
-- `.env.example:7` 注明 `.env` 已被 `.gitignore` 忽略；`.gitignore:25` → `.env`。**仓库根目录当前不存在 `.env`**（`Test-Path .env` → `False`）。
+- `.env.example:7` 注明 `.env` 已被 `.gitignore` 忽略；`.gitignore:29` → `.env`（**本次刷新实测**：`:29` 是 `.env`、`:30-31` 是 `.env.local` / `.env.*.local`；上一版记的 `.gitignore:25` 已过期，那里现在是数据库备份段的注释）。**仓库根目录当前不存在 `.env`**（`Test-Path .env` → `False`）。
 - ⚠️ 因为 `SHORTDRAMA_IMAGE` 在模板里是**注释**，`docs/DOCKER.md` §九「故障排查」表内「想确认当前是哪种模式」那一行的 `grep SHORTDRAMA_IMAGE .env` 会命中注释行、看起来像「已配了镜像模式」。正确写法是 `grep '^SHORTDRAMA_IMAGE' .env`。
 - ⚠️ `.env` **不是必需的**：compose 里每个变量都写成 `${VAR:-默认值}`，`README.md` §一「快速开始」→「4. 容器化部署（推荐）」也写了「不执行这行也能跑，用内置默认值」。
 
@@ -208,11 +227,12 @@
 
 ### F16 镜像模式（GHCR）的镜像名与平台
 
-- `.github/workflows/docker-publish.yml:40` → `        run: echo "IMAGE=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"`（仓库名转小写）
-- `.github/workflows/docker-publish.yml:56` → `          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}`
+- `.github/workflows/docker-publish.yml:42` → `        run: echo "IMAGE=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"`（仓库名转小写；`:40` 是它的说明注释）
+- `.github/workflows/docker-publish.yml:58` → `          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}`（`:56` 是 `uses: docker/metadata-action@v5`）
 - `.github/workflows/docker-publish.yml:22` → `  REGISTRY: ghcr.io`
-- `.github/workflows/docker-publish.yml:25` → `  PLATFORMS: linux/amd64`
-- `.github/workflows/docker-publish.yml:58-60` → 标签 `latest`（仅默认分支）、`sha-<short>`、`<tag>`
+- `.github/workflows/docker-publish.yml:27` → `  PLATFORMS: linux/amd64`（`:23-26` 是「什么时候才需要加 arm64」的注释）
+- `.github/workflows/docker-publish.yml:60-62` → 标签 `latest`（仅默认分支）、`sha-<short>`、`<tag>`
+- ⚠️ **本次刷新**：上面 5 处行号已按当前文件重测（该工作流新增了多架构说明注释，上一版记的 `:40` / `:56` / `:25` / `:58-60` 分别指向注释行与 `uses:` 行）。**触发条件那几条（`:15-19`）实测未变**。
 - 推导结果：`ghcr.io/xcool-603/muse-video:latest`，与 `.env.example:20`、`docs/DOCKER.md` §三「更新与自动更新」→「7. 构建太慢？改用预构建镜像」的示例一致
 - 触发条件（`:15-19`）：push 到 `main`（`:16-17`）、打 `v*` 标签（`:18`）、`workflow_dispatch`（`:19`）
 
@@ -220,32 +240,41 @@
 
 | 文件 | 字节（实测） | BOM | CRLF 数 | LF 数 |
 |---|---|---|---|---|
-| `.env.example` | 2986 | 无 BOM | 0 | 57 |
+| `.env.example` | 3670 | 无 BOM | 0 | 67 |
 | `docker-compose.yml` | 3468 | 无 BOM | 0 | 89 |
 | `docker-compose.postgres.yml` | 2004 | 无 BOM | 0 | 49 |
 | `Dockerfile` | 8164 | 无 BOM | 0 | 156 |
 | `docker/entrypoint.sh` | 1441 | 无 BOM | 0 | 35 |
 | `.dockerignore` | 1999 | 无 BOM | 0 | 71 |
-| `README.md` | 48703 | 无 BOM | 0 | 999 |
-| `docs/DOCKER.md` | 36559 | 无 BOM | 0 | 863 |
+| `README.md` | 48689 | 无 BOM | 0 | 999 |
+| `docs/DOCKER.md` | 41631 | 无 BOM | 0 | 941 |
+| `docs/RUNBOOK.md` | 82280 | 无 BOM | 0 | 1531 |
 | `ShortDrama.Api/appsettings.json` | 7888 | 无 BOM | 0 | 127 |
 | `.gitattributes` | 2022 | 无 BOM | 0 | 38 |
 
 - **测量方式（`字节` 列必须这样量）**：`[System.IO.File]::ReadAllBytes('C:\...\绝对路径').Length` —— **必须传绝对路径**。.NET 的「当前目录」与 PowerShell 的 `$PWD` 不一定是同一个，传相对路径会读到别处或直接抛异常。行数与 `CRLF/LF` 用 `Get-Content <绝对路径> -Encoding UTF8` 计数、逐字节统计 `13` / `10` 的出现次数。
-- 本轮实测（一次性复测 10 个文件，`ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致）：`.env.example` 2986B/57、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` **2004B/49**（本次删 `redis` 服务后重测，上一版是 1785B/57）、`Dockerfile` **8164B/156**、`docker/entrypoint.sh` 1441B/35、`.dockerignore` **1999B/71**、`README.md` 48703B/999、`docs/DOCKER.md` **36559B/863**、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` **2022B/38**（**CR 全 0、BOM 全 False**）。
+- **历史值（「删 redis 服务」那一轮）实测**（**不是当前值**，保留以便对照）：`.env.example` 2986B/57、`docker-compose.yml` 3468B/89、`docker-compose.postgres.yml` **2004B/49**（那一轮删 `redis` 服务后重测，更早一版是 1785B/57）、`Dockerfile` **8164B/156**、`docker/entrypoint.sh` 1441B/35、`.dockerignore` **1999B/71**、`README.md` **48689B/999**、`docs/DOCKER.md` **38191B/894**、`docs/RUNBOOK.md` **79010B/1490**、`ShortDrama.Api/appsettings.json` 7888B/127、`.gitattributes` **2022B/38**（**CR 全 0、BOM 全 False**）。其中 `.env.example` / `docs/DOCKER.md` / `docs/RUNBOOK.md` 三个**已被后续返工改写**，当前值见本表与下方「第 1 轮返工后重测」。
 - **本次（`Dockerfile` / `.dockerignore` 改动后）的变化**：`Dockerfile` **6670B / 137 行 → 8164B / 156 行**、`.dockerignore` **1249B / 60 行 → 1999B / 71 行**（中间又修过一次"只匹配根目录"的模式，见 F23）。这两个文件的字节数用 `ReadAllBytes` 与 `Get-Item -LiteralPath <绝对路径>.Length` **两种方式交叉验证**，结果一致（**8164 / 1999**）；`CR` 逐字节计数为 **0**，BOM 为 **False**。
 - **本次（`docker-compose.postgres.yml` 删除 `redis` 服务后）的变化**：该文件 **1785B / 57 行 → 2004B / 49 行**（净减 8 行；`git diff --numstat` 实测 **+7 / -15**。删除的 15 行 = `redis` 服务块 **12 行**（含其后一个空行）+ `volumes:` 里的 `shortdrama-redisdata` **2 行** + 文件头那句「额外拉起 postgres 与 redis 两个容器」**1 行**；新增的 7 行 = 改写后的文件头那句 **1 行** + 新增的 **6 行** ⚠️ 说明注释）。**测量方式与证据（本次实跑）**：
   - `[System.IO.File]::ReadAllBytes('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml').Length` → **2004**；`(Get-Item -LiteralPath <同一绝对路径>).Length` → **2004**（两种方式交叉验证一致）；
   - 逐字节统计该文件：`LF(0x0A)` = **49**、`CR(0x0D)` = **0**、BOM = **False**；
   - `SHA256` = `05C5EDFEF9EE41FA8EE56CDB116F33E72E6CEB58BE87636578D6868A1D4CF8D7`，`LastWriteTime` = **2026-10-11 14:23:20**；
   - 旧值交叉验证：`git cat-file -s HEAD:docker-compose.postgres.yml` → **1785**（字节），`git show HEAD:docker-compose.postgres.yml` 重建后为 **57 行** —— 与上一版记的 1785B/57 吻合，说明变化确实来自本次删 `redis`。
+- **本次刷新（本角色：跨文档一致性核对轮）**：`README.md` 实测 **48689B / 999 行**（上一版记的 48703B 已过期）、`docs/DOCKER.md` 实测 **38191B / 894 行**（上一版记的 36559B / 863 行已过期 —— 提交 `c3513f9` 给该文件新增了「5. 容器名是怎么来的」等小节，共 **+31 行**）、`docs/RUNBOOK.md` 实测 **79010B / 1490 行**（上一版只在 §4 第 7 项记过 69739B / 1310 行）。三个文件都仍是 **CR=0、无 BOM**。**测量方式（本次实跑）**：`[System.IO.File]::ReadAllBytes('<绝对路径>').Length` 与 `(Get-Item -LiteralPath '<绝对路径>').Length` 两种方式交叉验证一致，行数用 `ReadAllLines` 计数，`CR` 用逐字节统计 `0x0D`。
+  - ⚠️ **`docs/RUNBOOK.md` 本轮正在被另一角色改写**（新增 §1.8「部署前自检」小节，实测从 1310 行长到 1490 行）。该文件的字节 / 行数因此是**核对时刻**的值，**不应当作稳定事实**；本次核对采用的基准是 `LastWriteTime` = 2026-10-12 11:06:33、SHA256 前 16 位 = `139A93254BCF7931`。它落定后需重测（已记入 §4）—— **✅ 已重测完成：第 1 轮返工 82252B / 1531 行、第 2 轮返工 82280B / 1531 行，见 F17 与 §4 第 8 项。**
+
+- **第 1 轮返工后重测（本角色，含别的角色本轮落地的 B1 修复）**：`docs/DOCKER.md` **38191B / 894 行 → 41631B / 941 行**（`LastWriteTime` = 2026-10-12 11:30:08，SHA256 前 16 位 `2F412A5A412B9D9B`）、`docs/RUNBOOK.md` **79010B / 1490 行 → 82252B / 1531 行**（**11:38:25**，`BB5F4D5446F268E9` —— 该文件在本轮核对期间又被写过一次，字节 82197 → **82252**，行数仍 1531）→ **第 2 轮返工再测 82280B / 1531 行**（**11:50:19**，SHA256 前 16 位 `87AB86F53D91EAE8`；行数仍 1531 —— `runbook-author` 之后又写入 28 字节，**间隔 3 秒连续三次测量结果相同**，见文末「第 2 轮返工」段）、`.env.example` **2986B / 57 行 → 3670B / 67 行**（11:29:30，`81AF61C5B9DCDCCB`）。`README.md` 未再改动（**48689B / 999 行**，11-11 14:44:17 起未变，`302901B6B3A6620B`）。四个文件仍**全部 `CR=0`、BOM=`False`、`LF` 计数 = 行数**（逐字节统计 `0x0D` / `0x0A`）。
+  - **测量方式**：`[System.IO.File]::ReadAllBytes('<绝对路径>').Length` 与 `(Get-Item -LiteralPath '<绝对路径>').Length` 交叉验证一致；行数 `ReadAllLines`；`CR` 逐字节统计；`SHA256` 用 `Get-FileHash`。
+  - ⚠️ **这三个文件的改动由 `runbook-author` + `consistency-auditor` 两个角色在本轮写入**（B1 修复：把「中文目录名会得到什么项目名前缀」四处口径统一成「只保留 `a-z0-9_-`、其余**删掉**（不是换成 `-`）→ 纯中文 → 空串 → `project name must not be empty`」）。其中 `docs/DOCKER.md` 与 `.env.example` **原本不在任何角色的边界内**，本轮由**编排层临时授权** `consistency-auditor` 写入（依据见初筛报告 `review/round-1.md:68-69` 与返工指令）。`docs/RUNBOOK.md` 由 `runbook-author` 写入。三个文件的写入范围都**只限于 B1 相关段落 + 被 `.env.example` 行数变化牵动的行号引用**，`README.md`、两个 compose、`Dockerfile`、`docker/entrypoint.sh`、`.github/` 一律未改。
+  - ⚠️ **`docs/DOCKER.md` 在本次核对期间仍在被写**（11:28:28 → 11:30:08 又变过一次）。上表给的是**最后一次复测**的值；该文件若再改，本表会再次过期 —— 本文件对这三个文档的引用一律是**章节引用**，不受行号漂移影响。
+
 - **本轮（「文档类引用改为章节引用」那一轮）复测并刷新了这两行**：
-  - `docs/DOCKER.md` 实测 **36559B / 863 行**（上一版刻意留旧，写的是 32344B / 776）—— 该文件在核对期间被改过**三次**（先 +67 行到 843 行，核对期间又 +20 行到 863 行：新增「三处端口必须同时存在且一致」表、只读根模式的顶层 `volumes:` 声明、把「Uid: 1654」改成「非 0 的数字」等）。**测量基准**：`LastWriteTime` = 2026-10-11 13:51:11，SHA256 = `95749E63F086C70045AE73B05A07DC188266E6F3EEF84475F12B2245B9C44FEB`；
+  - `docs/DOCKER.md` 实测 **36559B / 863 行**（**该轮的值**；上一版刻意留旧，写的是 32344B / 776）—— 该文件在核对期间被改过**三次**（先 +67 行到 843 行，核对期间又 +20 行到 863 行：新增「三处端口必须同时存在且一致」表、只读根模式的顶层 `volumes:` 声明、把「Uid: 1654」改成「非 0 的数字」等）。**测量基准**：`LastWriteTime` = 2026-10-11 13:51:11，SHA256 = `95749E63F086C70045AE73B05A07DC188266E6F3EEF84475F12B2245B9C44FEB`；
   - `.gitattributes` 实测 **2022B / 38 行**（上一版刻意留旧，写的是 1433B / 27）—— 该文件多了 11 行（新增 `* text=auto eol=lf` 兜底与几条显式声明）。
   - **处置**：上一版曾把这两行**刻意留旧**（避免与正在改它们的角色撞车），并标注「58 处 `docs/DOCKER.md:<行号>` 引用需要专门刷新」。**这一轮已经做完**：`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的**行号引用全部改成章节引用**（见文档头「核对快照」），`.gitattributes` 的行号引用按实测刷新（`*.sh text eol=lf` 现在在 **`:31`**）。
   - 两个文件的 `CR` 计数仍是 **0**、BOM 仍是 **False**（本轮实测），所以「UTF-8 无 BOM + LF」这条结论不受影响。
-- **本表本轮的变化**：上一版只有 BOM / CRLF / LF 三列，其中 `README.md` 写 987 行、`.gitattributes` 写 26 行，均已过期，当时刷新为 **999 / 27**（`.gitattributes` 后来又因新增 `* text=auto eol=lf` 兜底与几条显式声明而变成 **38 行**，见 F17 表与本文件 `:239`）。**`字节` 列是本轮新增的实测列** —— 上一版把字节数只写在过程记录里（`.dsh-team/deploy-runbook/review/`）而没有进本表，于是「字节数对不上」在清单里查不出来：过程记录里的旧值是 `.gitattributes` 1306B、`README.md` 47547B、`docs/DOCKER.md` 31336B，与本轮实测的 **1433 / 48703 / 32344** 都不符。三个实测值各用 `ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致。
-- ⚠️ **`README.md` 与 `docs/DOCKER.md` 在核对期间被反复改过**（先是一批未提交的 cron 日志修复，随后 `docs/DOCKER.md` 又被改了两次），所以它们的字节 / 行数是**核对时刻**的值：`README.md` 48703B/999 行（未再变）、`docs/DOCKER.md` **36559B/863 行**。这两个文件之后再改，本表就会再次过期 —— **核对时以内容为准**（本文件对这三个文档的引用已改成**章节引用**，就是为了不再被行号漂移拖累）。
+- **本表本轮的变化**：上一版只有 BOM / CRLF / LF 三列，其中 `README.md` 写 987 行、`.gitattributes` 写 26 行，均已过期，当时刷新为 **999 / 27**（`.gitattributes` 后来又因新增 `* text=auto eol=lf` 兜底与几条显式声明而变成 **38 行**，见 F17 表与本文件 `:239`）。**`字节` 列是本轮新增的实测列** —— 上一版把字节数只写在过程记录里（`.dsh-team/deploy-runbook/review/`）而没有进本表，于是「字节数对不上」在清单里查不出来：过程记录里的旧值是 `.gitattributes` 1306B、`README.md` 47547B、`docs/DOCKER.md` 31336B，与本轮实测的 **1433 / 48703 / 32344** 都不符（**这三个是该轮的历史值**，当前值见上方「本次刷新」一条）。三个实测值各用 `ReadAllBytes` 与 `Get-Item .Length` 两种方式交叉验证，结果一致。
+- ⚠️ **`README.md` 与 `docs/DOCKER.md` 在核对期间被反复改过**（先是一批未提交的 cron 日志修复，随后 `docs/DOCKER.md` 又被改了两次），所以它们的字节 / 行数是**核对时刻**的值（**本次刷新实测**）：`README.md` **48689B/999 行**、`docs/DOCKER.md` **38191B/894 行**。这两个文件之后再改，本表就会再次过期 —— **核对时以内容为准**（本文件对这三个文档的引用已改成**章节引用**，就是为了不再被行号漂移拖累）。
 - 全部 **UTF-8 无 BOM + LF**（`CRLF=0`）。这一点对 `ACCESS_PASSWORD=遵纪守法世界和平` 有实际影响：`.env` 用非 UTF-8 编辑器保存（例如 Windows 记事本存成 GBK）会把中文口令写坏，表现为「口令没错但一直跳 `/gate`」。
 - 可执行位：`.gitattributes:31` → `*.sh text eol=lf`（**本轮实测位置**；上一版记的 `:22`、更早的 `:21` 都已过期 —— 该文件从 27 行长到 38 行，新增了 `* text=auto eol=lf` 兜底与几条显式声明）；`Dockerfile:115` → `COPY --chown=app:app --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh`（**行号已从 `:105` 下移到 `:115`**，因为 `Dockerfile` 本轮顶部与自检注释各多了若干行）；`Dockerfile:113-114` 注释说明 **Windows 上 git 不保留可执行位，`--chmod=755` 必须显式写**，否则容器起来就是 `permission denied: /usr/local/bin/entrypoint.sh`。
 
@@ -294,7 +323,7 @@
 
 - 拼成一条时的写法：把上面 12 个分支用 `|` 依次连起来，即成完整模式。
 - 第 1 分支用 `deploy[.]` 而不是 `deploy\.`，**语义完全等价**（正则里 `[.]` 与 `\.` 都只匹配一个字面点号），这样本文件声明的这条分支字面量不会命中它自己。
-- ⚠️ **整条 12 分支模式扫本文件时并不是 0 命中**（本轮实测 **25 行**）：第 2 / 3 / 11 / 12 分支的字样（中文「部署包装」「部署脚本」、任务名、cron 标记）本来就必须逐条写在本文件里。这 25 行全是**元描述**，不是仓库残留，所以扫仓库时必须排除本文件（见下）。真正要求「本文件 0 命中」的是 §0.1 那两条 C3 判据（见 §5 自检）—— 那是另一个、更窄的模式。
+- ⚠️ **整条 12 分支模式扫本文件时并不是 0 命中**（第 1 轮返工后实测 **23 行**）：第 2 / 3 / 11 / 12 分支的字样（中文「部署包装」「部署脚本」、任务名、cron 标记）本来就必须逐条写在本文件里。这 23 行全是**元描述**，不是仓库残留，所以扫仓库时必须排除本文件（见下）。真正要求「本文件 0 命中」的是 §0.1 那两条 C3 判据（见 §5 自检）—— 那是另一个、更窄的模式。（计数沿革：上一版 **25 行** → 本角色把 §2-3 里那处「两个连字符 + `postgres`」的字面量按 §0.1 约定改成断开写法后 **24 行** → 第 1 轮返工把 B 表 2 行 + 锚点注释 1 行的**逐字锚点**改成断开写法，**减 3 行**；同一轮 §5 与文末为讲清这条判据又新增了含中文「部署包装 / 部署脚本」的说明行，**加回 2 行** → 净 **23 行**。那 3 处锚点正是 C5 机械判据上一版会命中的位置，见 §5。**这条计数会随本文件自己的说明文字变动，每次编辑后都应重跑 `Select-String` 复测。**）
 - 复现命令（PowerShell）：
   ```powershell
   Get-ChildItem -Recurse -Force -File |
@@ -304,25 +333,26 @@
 
 **扫描范围**：仓库根目录全递归，排除 `\.git\`、`\.dsh-team\`、`\bin\`、`\obj\`、`\node_modules\`、`\dist\`，`-Encoding UTF8`。
 
-> ⚠️ **扫描时必须再排除本文件自己**（`docs/DEPLOY-FACTS.md`）。上一版写的是「请排除本文件 `.dsh-team/` 目录」—— 那时本文件还放在 `.dsh-team/deploy-runbook/work/facts-auditor/` 下；现在它已移到 `docs/`，而 `.dsh-team/` 本身也被 `.gitignore` 忽略（`.gitignore:41-42`）。不排除本文件，就会把本文件的模式声明、残留清单与引用的历史原文一起扫进来 —— 那是**元描述**，不是仓库残留。
+> ⚠️ **扫描时必须再排除本文件自己**（`docs/DEPLOY-FACTS.md`）。上一版写的是「请排除本文件 `.dsh-team/` 目录」—— 那时本文件还放在 `.dsh-team/deploy-runbook/work/facts-auditor/` 下；现在它已移到 `docs/`，而 `.dsh-team/` 本身也被 `.gitignore` 忽略（**本次刷新实测**：`.gitignore:49` → `.dsh-team/`；上一版记的 `:41-42` 已过期）。不排除本文件，就会把本文件的模式声明、残留清单与引用的历史原文一起扫进来 —— 那是**元描述**，不是仓库残留。
 
 **实测结果（本轮重扫，四种口径都跑过）：**
 
 | 扫描口径 | 命中行数 |
 |---|---|
-| ① 只按上面 6 个目录排除（**含本文件**） | **54** |
+| ① 只按上面 6 个目录排除（**含本文件**） | **52** |
 | ② 6 个目录 + 排除本文件（`docs/DEPLOY-FACTS.md`） | **29** |
 | ③ 6 个目录 + 排除本文件 + 排除 `docs/RUNBOOK.md` | **6**（其中 2 行是标题锚点假阳性） |
 | ④ 口径 ③ 再追加 C 表的三条分支 | **6** |
 
-- **口径 ①**：本文件自己被扫到 25 行（模式声明里的 12 个分支、引用的历史原文、自检命令），54 = 25 + 29。
+- **口径 ①**：本文件自己被扫到 23 行（模式声明里的 12 个分支、引用的历史原文、自检命令），52 = 23 + 29。（**第 1 轮返工后重测**：本文件自己从 24 行降到 23 行 —— 那 1 行是本文件不再逐字抄 `docs/DOCKER.md` 的标题锚点，所以口径 ① 从 53 降到 52；口径 ② / ③ / ④ 不受影响，仍为 29 / 6 / 6。）
 - **口径 ② 的 29 行分布**：`.gitattributes` 1 行、`README.md` 1 行、`docs/DOCKER.md` 4 行（含 2 行锚点假阳性）、`docs/RUNBOOK.md` 23 行（文首 1 + §1.6「四条禁令」1 + §5.2「Linux / macOS：写进宿主 crontab」2 + §5.3「Windows：用任务计划程序（原生 docker compose）」4 + §5.5「从旧脚本时代迁移」14 + §7.6「故障速查表」1）。
 - **口径 ③ 的 6 行**：`.gitattributes`、`README.md` §一「快速开始」→「4. 容器化部署（推荐）」、`docs/DOCKER.md` §「平台速查」（2 行）、`docs/DOCKER.md` §一「30 秒上手」→「4. 常用配置」、`docs/DOCKER.md` §三「更新与自动更新」→「1. 手动更新一次」。这是「只算仓库原有文件、不算本轮新写的两份产物」的窄口径。
 - **口径 ② 追加 C 表分支后为 31 行**（比不加时多 2 行，都在 `docs/RUNBOOK.md`：§1.3「上线前必须改的 3 项」与 §5.5「从旧脚本时代迁移」→「步骤 M6：清理残留」，是「旧脚本当年会…」的历史 / 迁移口径）。
 - 上一版写的「命中 10 行 / 8 行有效」与「扩展后 13 行」**本轮复现不出来**（实测 29 / 31）。原因是那「8 行有效命中」里的 5 行 —— `.gitattributes` 的两行注释（当时在 `:11`/`:18`，现为 `:12-13`/`:19`）、`docs/DOCKER.md` §六「数据卷、备份与恢复」→「数据卷」卷表的「何时创建」列、`docs/DOCKER.md` §九「故障排查」表内「定时更新没跑」那一行 —— **已由提交 `687e7d3` 修掉**（见 §2-3、§2-4、§2-16）。
 
 > **本节表格的定位方式**：A / B / C 三张表的「位置」列一律用**章节引用**（章节号 + 标题文字），**不再用 `文件:行`** —— 这三个文档会经常改、行号必然漂移（本轮核对期间 `docs/DOCKER.md` 就被改了三次）。`.gitattributes` 是配置文件、改动少，行号照旧给出（本轮已按实测刷新）。
-> **本轮实测命中位置（仅供追溯，**不要拿它定位**）**：`docs/DOCKER.md` 命中行 **84、86、155、241**；`README.md` 命中行 **157**；`.gitattributes` 命中行 **12**；`docs/RUNBOOK.md` 命中行 **12、186、713、717、758、775、776、784、818、843、850、852、868、869、879、883、899、900、916、918、966、978、1243**；再追加 C 表三条分支后新增 `docs/RUNBOOK.md` 命中行 **143、945**。这些数字是**那一刻的快照**（`docs/DOCKER.md` 863 行、`docs/RUNBOOK.md` 1310 行）—— 文档之后再改，这些行号会漂，**但上面的章节引用不会**。
+> **命中位置的快照（第 1 轮返工后按当前工作区重测，**仅供追溯，不要拿它定位**）**：`docs/DOCKER.md` 命中行 **84、86、164、320**；`README.md` 命中行 **157**；`.gitattributes` 命中行 **12**；`docs/RUNBOOK.md` 命中行 **12、221、935、939、980、997、998、1006、1040、1065、1072、1074、1090、1091、1101、1105、1121、1122、1138、1140、1188、1200、1464**；再追加 C 表三条分支后新增 `docs/RUNBOOK.md` 命中行 **145、1167**。这些数字是**那一刻的快照**（`docs/DOCKER.md` **941 行**、`docs/RUNBOOK.md` **1531 行** —— 两者本轮都在被别的角色改写）—— 文档之后再改，这些行号会漂，**但上面的章节引用不会**。（上一版快照：`docs/DOCKER.md` 84、86、156、273；`docs/RUNBOOK.md` 12、187、894、898…1423；C 表新增 144、1126。）
+> **命中行数的分布（第 1 轮返工后复测，**与上一版完全一致**，只有行号漂了）**：口径 ② 的 29 行 = `docs/RUNBOOK.md` **23** 行（文首 1、§1.6「四条禁令」1、§5.2「Linux / macOS：写进宿主 crontab」2、§5.3「Windows：用任务计划程序（原生 docker compose）」4、§5.5「从旧脚本时代迁移」14、§7.6「故障速查表」1）+ `docs/DOCKER.md` **4** 行 + `.gitattributes` **1** 行 + `README.md` **1** 行。四种口径仍为 **52 / 29 / 6 / 6**（口径 ② 追加 C 表三条分支后为 **31**）。
 
 其中 **2 行是模式假阳性**（下面 B 表），其余 27 行全部是「已删除 / 已移除 / 历史 / 迁移 / 用户自建」口径 —— **有效残留 = 0 行**。
 
@@ -343,10 +373,12 @@
 
 | 位置 | 内容 | 为什么是假阳性 |
 |---|---|---|
-| `docs/DOCKER.md` §「平台速查」 | 「…想换 PostgreSQL 见[第五节](#五数据库sqlite--postgresql)。」 | 命中的是**标题锚点**里的双连字符，不是脚本参数。实测：该文件里「两个连字符 + postgres」这一串只出现 2 次（本节这行与下一行），且都是同一个锚点 |
-| `docs/DOCKER.md` §一「30 秒上手」→「4. 常用配置」 | 「**改用 PostgreSQL**：见[第五节](#五数据库sqlite--postgresql)。」 | 同上，同一锚点的第二次出现 |
+| `docs/DOCKER.md` §「平台速查」 | 「…想换 PostgreSQL 见[第五节](#五数据库` + `sqlite` + 两个连字符 + `postgresql` + `)。」 | 命中的是**标题锚点**里的双连字符，不是脚本参数。实测：该文件里「两个连字符 + postgres」这一串只出现 2 次（本节这行与下一行），且都是同一个锚点。**本行按 §0.1 约定用断开写法引用该锚点**（不再逐字抄），因此本文件自身不再命中它 |
+| `docs/DOCKER.md` §一「30 秒上手」→「4. 常用配置」 | 「**改用 PostgreSQL**：见[第五节](#五数据库` + `sqlite` + 两个连字符 + `postgresql` + `)。」 | 同上，同一锚点的第二次出现（同样按 §0.1 断开书写） |
 
-> 锚点成因：标题「五、数据库：SQLite / PostgreSQL」里的 `/` 被 GitHub 锚点规则去掉后留下 `sqlite--postgresql` 的双连字符，属正常 Markdown，无需修改。**核对时不要把这两行算成残留。**（上一版说这一串在 `docs/DOCKER.md` 里出现 4 次、其中两处在卷表 —— 那是因为当时卷表里还写着已删参数；本轮实测只剩上面那 2 处锚点，分别在 §「平台速查」与 §一「30 秒上手」→「4. 常用配置」。）
+> 锚点成因：标题「五、数据库：SQLite / PostgreSQL」里的 `/` 被 GitHub 锚点规则去掉后留下「`sqlite` + 两个连字符 + `postgresql`」的双连字符，属正常 Markdown，无需修改。**核对时不要把这两行算成残留。**（上一版说这一串在 `docs/DOCKER.md` 里出现 4 次、其中两处在卷表 —— 那是因为当时卷表里还写着已删参数；本轮实测只剩上面那 2 处锚点，分别在 §「平台速查」与 §一「30 秒上手」→「4. 常用配置」。）
+>
+> ⚠️ **本表这两行与本段按 §0.1 约定用断开写法引用该锚点**（上一版在三行里逐字抄了锚点字面量，使本文件自己被 C5 的机械判据命中，见 §5 的自检说明）。**锚点本身在 `docs/DOCKER.md` 里仍然是那个字面量**，只是本文件不再逐字复制它。
 
 #### C. 模式外的失效描述（上一版 3 行，**现已全部清零**）
 
@@ -434,6 +466,8 @@
 > **注意（本轮刷新）**：**2-1、2-2、2-3、2-4、2-9、2-11、2-14、2-16 记录的问题已修复**，本轮已逐条实测确认并改标为「✅ 已修复」，并保留原问题原文以便追溯（其中 2-9 是**本轮那批未提交改动**顺带修掉的，其余 7 条由提交 `687e7d3` 修掉）。
 > 其余条目（2-5 ~ 2-8、2-12、2-13、2-15）本轮复测仍然成立，属事实性偏差或未实测项。
 > **本次新增**：**2-10 也已修复** —— `docker-compose.postgres.yml` 已删掉 `redis` 服务与 `shortdrama-redisdata` 卷（见 F13），该条已改标「✅ 已修复」；同时新增 **2-17**，记录核查 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 时顺带发现的**非 redis** 行号漂移（`docs/RUNBOOK.md` 里指向该覆盖文件的两处行号已过期），**本次只报告、不改这三个文件**。
+> **本轮（跨文档一致性核对轮）复核**：**§2-17 记录的两处漂移已被后续提交改对**（实测 `docs/RUNBOOK.md:1280` 写的是 `:36` / `:48`，`:1378` 写的是 `:43-45`，与 `docker-compose.postgres.yml` 实测一致）→ 该条已改标「✅ 已修复」。**§2 其余各条本轮逐条复测，判定不变**（2-5 ~ 2-8、2-12、2-13、2-15 仍成立；2-1 ~ 2-4、2-9 ~ 2-11、2-14、2-16 仍为「✅ 已修复」）。
+> **第 1 轮返工后复测**：上述两处内容未变，但行号随 `docs/RUNBOOK.md` 长到 **1531 行** 而漂到 **`:1321`** 与 **`:1419`**（见 §2-17 当前实测那两条）。§2 其余各条**逐条重扫，判定仍不变**。
 
 ### 2-1 ✅ **已修复** —— 原「JWT_KEY 首次运行脚本会自动替换为随机值」的失效说法
 
@@ -455,7 +489,7 @@
 ### 2-3 ✅ **已修复** —— 原「卷表格用已删脚本的 `postgres` 参数当『何时创建』」
 
 - **原问题**：`docs/DOCKER.md` §六「数据卷、备份与恢复」→「数据卷」的卷表「何时创建」列曾写 `postgres`（**原写法为两个连字符**，见 F20），那是已删脚本的参数。
-- **证据（已删脚本）**：`git show 09cdd7b^:deploy` + `.sh` 里有 `--postgres) USE_POSTGRES=1; shift ;;` 这一行；该文件已不存在。
+- **证据（已删脚本）**：`git show 09cdd7b^:deploy` + `.sh` 里有「**两个连字符 + `postgres`**」开头的那一行 —— 原文是 `postgres) USE_POSTGRES=1; shift ;;`，**前导连字符按 §0.1 约定不写出**；该文件已不存在。
 - **当前实测（已修复）**：同一卷表的「何时创建」列现为「带 `-f docker-compose.postgres.yml` 时」，已不含已删参数。**该卷表现只剩 `shortdrama-pgdata` 一行** —— `shortdrama-redisdata` 已随 `redis` 服务一起删除（本次实测：`docs/DOCKER.md` 全文搜 `redisdata` → **0 命中**，见 §2-10）。
 - **手册口径**：这个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:47-49`）。
 
@@ -512,9 +546,10 @@
   - 文件头 `:9-13` 现在是一段 ⚠️ 注释，原文写「这里**不提供 Redis**。应用现在用的是进程内内存缓存（`AddMemoryCache`），根本不连接 Redis —— 起一个没人连的容器只会多一个故障面：它曾经让部署机上的 `redis` 这个名字被反复申请，撞上别的项目留下的同名容器（报错 `Conflict. The container name "/redis" is already in use`，而那个容器压根不是本项目的）。将来真要上分布式缓存再加，届时也**不要写 `container_name`**，让 Compose 自己加项目前缀。」；`:6` 也从「额外拉起 postgres 与 redis 两个容器」改成「额外拉起一个 postgres 容器」。
 - **不变的事实结论（仍然成立）**：应用用的是**进程内内存缓存**，**不连 Redis** —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`、`:42` → `            services.AddMemoryCache();`。手册**不要**写「PostgreSQL 模式启用了 Redis 缓存」，也**不要**再让用户去找 `shortdrama-redisdata` 卷或 `redis` 容器。
 - **`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述核查（本次逐条实测，只报告不改）**：
-  - `docs/DOCKER.md`：§五「数据库：SQLite / PostgreSQL」→「PostgreSQL（可选）」现写「会额外拉起 `postgres` 容器：」（**已去掉 redis**）；§「附：文件说明」表现写「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（**不含 Redis**）」；§六「数据卷、备份与恢复」→「数据卷」的卷表**只剩 `shortdrama-pgdata` 一行**。实测：该文件搜 `redis|Redis|REDIS` → 仅 §「附：文件说明」表里那一行（即「不含 Redis」），搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
-  - `docs/RUNBOOK.md`：§7.4「PostgreSQL 模式（可选）」现写「启用（会额外拉起 `postgres` 容器）：」、成功判据现写「`ps` 里 `app`、`postgres` 两个服务都是 `Up`」。实测：该文件搜 `redis|Redis|REDIS` → **0 命中**，搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
-  - `README.md`：只有两处提到 Redis，都是**技术栈 / 路线图**口径 —— §二「技术栈」表的缓存行 → `| 缓存 | IMemoryCache（可换 Redis） | - |`（陈述的是**当前用 IMemoryCache**，与事实一致）、§十三「开发路线图」表里 `| Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |`（Redis 属**待做**项）。实测：该文件搜 `redisdata` / `两个容器` → **0 命中**。**未发现与事实不符的 redis 表述。**
+  - `docs/DOCKER.md`：§五「数据库：SQLite / PostgreSQL」→「PostgreSQL（可选）」现写「会额外拉起 `postgres` 容器：」（**已去掉 redis**）；§「附：文件说明」表现写「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（**不含 Redis**）」；§六「数据卷、备份与恢复」→「数据卷」的卷表**只剩 `shortdrama-pgdata` 一行**。实测（**第 2 轮返工重扫**）：该文件搜 `redis|Redis|REDIS` → **1 行**（`:936`，即 §「附：文件说明」表里「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（不含 Redis）」那一行），搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
+  - `docs/RUNBOOK.md`：§7.4「PostgreSQL 模式（可选）」现写「启用（会额外拉起 `postgres` 容器）：」、成功判据现写「`ps` 里 `app`、`postgres` 两个服务都是 `Up`」。实测（**第 2 轮返工重扫**）：该文件搜 `redis|Redis|REDIS` → **3 行**（`:257` = §1.8 引用的报错原文 `Conflict. The container name "/redis" is already in use`；`:344` = §1.8 自检 3 的标题；`:363` = 自检 3 的「不对时怎么办」），**三处都是「别的项目的容器名 / 迁移提示」口径，没有一处把 `redis` 写成本项目的服务**；搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
+    - ⚠️ **上一版这里记的是「0 命中」，那个数字已失效**：它是 §1.8「部署前自检」小节落定**之前**测的；该小节落定后新增了上面那 3 行（全部正当用法）。**结论不变，实测数字本轮已同步**（C6）。复现命令：`Select-String -Path docs\RUNBOOK.md -Pattern 'redis|Redis|REDIS' -Encoding UTF8` → `LineNumber` 257 / 344 / 363，计数 **3**。
+  - `README.md`：只有两处提到 Redis，都是**技术栈 / 路线图**口径 —— §二「技术栈」表的缓存行 → `| 缓存 | IMemoryCache（可换 Redis） | - |`（陈述的是**当前用 IMemoryCache**，与事实一致）、§十三「开发路线图」表里 `| Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |`（Redis 属**待做**项）。实测（**第 2 轮返工重扫**）：该文件搜 `redis|Redis|REDIS` → **2 行**（`:178` = §二「技术栈」表的缓存行、`:985` = §十三「开发路线图」表），搜 `redisdata` / `两个容器` → **0 命中**。**未发现与事实不符的 redis 表述。**
   - ⚠️ **顺带发现（不是 redis 表述问题）**：`docs/RUNBOOK.md` 里两处指向 `docker-compose.postgres.yml` 的**行号已因本次删除而过期** —— 记入 **§2-17**，本次**不改该文件**。
 
 ### 2-11 ✅ **已修复** —— 原「`grep SHORTDRAMA_IMAGE .env` 会命中注释行」
@@ -561,14 +596,18 @@
 - **不变的事实**：`*.sh text eol=lf`（**本轮实测在 `.gitattributes:31`**；上一版记的 `:22`、更早的 `:21` 都已过期）本身仍然正确且必要（`docker/entrypoint.sh` 靠它）。
 - **结论**：**已修复，无需再提给仓库维护者。** F19 声明的模式本来就能抓到这两行（现仍在 A 表里，但判定已从「真实残留」改为「✅ 允许 / ✅ 已修复」）。
 
-### 2-17 ⚠️ `docs/RUNBOOK.md` 里指向 `docker-compose.postgres.yml` 的两处行号已过期（**非 redis 表述问题**）
+### 2-17 ✅ **已修复** —— 原「`docs/RUNBOOK.md` 里指向 `docker-compose.postgres.yml` 的两处行号已过期」（**非 redis 表述问题**）
 
-- **成因**：`docker-compose.postgres.yml` 本次删掉了 `redis` 服务与 `shortdrama-redisdata` 卷（**1785B / 57 行 → 2004B / 49 行**，见 F13 / F17），该文件后半段的行号整体上移。
-- **实测（只读核查，本次未改这三个文档）**：
-  - `docs/RUNBOOK.md` §7.1「数据卷与「卷名前缀」（备份前必须看懂）」的卷表（**实测该行在 `:1099`**）→ 写「`docker-compose.postgres.yml` 的 `:30`、`:54`」（**这两个是过期值**）；实际 `shortdrama-pgdata:/var/lib/postgresql/data` 在 **`:36`**，顶层 `volumes:` 里的 `shortdrama-pgdata:` 声明在 **`:48`**（`driver: local` 在 `:49`，整段是 `:47-49`）。**过期的 `:30` 与 `:54` 现在分别指向 `POSTGRES_USER: shortdrama` 与 `#   - "5432:5432"`**，均不是卷声明。
-  - `docs/RUNBOOK.md` §7.4「PostgreSQL 模式（可选）」的提示块（**实测该行在 `:1197`**）→ 「PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml` 的 `:37-39`，**过期值**）」；实际注释块在 **`:43-45`**（`:43` 是说明注释「默认不对外暴露端口；需要直连调试时取消注释」、`:44` 是 `# ports:`、`:45` 是 `#   - "5432:5432"`）。
-  - 复现命令：`[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml', [Text.Encoding]::UTF8)` 逐行回读上述 6 个行号。
-- **建议**：把这两处改成**内容 / 章节引用**（例如「`docker-compose.postgres.yml` 里 `shortdrama-pgdata` 的卷声明」「`docker-compose.postgres.yml` 里注释掉的 `ports:`」），或按实测刷新为 `:36` / `:48` 与 `:44-45`。**本次任务范围只允许改 `docs/DEPLOY-FACTS.md`，故只报告、不修改 `docs/RUNBOOK.md`**（已记入本次交付的 open questions）。
+- **成因**：`docker-compose.postgres.yml` 删掉了 `redis` 服务与 `shortdrama-redisdata` 卷（**1785B / 57 行 → 2004B / 49 行**，见 F13 / F17），该文件后半段的行号整体上移；`docs/RUNBOOK.md` 里两处硬编码行号因此过期。
+- **原问题（上一版记录，保留以便追溯）**：
+  - §7.1「数据卷与「卷名前缀」（备份前必须看懂）」的卷表曾写「`docker-compose.postgres.yml` 的 `:30`、`:54`」（**过期值**）—— 那两个行号实际指向 `POSTGRES_USER: shortdrama` 与注释掉的 `#   - "5432:5432"`；
+  - §7.4「PostgreSQL 模式（可选）」的提示块曾写「默认不对外暴露端口（`docker-compose.postgres.yml` 的 `:37-39`，**过期值**）」。
+- **当前实测（本次复测，两处都已改对）**：
+  - `docs/RUNBOOK.md` **`:1321`**（§7.1 卷表内 `shortdrama-pgdata` 那一行）现写「`docker-compose.postgres.yml:36`（卷挂载）、`:48`（顶层 volumes 声明）」—— 与实测一致（`:36` = `      - shortdrama-pgdata:/var/lib/postgresql/data`、`:48` = `    shortdrama-pgdata:`、`:49` = `      driver: local`，整段 `:47-49`）。**第 1 轮返工后行号从 `:1280` 漂到 `:1321`**（RUNBOOK 本轮又长到 1531 行），内容未变；
+  - `docs/RUNBOOK.md` **`:1419`**（§7.4 提示块）现写「`docker-compose.postgres.yml:43-45`」—— 与实测一致（`:43` 是说明注释、`:44` 是 `# ports:`、`:45` 是 `#   - "5432:5432"`）。**第 1 轮返工后行号从 `:1378` 漂到 `:1419`**，内容未变。
+  - 复现命令：`[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docs\RUNBOOK.md', [Text.Encoding]::UTF8)` 回读上述两行，再用同一方式回读 `docker-compose.postgres.yml` 的 `:36` / `:48` / `:43-45` 比对。
+  - ⚠️ **行号是核对时刻的值**：`docs/RUNBOOK.md` 本轮正在被另一角色改写（新增 §1.8「部署前自检」，实测该文件已从 1310 行长到 1490 行），**章节引用（§7.1 / §7.4）才是稳定定位方式**。
+- **结论**：**已修复，无需再提给仓库维护者。** 上一版「只报告、不改 `docs/RUNBOOK.md`」的处置已完成闭环。
 
 ---
 
@@ -583,7 +622,8 @@
 | 构建阶段平台 | 两个构建阶段 `--platform=$BUILDPLATFORM`、`final` 不声明（`Dockerfile:24`、`:39`、`:69`；理由见 F21） |
 | 健康检查 | `curl -fsS http://localhost:8080/health`，30s/5s/40s/3（`docker-compose.yml:75-79`） |
 | 数据卷 | `shortdrama-data` → `/data`（`docker-compose.yml:72`、`:87-89`） |
-| 卷名规则 | `<compose 项目名>_shortdrama-data`；项目名来自目录名（compose 无 `name:`） |
+| 卷名规则 | `<compose 项目名>_shortdrama-data`；项目名来自**执行目录名**（两个 compose 都无顶层 `name:`、也无 `COMPOSE_PROJECT_NAME`；要固定就取消 `.env.example:67` 那行的注释或用 `-p`） |
+| 容器名规则 | `<项目名>-<服务名>-1`，服务名 `app` → `<项目名>-app-1`；两个 compose 里 `container_name:` **键** 0 个（`docker-compose.yml:23-26` 只有解释性注释）。⚠️ **边界情形（本轮已裁决、四处口径统一）**：项目名只保留 `a-z0-9_-`（其余字符**删掉**，不是换成 `-`）；**纯中文 / 纯非 ASCII 目录名**（如 `短剧聚合`）→ 项目名是**空串** → `docker compose` 报 `project name must not be empty` 并**拒绝执行**，**不会**产生「中文前缀的容器名」；含大写 / 含空格的目录名**能跑**，但项目名会被小写化 / 去掉空格；中文 + ASCII 混合名只取 ASCII 那一半。手册的稳妥写法：显式设 `COMPOSE_PROJECT_NAME`（`.env.example:67`）或 `-p shortdrama`。依据见 F1 |
 | 管理后台 | `http://localhost:18080/admin`，`admin / admin123`（`DbSeeder.cs:147,150`；`router/index.ts:64`） |
 | 默认口令 | `遵纪守法世界和平`（`docker-compose.yml:42`） |
 | 口令门开关 | `ACCESS_GATE_ENABLED` → `AccessGate__Enabled`（`docker-compose.yml:41`） |
@@ -591,8 +631,8 @@
 | PG 覆盖文件 | `app` / `postgres` **两个**服务（`docker-compose.postgres.yml:17,25`；`redis` 服务已删除，见 F13 / §2-10） |
 | 容器用户 | 镜像内置 `app`；容器以 root 启动、入口脚本 `gosu` 降权（`entrypoint.sh:17,20,27`） |
 | 入口脚本三件事 | chown `/data`（`entrypoint.sh:22`）→ `gosu app` 降权（`:27`）→ `exec "$@"`（`:35`） |
-| 镜像模式镜像 | `ghcr.io/xcool-603/muse-video:latest`（`docker-publish.yml:40,56`） |
-| 平台 | `linux/amd64`（`docker-publish.yml:25`） |
+| 镜像模式镜像 | `ghcr.io/xcool-603/muse-video:latest`（`docker-publish.yml:42,58`） |
+| 平台 | `linux/amd64`（`docker-publish.yml:27`） |
 | 采集源数量 | 22 个，全部 enabled（`ShortDrama.Api/apple-cms-sources.json`） |
 | 部署包装脚本 | **不存在**（两个 deploy 开头的包装脚本已在 09cdd7b 删除） |
 
@@ -600,18 +640,24 @@
 
 ## 4. 未实测 / 待确认（交给能跑 docker 的人）
 
-1. **compose 项目名与卷名**：中文目录名 `短剧聚合` 下 `docker compose config` 是否直接报项目名非法，以及实际卷名前缀。验证命令：`docker compose config --format json`（看 `name`）、`docker volume ls | Select-String shortdrama`。本机**未安装 docker**，无法实测。
+1. ✅ **compose 项目名与卷名 —— 已裁决（源码级），四处口径已统一**：原待确认项是「中文目录名 `短剧聚合` 下 `docker compose config` 会怎样」。本轮用上游官方实现（`compose-go` 的 `NormalizeProjectName()` + `loader.go` 的空项目名报错 + 两个官方单元测试 + Docker 官方文档）裁定：**纯中文 / 纯非 ASCII 目录名 → 项目名空串 → 报 `project name must not be empty` → 什么都不会被创建**。四处口径（`docs/DOCKER.md` §一「5. 容器名是怎么来的」、`docs/RUNBOOK.md` §1.5、`.env.example:46-67`、本文件 F1 与 §3）现已改成同一句话，详见 F1。
+   - ⚠️ **仍是「源码级裁决」，不是「本机实跑」**：本机**未安装 docker**。留给能跑 docker 的人的**复核**命令（不影响现有结论，只是再确认一次）：`cd` 到一个纯中文目录，跑 `docker compose config --format json`，期望**非 0 退出码**且 stderr 含 `project name must not be empty`；再加 `-p shortdrama` 重跑，期望退出码 0 且 JSON 里 `"name": "shortdrama"`。卷名前缀用 `docker volume ls | Select-String shortdrama` 看。
 2. **`app` 用户实际 UID/GID**：`docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'`。
 3. **首次构建耗时与磁盘占用**：文档写 3-5 分钟 / 3-5 GB（`docs/DOCKER.md` §一「30 秒上手」→「2. 一条命令」、§九「故障排查」表内「构建很慢或卡住」那一行），仓库内无证据，属经验值。
 4. **`curl` 是否真在运行时镜像里**：`Dockerfile:85` 装了（构建期自检第 5 条 `Dockerfile:131` 也会在构建时确认它存在），但未实测镜像。健康检查完全依赖它。
 5. **PostgreSQL 覆盖模式下 `app` 是否真的能连上 `postgres`**：`depends_on: condition: service_healthy` 已配（`docker-compose.postgres.yml:21-23`），但需实测首次建库与 EF 迁移行为。
 6. ~~**`.gitattributes:11`/`:18` 的过期注释是否会被修**~~ → **已修复**：提交 `687e7d3` 已把注释改写成「曾经还有 … 已删除」口径，`.env` 的 LF 理由也改挂到 compose 上；当前位置是 `.gitattributes:12-13` 与 `:19`（见 §2-16）。**不再是待确认项。**
 7. ✅ **已完成（本轮）：`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的引用已改成章节引用，`.gitattributes` 的行号与 F17 的字节数已刷新。** 上一版这里是一条「待专门刷新一轮」的待办，本轮已执行：
-   - `docs/DOCKER.md` 实测 **36559B / 863 行**（核对期间被改过三次）—— F17 表已改；本文件里 **58 处 `docs/DOCKER.md:<行号>`** 引用已逐条**打开目标文档、按内容重新定位**，并改成**章节引用**（形如 `docs/DOCKER.md §六「数据卷、备份与恢复」`）；
-   - `docs/RUNBOOK.md`（本轮实测 69739B / 1310 行）与 `README.md`（本轮实测 48703B / 999 行）的引用同样改成章节引用；
+   - `docs/DOCKER.md` 实测 **36559B / 863 行**（**该轮的值**；核对期间被改过三次）—— F17 表已改；本文件里 **58 处 `docs/DOCKER.md:<行号>`** 引用已逐条**打开目标文档、按内容重新定位**，并改成**章节引用**（形如 `docs/DOCKER.md §六「数据卷、备份与恢复」`）；
+   - `docs/RUNBOOK.md`（该轮实测 69739B / 1310 行）与 `README.md`（该轮实测 48703B / 999 行）的引用同样改成章节引用；
    - `.gitattributes` 实测 **2022B / 38 行** —— F17 表已改，`*.sh text eol=lf` 现在在 **`:31`**，清单里其余指向它的行号引用已同步核对。
    - 三个文档的 `CR` 仍为 **0**、BOM 仍为 **False**，所以「UTF-8 无 BOM + LF」的结论不受影响。
    - 仍建议：文档之后再改时按「章节引用 + 全文搜索」核对，**不要死认行号**。
+   - **本次刷新（跨文档一致性核对轮）实测**：`docs/DOCKER.md` **38191B / 894 行**、`README.md` **48689B / 999 行**、`docs/RUNBOOK.md` **79010B / 1490 行**（后者正被另一角色改写，见 F17「本次刷新」一条与本节第 8 项）。
+   - **第 1 轮返工后重测（当时的值，**已被下一条取代**）**：`docs/DOCKER.md` **41631B / 941 行**、`README.md` **48689B / 999 行**（未变）、`docs/RUNBOOK.md` **82252B / 1531 行**、`.env.example` **3670B / 67 行**。四个文件仍 **CR=0、BOM=False**。见 F17 的「第 1 轮返工后重测」一条。
+- **第 2 轮返工再测**：`docs/RUNBOOK.md` **82280B / 1531 行**（`LastWriteTime` = **2026-10-12 11:50:19**，SHA256 前 16 位 `87AB86F53D91EAE8`；行数仍 1531，**F19 的命中行号未漂**，已重扫确认）。另外三个文件本轮**未再改动**，复测值与上一条相同：`docs/DOCKER.md` **41631B / 941 行**、`README.md` **48689B / 999 行**、`.env.example` **3670B / 67 行**（四者仍 `CR=0`、`BOM=False`、`LF` 计数 = 行数）。
+
+8. ✅ **已完成（第 1 轮返工，第 2 轮返工再测）——`docs/RUNBOOK.md` 的字节 / 行数已重测**：该项原为「⏳ 需要在新节落定后重测」。第 1 轮返工时该文件已落定（`LastWriteTime` = **2026-10-12 11:38:25**，SHA256 前 16 位 `BB5F4D5446F268E9`），实测 **82252B / 1531 行**；**第 2 轮返工再测（当前值）= 82280B / 1531 行**（`LastWriteTime` = **2026-10-12 11:50:19**，SHA256 前 16 位 `87AB86F53D91EAE8`；间隔 3 秒连续三次测量结果相同，判定已落定），两者均 `CR=0`、`BOM=False`，F17 表已同步。沿革：**69739B / 1310 行 → 79010B / 1490 行（新增 §1.8「部署前自检」）→ 82252B / 1531 行（B1 修复：§1.5 扩成「ASCII 目录名 + 四种目录名对照表」）→ 82280B / 1531 行（第 2 轮返工期间 `runbook-author` 又写入 28 字节，行数不变）**。重测命令：`[System.IO.File]::ReadAllBytes('C:\Work\短剧聚合\短剧聚合\docs\RUNBOOK.md').Length` 与 `(Get-Item -LiteralPath <同一绝对路径>).Length` 交叉验证，行数用 `ReadAllLines(...).Count`。**本文件对该文档的引用一律用章节 / 内容引用**，不受行号漂移影响；该文件若再改，只需重跑上面两条命令。
 
 ---
 
@@ -623,20 +669,47 @@
 $f = 'C:\Work\短剧聚合\短剧聚合\docs\DEPLOY-FACTS.md'
 
 # 模式一（§0.1）：两个包装脚本的完整文件名（点号转义）
-Select-String -Path $f -Pattern 'deploy\.(sh|ps1)' -AllMatches -Encoding UTF8
-# → 0 命中 ✅
+(Select-String -Path $f -Pattern 'deploy\.(sh|ps1)' -Encoding UTF8).Count
+# → 0 ✅
 
-# 模式二（§0.1）：已删参数 —— 6 个分支，前导连字符按 §0.1 约定不写出来
-Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
-# → 0 命中 ✅
+# 模式二（§0.1）：已删参数原写法的【全集】—— sh 版 10 个 + ps1 版 10 个（清单见 §0.1）
+# 模式由片段拼接而成，本文件正文里不出现原写法，所以这条命令不会命中它自己
+$h  = '-'            # 一个连字符（ps1 版）
+$hh = '-' + '-'      # 两个连字符（sh 版）
+$declaredParamPattern =
+  ($hh + '(port|postgres|rebuild|update|check|install-cron|uninstall-cron|down|purge)') + '|' +
+  ($h  + '(Port|Postgres|Rebuild|Update|Check|InstallTask|TaskTime|UninstallTask|Down|Purge)')
+(Select-String -Path $f -Pattern $declaredParamPattern -CaseSensitive -Encoding UTF8).Count
+# → 0 ✅
 ```
 
-- ⚠️ **两条判据是两个不同的模式，别混**：C3 的「模式二」是 **§0.1** 声明的**参数**模式（6 个分支）；**F19** 用的是另一条**更宽的 12 分支**模式（额外含中文「部署包装 / 部署脚本」、`postgres` 锚点、任务名、cron 标记）。**F19 那条扫本文件会命中 25 行**（本轮实测），因为那几类字样本来就必须逐条写在本文件里 —— 这是**预期行为**，不代表 C3 判据失守。上一版把两者混为一谈，写成了「模式二 → 0 命中」而不说明用的是哪条模式。
+> **为什么模式二要写成「全集」而不是上一版的 6 个分支**：上一版只声明了 6 个分支 —— 按 §0.1 约定写成不带前导连字符的样子就是 `update` / `install-cron` / `uninstall-cron` / `purge` / `rebuild`（sh 版）与 `InstallTask`（ps1 版），于是 §5 的「0 命中 ✅」是真的，**却与 C5 的判据不是一回事** —— C5 要的是「不含已删部署脚本的完整文件名与参数」，而上一版同一份文件的 §5 正文里就按 ps1 原写法列了 6 个参数（`UninstallTask` / `Purge` / `Rebuild` / `Update` / `Postgres` / `TaskTime`，原写法各带一个前导连字符），另有 3 行逐字抄了 `docs/DOCKER.md` 的标题锚点（= sh 版 `postgres` 参数的原写法）。判据只认字符串，所以那 9 处都算命中，结论只能靠人工判断。**本轮把参数集扩到全集、并把这 9 处改掉，机械判据才真正归零。**
+>
+> **复现时的注意**：`$h` / `$hh` 两个变量必须用**片段拼接**得到，不能把整条模式写成一行字面量 —— 否则这条自检命令自己就会命中自己（上一版的模式声明就是因此才改成「逐分支列表」的）。
+
+**本轮实跑输出（原样贴回）：**
+
+```text
+PS> (Select-String -Path $f -Pattern 'deploy\.(sh|ps1)' -Encoding UTF8).Count
+0
+
+PS> $h='-'; $hh='-'+'-'
+PS> $declaredParamPattern = ($hh + '(port|postgres|rebuild|update|check|install-cron|uninstall-cron|down|purge)') + '|' + ($h + '(Port|Postgres|Rebuild|Update|Check|InstallTask|TaskTime|UninstallTask|Down|Purge)')
+PS> $declaredParamPattern
+--(port|postgres|rebuild|update|check|install-cron|uninstall-cron|down|purge)|-(Port|Postgres|Rebuild|Update|Check|InstallTask|TaskTime|UninstallTask|Down|Purge)
+PS> (Select-String -Path $f -Pattern $declaredParamPattern -CaseSensitive -Encoding UTF8).Count
+0
+```
+
+- ⚠️ **两条判据是两个不同的模式，别混**：C3 的「模式二」是 **§0.1** 声明的**参数**模式（本轮起 = 全集 20 个参数）；**F19** 用的是另一条**更宽的 12 分支**模式（额外含中文「部署包装 / 部署脚本」、`postgres` 锚点、任务名、cron 标记）。**F19 那条扫本文件会命中 23 行**（第 1 轮返工后实测，含本节与文末这几行说明本身），因为那几类字样本来就必须逐条写在本文件里 —— 这是**预期行为**，不代表 C3 判据失守。上一版把两者混为一谈，写成了「模式二 → 0 命中」而不说明用的是哪条模式，也没发现「模式二」的 6 分支比 C5 的判据窄。
 - 模式二**在更早的稿子里曾命中**：命中的是「本文件自己写下的那条模式字面量」和「本文件自己写下的那条自检命令」，都不是真正的引用，但机械判据只认字符串，所以照样算命中。现已把两处都改掉：
   - 模式声明改成**逐分支列表**（§F19），不再出现连成一串的字面量；
   - 本节的自检命令改用 `$declaredParamPattern` 变量引用，不再内联那串字面量。
 - 本文件**没有任何地方把已删脚本写成可执行命令**。出现 `deploy` + `.sh` / `deploy` + `.ps1` 断开写法的地方，全部在「已删除」的语境里（F18 的删除证据、F19 的残留清单与「已修复」判定、§2-16 的原问题原文）。
-- 额外用更宽的模式复扫本文件（`-UninstallTask`、`-Purge`、`-Rebuild`、`-Update`、`-Postgres`、`-TaskTime` 等）→ 仅命中「标题锚点 `#五数据库sqlite--postgresql`」（属正常 Markdown）与 `auto-update.log`、`shortdrama-auto-update` 之类的无关串 / 元描述，**无一处是脚本参数**。
+- 额外用**已删参数原写法的全集**（sh 版 10 个 + ps1 版 10 个，逐字清单见 §0.1；模式在自检里由片段拼接而成，本文件正文不出现原写法）复扫本文件 → **0 命中**（实跑输出见本节末的代码块）。
+  - ⚠️ **上一版这一行是违规的，本轮已改**：它按已删 ps1 脚本的**原始写法**（一个连字符 + 参数名）列出了 6 个参数 —— 即 F20 里那 6 个 `UninstallTask` / `Purge` / `Rebuild` / `Update` / `Postgres` / `TaskTime`（原写法各带一个前导连字符）。这既违反 §0.1 的书写约定，也让 C5 的机械判据不再为 0，只能靠人工判断「这行是自检说明、不是教用户执行」。**现在已改成不带前导连字符的写法。**
+  - ⚠️ **同一轮另外改了 3 行**：B 表那两行与紧随其后的锚点注释原先**逐字抄了** `docs/DOCKER.md` 的标题锚点（等于已删 sh 脚本 `postgres` 参数的原写法，两个前导连字符），机械判据一样会命中。**现已改成断开写法，这 3 行的命中归零。**
+  - 改完之后，本文件里**唯一**还会命中 §F19 那条更宽 12 分支模式的，是 `ShortDramaAutoUpdate` / `shortdrama-auto-update` / 中文「部署包装」「部署脚本」这类**元描述**（它们本来就必须逐条写在本文件里），**没有一处**是已删脚本的完整文件名或参数原写法。计数见 F19 与 §5。
 
 **C2 —— 事实条目数：**
 
@@ -666,7 +739,7 @@ Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
 | F22 | 构建期自检的六条（逐条 文件:行 + 命令） | ✅ |
 | F23 | `.dockerignore` 排除清单（含本轮新增两条） | ✅ |
 
-**合计 23 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 **17 条**「文档易错点」（其中 2-1 ~ 2-4、2-11、2-14、2-16 由提交 `687e7d3` 修复、2-9 由那一批未提交改动修复、**2-10 由本次删除 `redis` 服务修复**，均已改标为「✅ 已修复」；2-17 是本次核查顺带发现的非 redis 行号漂移，**只报告不改**）与 §3 速查表。
+**合计 23 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 **17 条**「文档易错点」（其中 2-1 ~ 2-4、2-9 ~ 2-11、2-14、2-16 由提交 `687e7d3` 与那批未提交改动修复、**2-10 由删除 `redis` 服务修复**、**2-17 由后续提交改对两处行号**，均已改标为「✅ 已修复」；**其余 2-5 ~ 2-8、2-12、2-13、2-15 本轮复测仍然成立**）与 §3 速查表。
 
 > **本文件本轮（定向返工）改动范围**：文档头的核对快照说明、§0 残留引用扫描口径、F17 编码与行尾表（新增「字节」列并刷新过期值）、F18 第 1 条的复现命令、F19 全节（计数与结论按实测重写）、§2 的 2-1 / 2-2 / 2-3 / 2-4 / 2-9 / 2-11 / 2-14 / 2-16、§4 第 6 项与第 3 项的行号、§5 的 C3 说明与 C2 表里 F19 那一行。
 > **另外**：因为 `README.md`（+5 行）与 `docs/DOCKER.md`（+9 行）在本轮核对期间被那批未提交的 cron 日志修复改过，本文件里**所有指向这两个文件的行号引用**都按新行号整体刷新过一遍（`README.md` 后半段 +5、`docs/DOCKER.md` 后半段 +9）。
@@ -693,3 +766,27 @@ Select-String -Path $f -Pattern $declaredParamPattern -AllMatches -Encoding UTF8
 > **未改动任何指向 `Dockerfile` / `.dockerignore` 的引用** —— 上一轮刚校准过，本次**一字未动**（`Dockerfile:` / `.dockerignore:` 的行号引用，以及 F3、F4、F5、F7、F8、F18 第 5 条、F21、F22、F23 的数值均保持原样）。
 > **本角色本次只写了 `docs/DEPLOY-FACTS.md` 这一个文件**；`docker-compose.postgres.yml`、`docs/DOCKER.md`、`docs/RUNBOOK.md`、`README.md` 是**别人**改的，本角色只读实测、未写入（用 `git status --porcelain -uall` 核过）。行尾保持 **LF**（改完后逐字节复测本文件 `CR=0`），未引入 §0.1 的禁用串。
 > **本次对三个文档的核查结论**：`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 里**没有**与事实不符的 redis 表述（实测命令与逐条结论见 §2-10）；唯一发现的是 `docs/RUNBOOK.md` 两处**非 redis** 的行号漂移（见 §2-17），已记入本次交付的 open questions，**未改这三个文件**。
+
+> **本次刷新（跨文档一致性核对轮）改动范围**：文档头核对快照（新增本轮的「本次刷新」段）、**F5**（`.env.example:46-67` 的 `COMPOSE_PROJECT_NAME` 新事实 + 两个 compose 实测 0 行）、**F6**（变量表新增 `COMPOSE_PROJECT_NAME` 一行；`.gitignore:25` → `:29`）、**F16**（工作流 5 处行号按实测刷新）、**F17**（表内 `README.md` / `docs/DOCKER.md` 两行按实测刷新，**新增 `docs/RUNBOOK.md` 一行**；新增「本次刷新」小节并给旧值加历史标注）、**F19**（命中位置快照按实测重写，并补上「命中行数的分布」一条；`.gitignore:41-42` → `:49`）、**§2 头部**（2-17 状态说明）、**§2-17**（改标「✅ 已修复」，附两处当前实测行号与复现命令）、**§3 速查表**（卷名规则一行补全 + 新增「容器名规则」一行；镜像 / 平台两行行号同步）、**§4 第 7 项**（按本次实测更新）与**新增第 8 项**（`docs/RUNBOOK.md` 待重测）、**§5 合计条**、本节收尾。
+> **本角色本轮只写了 `docs/DEPLOY-FACTS.md` 这一个文件**（外加自己名下的核对表 `.dsh-team/deploy-polish/work/consistency-auditor/CONSISTENCY.md`，该目录被 `.gitignore:49` 忽略、不进仓库）。`docs/RUNBOOK.md`（另一角色正在新增 §1.8「部署前自检」）、`docs/DOCKER.md`、`README.md`、`.env.example`、两个 compose 本角色**只读实测、未写入**。行尾保持 **LF**（改完后逐字节复测本文件 `CR=0`、BOM=`False`），未引入 §0.1 的禁用串 —— 两条 C3 判据实跑均 **0 命中**。
+> **本次未做的事（如实记录）**：① `docs/DOCKER.md:160`「两个 compose 文件里 `container_name` 出现 0 次」按**字面**不精确（两个文件各出现 1 次，但都在注释里；作为**键**确实是 0 个）—— 属措辞问题，**本角色不改该文件**，已记入核对表与 open questions。**✅ 第 1 轮返工后已由别的角色修好**：该句现为「两个 compose 文件里 `container_name:` **键**出现 **0 次**（`docker-compose.yml:23`、`docker-compose.postgres.yml:13` 只是注释里提到这个词）」（现位于 `docs/DOCKER.md` §一「5. 容器名是怎么来的」开头）；② `docs/RUNBOOK.md` 有三处（那一轮的 `:126`、`:754`、`:758`）仍写「`.env.example` 正确是 **44 行**」，而实测是 **57 行** —— 同样是别的角色正在改的文件，**只报告不改**。**✅ 第 2 轮返工后已对齐**：那四处（`:126`、`:794`、`:795`、`:799`）现写 **67 行 / 3670 字节**，并给出「不带 `-Encoding UTF8` 只读出 **50 行**」的实测；`.env.example` 实测 **67 行 / 3670 字节**（LastWriteTime = 2026-10-12 11:29:30）。复现：`Select-String -Path docs\RUNBOOK.md -Pattern '57 行|45 行|少掉的 12 行'` → 0 命中；③ 运行期行为（`docker compose config` 是否打印 `name:`、卷名实际前缀、`/health` 实测返回）本机**无 docker，一律未实测**。
+
+> **第 1 轮返工（同角色：consistency-auditor；对应产品初筛 `review/round-1.md` 的 B4，以及 B1 的「本文件侧」部分）改动范围**：
+> ① **B4 —— 去掉唯一的禁用串**。上一版有一行按已删 ps1 脚本的**原始写法**（一个连字符 + 参数名）列出了 6 个参数（`UninstallTask` / `Purge` / `Rebuild` / `Update` / `Postgres` / `TaskTime`，原文各带一个前导连字符），既违反 §0.1 的书写约定，也让 C5「不含已删部署脚本的完整文件名与参数」的机械判据不再为 0（结论只能靠人工判断「这是自检说明、不是教用户执行」）。现已改成不带前导连字符的写法。
+> ② **同一轮把另外 3 行也改成断开写法**：F19 的 B 表 2 行与紧随其后的锚点注释，原先**逐字抄录**了 `docs/DOCKER.md` 的标题锚点 —— 那个字面量恰好等于已删 sh 脚本 `postgres` 参数的原写法（两个前导连字符），机械判据一样会命中。改完之后，本文件里**没有任何地方**再出现已删脚本的完整文件名或参数原写法。
+> ③ **§0.1 的书写约定从「举例」扩到「全集」**：原先只列了 6 个参数并带「等」字，现在明确列出 F20 登记的**全部 20 个参数**（sh 版 10 个 + ps1 版 10 个），并新增一段说明「**同一条约定也适用于 Markdown 标题锚点**」。
+> ④ **§5 的自检改成真正对得上 C5 判据的全集模式**：上一版「模式二」只声明 6 个分支，比 C5 的判据窄 —— 所以它那句「0 命中 ✅」虽然为真，却答非所问（同一节正文里就有 6 个带连字符的参数、3 行逐字锚点）。现在模式二由**片段拼接**得到全集模式（拼接是为了不让这条命令命中它自己），并把**实跑输出原样贴回**：模式一 **0**、模式二 **0**。F19 那条更宽的 12 分支模式扫本文件的计数也按实测更新（本文件自己 **24 → 23 行**：减掉的 3 行是那 3 处锚点，加回 2 行是本节与文末的说明文字；因此四种口径从 **53 / 29 / 6 / 6** 变成 **52 / 29 / 6 / 6**）。
+> ⑤ **B1 的「本文件侧」**：初筛报告指出「中文 / 非 ASCII 目录名会得到什么项目名前缀」在 `docs/DOCKER.md` §一「5. 容器名是怎么来的」与 `docs/RUNBOOK.md` §1.5「部署目录必须是 ASCII 名」之间**互相矛盾**（且 `docs/DOCKER.md` 自身两句也不自洽）。本角色先按「**不选边、只记录分歧**」处理（**F1** 并排列出两边原话、**§3 速查表**「容器名规则」一行补上边界情形、**§4 第 1 项**从「未实测」升格为「已确认的矛盾 + 裁决方法」）。
+> ⑥ ✅ **B1 已在同一轮由别的角色闭环，本文件随之改为「已裁决」**：`docs/DOCKER.md`（941 行版）、`docs/RUNBOOK.md`（1531 行版）与 `.env.example`（67 行版）**四处口径已统一**为「项目名规范化 = ① 全部转小写；② 只保留 `a-z0-9_-`，其余字符**删掉**（不是换成 `-`）；再砍掉开头的 `-` / `_`」→ **纯中文 / 纯非 ASCII 目录名 → 空串 → `docker compose` 报 `project name must not be empty` 并拒绝执行，不存在「中文前缀的容器名」**。裁决依据是**源码级核对**（`compose-go` 的 `NormalizeProjectName()` + `loader.go` 的空项目名报错 + 两个官方单元测试 + Docker 官方文档）：本机**无 docker**，无法实跑，但**外网是可访问的**（`raw.githubusercontent.com` / `docs.docker.com` 本轮实测均通），所以分歧点可以靠「回读上游实现 + 逐字符复算」定论，不需要等一台装了 docker 的机器。本文件随之更新：**F1** 改标 ✅ 已裁决并补上依据与复现脚本路径、**§3 速查表**「容器名规则」一行改成「已裁决、四处口径统一」、**§4 第 1 项**改成 ✅ 已完成（并保留留给能跑 docker 的人的**复核**命令）。
+> ⑦ **文档头第 3 段**（跨文档一致性核对轮那段）原先写「六类均为「一致」」，中途曾按「1 处未闭环矛盾」改写，**最终按 B1 闭环后的结论改回「六类均为「一致」」**，并加了一句说明该矛盾曾存在、由谁闭环、以及那一段里的字节 / 行号已被本轮刷新。
+> ⚠️ **「六类均为一致」这个最终结论的成立条件必须写清**（否则与核对表 §2 的表述会看起来打架）：它指的是「**第 1 轮返工之后**六类 0 矛盾」。**返工前**类②（容器名规则 / 中文目录名）**是一处真矛盾** —— 核对表上一版把它误判成「一致」（只引了 `docs/DOCKER.md` 第 168 行前半句、略去了第 169 行）。因此核对表 §2 汇总里类② 写的是「**本轮返工后一致（改前：矛盾）**」，与这里的「六类均为一致」是**同一结论的两种记法**：前者标出修复过程，后者只报终态。两处不矛盾。
+> ⑨ **本段所属角色的说明**：闭环 B1 的越界写入（`docs/DOCKER.md` / `.env.example`）由 **`consistency-auditor`** 在**编排层临时授权**下完成（依据：初筛报告 `review/round-1.md:68-69` 指出这两个文件不在任何角色边界内、需编排层授权其中一位；本轮返工指令把 B1 派给该角色并写明「统一四处口径」）。**该授权是否成立由编排层追认**；若不追认，只需回退这两个文件的本轮改动并另行指定 owner，但那样 B1 无法闭环。
+> ⑧ **本轮同时把被别的角色改动影响到的数字与引用同步掉**（C6）：**F5**（`.env.example:46-67`、`:67`）、**F6**（`.env.example` **57 行 → 67 行 / 2986B → 3670B**，`COMPOSE_PROJECT_NAME` `:57` → `:67`）、**F17**（表内 `docs/DOCKER.md` **38191B/894 → 41631B/941**、`docs/RUNBOOK.md` **79010B/1490 → 82252B/1531**、`.env.example` **2986B/57 → 3670B/67**；新增「第 1 轮返工后重测」一条，含 `LastWriteTime` 与 `SHA256` 前 16 位；**第 2 轮返工再测：`docs/RUNBOOK.md` 82280B / 1531 行，见文末「第 2 轮返工」段**）、**F19**（命中位置快照按新行号重测：`docs/DOCKER.md` **84、86、164、320**；`docs/RUNBOOK.md` **12、221、935、939、980、997、998、1006、1040、1065、1072、1074、1090、1091、1101、1105、1121、1122、1138、1140、1188、1200、1464**；C 表新增 **145、1167**；**四种口径仍为 52 / 29 / 6 / 6**，分布也不变）、**§2-17 与 §2 头部**（RUNBOOK 两处行号 `:1280` → **`:1321`**、`:1378` → **`:1419`**，内容未变）、**§4 第 7 项**（补最终值）与**第 8 项**（RUNBOOK 重测完成，改标 ✅）。
+> ⚠️ **一处如实记录的协作事实**：本轮 `docs/DEPLOY-FACTS.md` 与核对表 `CONSISTENCY.md` **同时被两个角色写**（本角色写 B4 与核对表重核；闭环 B1 的角色写了 F1 / F5 / §3 / §4 第 1 项）。两边的改动方向一致、无冲突，但读者若发现同一数字在两处表述不同，**以「第 1 轮返工」段与 F6 / F17 的当前值为准**。`docs/DOCKER.md` 在本轮核对期间**仍在被写**（11:28:28 → 11:30:08 又变过一次），F17 给的是最后一次复测的值。
+> **本角色本轮仍只写了 `docs/DEPLOY-FACTS.md` 这一个文件**（外加自己名下的核对表 `.dsh-team/deploy-polish/work/consistency-auditor/CONSISTENCY.md`，该目录被 `.gitignore:49` 忽略、不进仓库）。行尾保持 **LF**（改完后逐字节复测本文件 `CR=0`、BOM=`False`）。
+
+> **第 2 轮返工（同角色：consistency-auditor；对应产品初筛 `review/round-2.md` 的 B1，以及核对表 §3 的 B2）改动范围**：
+> ① **B1 —— §2-10 里对 `docs/RUNBOOK.md` 的 redis 实测数字失效**。上一版写「该文件搜 `redis|Redis|REDIS` → **0 命中**」，而推翻它的正是本次任务的头号改动：`docs/RUNBOOK.md` 新增的 **§1.8「部署前自检」** 引入了 3 处 `redis` 字样（`:257` 引用报错原文 `Conflict. The container name "/redis" is already in use`、`:344` 自检 3 的标题、`:363` 自检 3 的「不对时怎么办」）。**三处都是正当用法，所以该行的结论「未发现与事实不符的 redis 表述」仍然成立 —— 失效的只是它的证据数字。** 本轮按实测改成 **3 行**并附复现命令；同一段的 `docs/DOCKER.md`（**1 行**，`:936`）与 `README.md`（**2 行**，`:178` / `:985`）两个子条也一并补上实测行号，三个子条现在口径统一、都可复现。
+> ② **C6 —— `docs/RUNBOOK.md` 的字节数在本轮又被改过一次**：**82252B → 82280B**（行数仍 **1531**；`LastWriteTime` = **2026-10-12 11:50:19**，SHA256 前 16 位 `87AB86F53D91EAE8`；间隔 3 秒连续三次测量结果相同）。**F17 表**、「**第 1 轮返工后重测**」条、**§4 第 7 / 8 项**与**文末第 1 轮段**的对应数字已全部同步为 **82280B / 1531 行**；**F19 的命中行号未漂** —— 本轮按声明的 12 分支模式重扫，四种口径仍为 **52 / 29 / 6 / 6**（口径 ② 追加 C 表三条分支后 **31**），`docs/DOCKER.md` 命中行 **84、86、164、320**，`docs/RUNBOOK.md` 命中行 **12、221、935、939、980、997、998、1006、1040、1065、1072、1074、1090、1091、1101、1105、1121、1122、1138、1140、1188、1200、1464**，C 表三条分支新增 **145、1167**，分布 **`.gitattributes` 1 / `README.md` 1 / `docs/DOCKER.md` 4 / `docs/RUNBOOK.md` 23** —— 与 F19 现记的逐字一致。
+> ③ **本轮只写了 `docs/DEPLOY-FACTS.md` 这一个文件**（外加自己名下的核对表 `CONSISTENCY.md`）。`docs/RUNBOOK.md`（`runbook-author` 正在写）、`docs/DOCKER.md`、`README.md`、`.env.example`、两个 compose、`Dockerfile`、`docker/entrypoint.sh` **一律只读、未写入**。
+> ④ **自检实跑**：本文件 `CR=0`、BOM=`False`、行尾 **LF**；§0.1 的两条 C3 判据（模式一 = 两个已删包装脚本的完整文件名，点号转义；模式二 = F20 登记的全集 20 个已删参数原写法）扫本文件均 **0 命中**（命令与实跑输出见 §5）。

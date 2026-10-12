@@ -16,7 +16,7 @@
 
 | 章节 | 内容 | 什么时候看 |
 |---|---|---|
-| 一、前置要求 | 环境、关键事实速查、禁令、命令标注约定 | 动手之前 |
+| 一、前置要求 | 环境、关键事实速查、禁令、命令标注约定、**部署前自检** | 动手之前 |
 | 二、首次部署 | 从零到能打开站点，含验证清单 | 第一次部署 |
 | 三、升级与回滚 | 源码模式 / 镜像模式升级、回滚、升级后已知坑 | 每次更新 |
 | 四、端口配置 | 端口的三层结构、改端口、只绑本机 | 换端口 / 配反代 |
@@ -122,8 +122,9 @@ Windows（PowerShell，**执行位置**同上）：
 
 **成功判据**：与上一条相同 —— 输出 `96`。
 
-> ⚠️ Windows PowerShell 下**必须带 `-Encoding UTF8`**。实测（PowerShell 5.1，本仓库的 `.env.example` 副本）：
-> `Get-Content .env` 不带编码参数只读出 **38 行**（正确是 **44 行**），
+> ⚠️ Windows PowerShell 下**必须带 `-Encoding UTF8`**。实测（PowerShell 5.1，本仓库当前的 `.env.example`，
+> **67 行 / 3670 字节**）：`Get-Content .env` 不带编码参数只读出 **50 行**（正确是 **67 行**）—— 少掉的 17 行是
+> 被 ANSI 解码拼掉的注释行；
 > 且会把 `ACCESS_PASSWORD=遵纪守法世界和平` 里的中文读成乱码 —— 因为 5.1 的默认编码是系统 ANSI 而不是 UTF-8。
 > 上面的自检命令与 4.3 的改端口命令都已加上这个参数。
 
@@ -157,11 +158,27 @@ Windows（PowerShell，**执行位置**同上）：
 
 ### 1.5 部署目录必须是 ASCII 名（很重要，且很容易踩）
 
-Compose 的**项目名默认取自当前目录名**，而项目名又决定了卷名前缀与容器名前缀。
-Compose 只保留 `a-z0-9_-`，其余字符会被清洗掉：
+Compose 的**项目名默认取自你执行 `docker compose` 时所在的目录名**，而项目名又决定了卷名前缀与容器名前缀。
+规范化只做两步：**① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_`，其余字符一律删掉**（**不是**换成 `-`），
+最后再砍掉开头的 `-` / `_`。所以目录名直接决定结果，四种情况**完全不同**：
 
-- 目录叫 `shortdrama` → 项目名 `shortdrama` → 卷名 `shortdrama_shortdrama-data`、容器名 `shortdrama-app-1`；
-- 目录叫**中文名**（例如 `短剧聚合`）→ 清洗后可能变成空串 → `docker compose` 会因为项目名无效而直接拒绝执行。
+| 目录名 | 规范化后的项目名 | 卷名 / 容器名 | 结果 |
+|---|---|---|---|
+| `shortdrama` | `shortdrama` | `shortdrama_shortdrama-data` / `shortdrama-app-1` | 正常 |
+| `ShortDrama`（含大写） | `shortdrama` | 同上 | 正常（但名字**不是**你写的那个） |
+| `short drama`（含空格） | `shortdrama` | 同上 | 正常（同上） |
+| `短剧聚合`（**纯中文 / 纯非 ASCII**） | **空串** | —— | **`docker compose` 直接拒绝执行** |
+
+第四种是本节要防的坑：中文字符会被**全部删掉**，规范化结果是**空串**；Compose 不接受空项目名，
+**所有 `docker compose` 子命令都会立刻失败**，报：
+
+```
+project name must not be empty
+```
+
+**一个容器、一个卷都不会被创建** —— 不存在「中文前缀的容器名」这种东西。
+⚠️ **本仓库当前的工作目录就是 `C:\Work\短剧聚合\短剧聚合`（中文）**，所以在这个目录里直接敲
+`docker compose up -d` **必然报上面这个错**，必须先做下面两件事之一。
 
 **结论：克隆到一个 ASCII 目录名**，本手册统一用 `shortdrama`：
 
@@ -175,10 +192,27 @@ cd shortdrama
 
 **成功判据**：`pwd` 结尾是 `/shortdrama`；`ls docker-compose.yml .env.example` 两个文件都在。
 
-**不对时怎么办**：如果已经用中文目录部署过、并且容器正在跑，**不要**随便改目录名或项目名 ——
-项目名一变，卷名前缀跟着变，`docker compose up -d` 会去挂一个**全新的空卷**，表现就是「数据没了」。
-必须改的话先按第七章备份，改完再把数据恢复到新卷。确实要用中文目录时，在 `.env` 里显式写死项目名
-（`COMPOSE_PROJECT_NAME=shortdrama`），并且**从一开始就这么做**。
+**不对时怎么办**：
+
+- **已经克隆到中文目录里了**（`pwd` 里没有 ASCII 字符）→ 两条路，任选一条，**不用重新 clone**：
+  - 临时：命令里加 `-p`，例如 `docker compose -p shortdrama up -d --build`；
+  - 持久：在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释（`.env.example:46-67`）。
+    **从一开始就这么做**，别等跑起来有数据了再改（见下一条）。
+- **已经用中文目录部署过、并且容器正在跑** → **不要**随便改目录名或项目名：项目名一变，
+  卷名前缀跟着变，`docker compose up -d` 会去挂一个**全新的空卷**，表现就是「数据没了」。
+  必须改的话先按第七章备份，改完再把数据恢复到新卷。
+- 目录名是**中文 + ASCII 混合**（例如 `短剧聚合-drama`）→ 不会报错，但项目名是 ASCII 那一半（`drama`），
+  换个目录名就可能与别的项目**撞前缀**，建议改成纯 ASCII。
+
+> **上面这套规则怎么来的**（写文档的机器上**没装 docker**，所以是**源码级核对**、不是实跑）：
+> 规范化规则逐字来自 Compose 官方实现 `compose-go` 的 `NormalizeProjectName()`
+> ——`regexp.MustCompile("[a-z0-9_-]")` + `strings.ToLower` + `TrimLeft(s, "_-")`；
+> 空项目名的报错来自同一仓库的 `loader.go`（`errors.New("project name must not be empty")`），
+> 并被两个官方单元测试断言（`cli/options_test.go` 的 "by name must not come from root directory"、
+> `loader/loader_test.go` 的 "default" 用例）。官方文档
+> <https://docs.docker.com/compose/how-tos/project-name/> 同样写明项目名
+> 「must contain only lowercase letters, decimal digits, dashes, and underscores」。
+> 同一结论在 `docs/DOCKER.md` 第一节第 5 小节「容器名是怎么来的」里有一份对照表。
 
 ### 1.6 四条禁令（照做能避开本手册里 80% 的坑）
 
@@ -212,6 +246,188 @@ cd shortdrama
 >
 > 以**表格**形式给出的命令，其「执行位置」与「成功判据」写在表格的列里，或写在表格正上方的一句话说明里；
 > 以**独立代码块**形式给出的命令，标注都紧贴在代码块的上一行和下一行。
+
+### 1.8 部署前自检（敲任何 `docker compose` 命令之前先跑，回答三个问题）
+
+**为什么要有这一节**：**容器名和卷名不是本项目"起"的**，是 Compose 按「项目名」拼出来的；
+而项目名默认取**你执行 `docker compose` 时所在的目录名**（`docs/DOCKER.md` 第一节第 5 小节「容器名是怎么来的」）。
+所以在**别的项目的目录里**敲部署命令，撞上的是**别人的**容器名 —— 报错却是这样：
+
+```
+Conflict. The container name "/redis" is already in use
+Conflict. The container name "/new-api" is already in use
+```
+
+这两个名字**都不属于本项目**：本项目两个 compose 文件里**没有任何 `container_name:` 键**（各 **0** 次；
+`docker-compose.yml:23-26` 只有一句注释在解释"为什么不设它"）。名字撞了不代表本项目写错了名字 ——
+先确认「我在哪个项目里」，再谈别的。本节 6 条自检就是干这件事。
+
+**执行位置**：宿主 shell（**项目目录**）—— 6 条全部在这里执行。
+还没建 `.env` 也能跑（自检 2 / 5 显示的是 compose 里的兜底值）；`cp .env.example .env`（2.3）之后建议再扫一眼这两条。
+
+| 问题 | 看哪几条 | 一眼看什么 |
+|---|---|---|
+| ① 我在部署哪个项目 | 自检 1 / 2 / 3 | `pwd` 的目录名、`name:` 打印的项目名、`CONFIG FILES` 列指向的目录 |
+| ② 容器名 / 卷名会是什么 | 自检 2 + 4 | `<项目名>-app-1`、`<项目名>_shortdrama-data`，其中 `<项目名>` 就是自检 2 打印的那一行 |
+| ③ 端口是多少 | 自检 5 / 6 | `published`（对外，默认 18080）与 `target`（容器内 8080） |
+
+> **只想用一条命令回答「我在哪个项目里」** → 自检 2：
+> `docker compose config | grep -m1 -E '^name:'`。
+
+#### 自检 1｜我站在项目目录里吗？（回答①）
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+pwd && ls docker-compose.yml Dockerfile .env.example
+```
+
+**成功判据（期望输出）**：`pwd` 结尾是项目目录名（本手册统一用 `shortdrama`），`ls` 把 3 个文件名都打印出来
+（顺序随系统排序，关键是**三个都在**）：
+
+```
+/opt/shortdrama
+Dockerfile
+docker-compose.yml
+.env.example
+```
+
+**不对时怎么办**：出现 `No such file or directory` → **你不在项目目录里，先别往下做**，`cd` 到 clone 出来的
+`shortdrama`（见 1.5）。Windows PowerShell 5.1 不支持 `&&`，改用
+`Get-Location; Get-ChildItem docker-compose.yml,Dockerfile,.env.example | Select-Object -ExpandProperty Name`。
+
+#### 自检 2｜这个目录会被当成哪个项目？（回答① ②）
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+docker compose config | grep -m1 -E '^name:'
+```
+
+**成功判据（期望输出）**：打印一行 `name: <项目名>`，例如
+
+```
+name: shortdrama
+```
+
+这一行就是**容器名和卷名的前缀**。项目名 = 目录名（`docker-compose.yml:17` 的服务名 `app` 不变），
+除非 `.env` 里设了 `COMPOSE_PROJECT_NAME`（`.env.example:46-67`）或命令行加了 `-p`。
+Windows：把 `grep -m1 -E '^name:'` 换成 `Select-String -Pattern '^name:' | Select-Object -First 1`。
+
+**不看 Compose 也能算出来**（纯 shell，任何 Compose 版本都成立；`name:` 打印不出来的版本用这条）：
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+basename "$PWD"; grep -E '^COMPOSE_PROJECT_NAME=' .env || echo "(未设置 → 项目名取目录名)"
+```
+
+**成功判据（期望输出）**：第一行是目录名（如 `shortdrama`）；第二行要么打印 `COMPOSE_PROJECT_NAME=xxx`，
+要么打印 `(未设置 → 项目名取目录名)` —— 两者合起来就是项目名。
+（`.env` 还没建时，`grep` 会先报一句 `No such file or directory` 再走到 `||` 分支，**属预期**。）
+
+**不对时怎么办**：
+
+- **报错 `project name must not be empty`**（或中文环境下的同类提示）→ **这是自检 2 最重要的一种「不对」**：
+  你所在的目录名里**一个 ASCII 字符都没有**（例如 `短剧聚合`），Compose 算出来的项目名是空串，
+  它会**拒绝执行任何 `docker compose` 子命令**。按 1.5 处理：要么 `cd` 到 ASCII 目录名，
+  要么命令里加 `-p shortdrama`，要么在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释。
+  ⚠️ **本仓库当前的工作目录 `C:\Work\短剧聚合\短剧聚合` 就是中文**，所以在这台机器上直接跑
+  `docker compose config` 会命中这一条；
+- **输出为空** → 你的 Compose 版本不打印 `name:`，用自检 3 代替，或
+  `docker compose ps -a --format '{{.Name}}'` 看容器名前缀；
+- 输出的是**中文 / 大写 / 带空格** → 你正站在一个不合规的目录名里，见 1.5：改成 ASCII 目录名，
+  或在 `.env` 里写死 `COMPOSE_PROJECT_NAME=shortdrama`；
+- 输出**不是你以为的名字** → `.env` 里有 `COMPOSE_PROJECT_NAME`（用 `grep -E '^COMPOSE_PROJECT_NAME=' .env` 查）。
+  ⚠️ **改它等于换项目**：卷名跟着变，旧数据卷不会被复用（`.env.example:65-66`）。
+
+#### 自检 3｜这台机器上还有哪些 compose 项目？（回答①，也回答"那个 `/redis`、`/new-api` 是谁的"）
+
+**执行位置**：宿主 shell（任意目录）
+
+```bash
+docker compose ls -a
+```
+
+**成功判据（期望输出）**：三列表格（示意，具体名字与路径以你机器为准）：
+
+```
+NAME                STATUS              CONFIG FILES
+shortdrama          running(1)          /opt/shortdrama/docker-compose.yml
+new-api             running(2)          /opt/new-api/docker-compose.yml
+```
+
+**对着 `CONFIG FILES` 列看一眼你当前目录**：指向**别人目录**的那几行不是你的项目。
+`docker compose ls` 只列运行中的，加 `-a` 连停止的一起列；在**没部署过的机器上无输出也是正常的**。
+
+**不对时怎么办**：`NAME` 列里出现 `redis`、`new-api` 之类**在本目录 compose 里根本不存在**的服务名 →
+那是**别的项目**留下的容器，**不要去删**（删了会打断别人，还可能连带删掉匿名卷）。
+真撞上同名冲突时按 2.5 的办法先判归属：`docker inspect <名字> --format '{{index .Config.Labels "com.docker.compose.project"}}'`，
+是别人的就 `docker rename <名字> <名字>-old` 解封（非破坏性）。
+
+#### 自检 4｜容器名 / 卷名会是什么？（回答②）
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+docker compose ps -a --format 'table {{.Name}}\t{{.Service}}\t{{.Status}}'
+docker volume ls | grep shortdrama
+```
+
+**成功判据（期望输出）**：
+
+- **首次部署前**：第一条只打印表头 `NAME  SERVICE  STATUS`（还没有容器），第二条**无输出**
+  （`grep` 找不到东西时退出码是 1，**这是正常的**，不是报错）；
+- **已经部署过**：第一条出现 `<项目名>-app-1`（服务名 `app`），第二条出现 `<项目名>_shortdrama-data`。
+
+两条里的 `<项目名>` 必须**等于自检 2 打印的那个名字**。对不上 → 你之前是在**另一个目录 / 另一个项目名**
+下部署的，那个卷里的数据不在你现在这个项目手上。
+
+**不对时怎么办**：
+
+- 看到 `<项目名>-postgres-1` / `<项目名>_shortdrama-pgdata` → 你用过 PostgreSQL 覆盖配置，见 7.4
+  （那时 `ps` 需要带上同样的两个 `-f`）；
+- 卷名前缀和自检 2 不一致 → 那不是本项目的卷，**别 `docker volume rm`**，先按 `docs/DOCKER.md` 第六节查它属于谁。
+
+#### 自检 5｜对外端口是多少？（回答③）
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+docker compose config | grep -A3 'ports:'
+```
+
+**成功判据（期望输出）**：
+
+```
+ports:
+  - mode: ingress
+    target: 8080
+    published: "18080"
+```
+
+`published` 是**最终生效**的对外端口（`.env` 的 `APP_PORT` 优先于 compose 的兜底值，见 4.5）；
+`target: 8080` 是容器内端口，**不要改**（4.1）。与 2.9 第 1 条、4.2 是同一条检查。
+
+**不对时怎么办**：`published` 不是你以为的端口 → 看 `.env` 的 `APP_PORT`（4.3）；改完必须
+`docker compose up -d` 才生效。
+
+#### 自检 6｜这个端口现在被别人占着吗？
+
+**执行位置**：宿主 shell（任意目录）
+
+```bash
+ss -lntp | grep 18080        # macOS：netstat -an | grep LISTEN
+```
+
+**成功判据（期望输出）**：**无输出** = 端口空闲，可以部署（同样是退出码 1，正常）。
+若已有 `LISTEN`，先用 `docker ps --format 'table {{.Names}}\t{{.Ports}}'` 看清是不是**别的项目**的容器占着 ——
+**别停别人的容器**，改自己的 `APP_PORT`（4.3）。
+
+> Windows：这条换成 `netstat -ano | findstr :18080`；其余几条把 `grep` 换成 `Select-String`。
+
+**6 条全对，再往下走**：接着做 2.5 的 `docker compose up -d --build`。**任何一条不对，先别敲部署命令** ——
+你此刻很可能站在别人的项目目录里。
 
 ---
 
@@ -300,6 +516,10 @@ grep -E '^(JWT_KEY|ACCESS_PASSWORD|APP_PORT)=' .env
 
 ### 2.5 步骤 5：构建并启动
 
+> ⚠️ **敲这条命令之前，先跑 1.8 的部署前自检（6 条，约 1 分钟）**：这条命令按**你当前所在的目录名**
+> 决定容器名与卷名，在别人的项目目录里执行就会撞上别人的容器名
+> （`Conflict. The container name "/xxx" is already in use`）。
+
 **执行位置**：宿主 shell（项目目录）
 
 ```bash
@@ -318,7 +538,7 @@ docker compose up -d --build
 
 - 构建失败 → 看报错最后 20 行；若是拉包失败（Docker Hub / NuGet / npm），给 Docker 配国内镜像加速后
   `docker compose build --no-cache && docker compose up -d`；
-- `project name must not be empty` / 项目名无效 → 目录名不是 ASCII，见 1.5；
+- `project name must not be empty` → **目录名里一个 ASCII 字符都没有**（例如中文目录名），Compose 拒绝执行，见 1.5；
 - `port is already allocated` → 18080 被占用，见 4.3 换端口；
 - `Conflict. The container name ... is already in use` → **那个名字不一定属于你**：
   `docker inspect <名字> --format '{{index .Config.Labels "com.docker.compose.project"}}'` 看它属于哪个项目；
@@ -571,11 +791,12 @@ docker compose config | Select-String -Pattern 'ports:' -Context 0,3
 ```
 
 > ⚠️ **不要用 `(Get-Content .env) -replace ... | Set-Content .env`**（这是最容易顺手写出的写法，**实测会损坏配置**）。
-> 在 PowerShell 5.1 上实测本仓库的 `.env`：不带 `-Encoding UTF8` 的 `Get-Content` 只读出 **38 行**（正确 44 行）、
+> 在 PowerShell 5.1 上实测本仓库当前的 `.env.example`（**67 行 / 3670 字节**）：不带 `-Encoding UTF8` 的
+> `Get-Content` 只读出 **50 行**（正确 67 行）、
 > 中文口令读成乱码；`Set-Content` 默认编码还会把行尾从 **LF 改成 CRLF**。结果是
 > 「口令没错却一直跳 `/gate`」或「变量凭空少了几个」。
 > 上面那段用 `-Encoding UTF8` 读、用 `WriteAllText` 以**无 BOM + LF** 写，
-> 实测改完仍是 44 行、中文完好、行尾仍是 LF。
+> 实测改完仍是 **67 行**、中文完好、行尾仍是 LF（CR 计数 0）。
 > **更省事的做法**：直接用记事本 / VS Code / Notepad++ 编辑 `.env`（存成 **UTF-8 无 BOM**、行尾 **LF**）。
 
 **成功判据**：
