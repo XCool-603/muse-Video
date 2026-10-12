@@ -181,7 +181,7 @@ docker compose down -v         # 停止并清空数据
 | 播放器 | hls.js | 1.5 |
 | 状态管理 | Pinia + persistedstate | 2.2 |
 | 构建工具 | Vite | 5.4 |
-| 测试 | xUnit | 39 个用例 |
+| 测试 | xUnit | 114 个用例 |
 
 ---
 
@@ -318,7 +318,7 @@ public interface IPlatformAdapter
 
 | 适配器 | 类型 | 状态 |
 |--------|------|------|
-| `AppleCmsAdapter` | 真实 | ✅ 12 个采集源，5923 部短剧已入库（可播性受源站 CDN 地区限制影响，见「五之二」） |
+| `AppleCmsAdapter` | 真实 | ✅ 22 个采集源（当前全部启用），5923 部短剧已入库（该入库量是**当时 12 个源**的实测口径，2026-10-01 新增启用的 10 个源尚未重测；可播性受源站 CDN 地区限制影响，见「五之二」） |
 | `HuangGuoAiAdapter` | 真实 | ✅ **完整可播**（513 部全量目录，其中 187 部有正片，明文 MP4） |
 | `HongGuoWebAdapter` | 真实 | ✅ 目录已实测可用；播放受 DRM 限制 |
 | `HuangDouAdapter` | 真实 | ⚠️ 协议已实现，站点在开发环境不可达，**未经端到端验证** |
@@ -326,7 +326,94 @@ public interface IPlatformAdapter
 
 ---
 
-## 五之四、黄果短剧适配器（huangguodrama.ai）
+## 五之三、红果短剧适配器（hongguoduanju.com）
+
+### 站点性质
+
+抖音/番茄系官方 H5。判定依据：
+- 静态资源托管在字节自有 CDN `lf-fe.fqnovelstatic.com/novel-fanqie-fe/.../apps/hongguo/`
+  （`fqnovel` = 番茄小说）
+- 页脚举报邮箱 `hongguojubao@bytedance.com`
+- App 包名 `com.phoenix.read`
+
+> 对比：`hongguoapp.cn` 虽然抄了同样的页脚（同一家公司 + 同一个 ICP 备案号），
+> 但它跑的是开源 PHP 的苹果CMS（conch 主题）——**技术栈才是真相**。
+
+### 能做什么
+
+站点是 **React SSR**，目录数据全在 HTML 里，不需要接口：
+
+| 能力 | 路由 | 状态 |
+|------|------|------|
+| 榜单 | `/rank/hot-drama`、`/rank/hot-real-drama`、`/rank/hot-ai-drama` | ✅ |
+| 分类浏览 | `/category/real-drama`、`/category/comic-drama`、`/category/ai-drama`、`/category/comic` | ✅ |
+| 详情 | `/detail?series_id={id}` | ✅ 标题/封面/评分/标签/简介/演员/分集 |
+
+实测入库：**24 部 / 1869 集**，字段完整（如《好雨知时节》89 集、评分 9.3、分类「爱情」）。
+
+### 解析策略：不依赖 CSS Modules 的 hash
+
+站点用 CSS Modules，`pc-xxx-{hash}` 和 `m-xxx-{hash}` 的后缀 hash **每次构建都会变**。
+因此解析只依赖稳定特征：
+
+| 锚点 | 用途 |
+|------|------|
+| `m-card` / `m-title` / `m-episode` / `m-tag-text` 前缀 | 卡片解析（`\b` 边界匹配，不受后缀 hash 影响） |
+| `href="/detail?series_id={id}"` | 剧集 ID |
+| `href="/player/{sid}"` 与 `/player/{sid}/{eid}` | 分集与播放页 |
+| `评分` / `热度` / `全N集` 文本特征 | 元数据 |
+| `byteimg` / `douyinpic` 图片域名 | 封面 |
+
+单元测试里的 HTML 片段**故意用了与真实页面不同的 hash**，确保改版后测试不会假通过。
+
+### 三个已知限制（如实反映，不编造）
+
+**1. 播放不可用** —— 视频为 MP4 CENC（AES-128 CTR）DRM 加密，密钥不下发到 Web 端。
+`GetPlayUrlAsync` 抛 `NotSupportedException` 并说明原因，不返回假装能播的地址。
+社区实现（`Erlmo/shortplay`，61★）用纯 C 解密，但作者声明算法不开源（六神、spade_a）。
+
+**2. 搜索不可用** —— 搜索页是纯前端渲染，服务端不返回结果，接口也未在 bundle 中暴露。
+`SearchAsync` 返回空，由站内已索引的本地库兜底（`SourceBootstrapper` 会把榜单/分类页播种进库）。
+
+**3. 只有前几集有播放页地址** —— SSR 只渲染前 3 集的 `href`，其余格子是无链接的 `<div>`。
+适配器如实留空，不编造地址。实测 24 部 × 3 = 72 集有地址，其余 1797 集只有集号。
+
+### 关于红果的结论
+
+**红果无法在服务端完整聚合**：目录可以索引，播放不行。
+要做到「在网页里直接看红果」，只能走客户端路线（Xposed 模块改 App，或自研播放器 + DRM 解密模块），
+与本项目的 .NET + Vue 服务端架构不兼容。
+
+
+## 五之四、黄豆短剧适配器（hddj.tv）
+
+### 接口协议
+
+协议来自公开逆向文档（`ckldy/surge-modules` 的 hddj-unlock 模块）：
+
+| 项 | 值 | 可信度 |
+|----|-----|--------|
+| 详情页路由 | `/watch/details/{id}` 或 `/series/details/{id}` | ✅ 文档确认 |
+| 免费集流 | `/play/{id}/{ep}.m3u8`（无鉴权，AES-128 HLS） | ✅ 文档确认 |
+| 付费集流 | 同端点返回 404（服务端 JWT HS384 + DB 权益） | ✅ 文档确认 |
+| 播放页属性 | `data-ep-src`（流地址）、`data-ep-free`（1 免费 / 0 付费） | ✅ 文档确认 |
+| 搜索 / 列表接口路径 | 候选路径自动探测 | ⚠️ **推测**，需实测 |
+
+**刻意未实现**：付费集绕过。逆向文档给出的方式是改走第三方盗版线路
+（`psfxhhox.top`，与 hddj.tv 并非同一站点），那属于接入另一个未授权源，不在适配器范围内。
+付费集会被如实标记为 `IsLocked` 并在取流时抛出明确异常。
+
+**验证方法**：本适配器开发环境无法连通 hddj.tv（DNS 解析到境外停放 IP，TCP 超时），
+因此**只对 HTML 解析逻辑做了单元测试**（8 个用例）。真实连通性需要你在国内网络下验证：
+
+```bash
+dotnet run --project ShortDrama.Api
+# 观察日志：
+#   "黄豆短剧：搜索路径探测成功 → /xxx"  → 说明探测命中
+#   "黄豆短剧：所有候选路径均不可用"      → 用 F12 抓真实路径，填进 appsettings.json 的 searchPathCandidates
+```
+
+## 五之五、黄果短剧适配器（huangguodrama.ai）
 
 ### 接口是站点公开的，不是逆向
 
@@ -422,103 +509,7 @@ GET /api/agent/v1/search/?page=1..26&limit=20
 
 ---
 
-## 五之三、红果短剧适配器（hongguoduanju.com）
-
-### 站点性质
-
-抖音/番茄系官方 H5。判定依据：
-- 静态资源托管在字节自有 CDN `lf-fe.fqnovelstatic.com/novel-fanqie-fe/.../apps/hongguo/`
-  （`fqnovel` = 番茄小说）
-- 页脚举报邮箱 `hongguojubao@bytedance.com`
-- App 包名 `com.phoenix.read`
-
-> 对比：`hongguoapp.cn` 虽然抄了同样的页脚（同一家公司 + 同一个 ICP 备案号），
-> 但它跑的是开源 PHP 的苹果CMS（conch 主题）——**技术栈才是真相**。
-
-### 能做什么
-
-站点是 **React SSR**，目录数据全在 HTML 里，不需要接口：
-
-| 能力 | 路由 | 状态 |
-|------|------|------|
-| 榜单 | `/rank/hot-drama`、`/rank/hot-real-drama`、`/rank/hot-ai-drama` | ✅ |
-| 分类浏览 | `/category/real-drama`、`/category/comic-drama`、`/category/ai-drama`、`/category/comic` | ✅ |
-| 详情 | `/detail?series_id={id}` | ✅ 标题/封面/评分/标签/简介/演员/分集 |
-
-实测入库：**24 部 / 1869 集**，字段完整（如《好雨知时节》89 集、评分 9.3、分类「爱情」）。
-
-### 解析策略：不依赖 CSS Modules 的 hash
-
-站点用 CSS Modules，`pc-xxx-{hash}` 和 `m-xxx-{hash}` 的后缀 hash **每次构建都会变**。
-因此解析只依赖稳定特征：
-
-| 锚点 | 用途 |
-|------|------|
-| `m-card` / `m-title` / `m-episode` / `m-tag-text` 前缀 | 卡片解析（`\b` 边界匹配，不受后缀 hash 影响） |
-| `href="/detail?series_id={id}"` | 剧集 ID |
-| `href="/player/{sid}"` 与 `/player/{sid}/{eid}` | 分集与播放页 |
-| `评分` / `热度` / `全N集` 文本特征 | 元数据 |
-| `byteimg` / `douyinpic` 图片域名 | 封面 |
-
-单元测试里的 HTML 片段**故意用了与真实页面不同的 hash**，确保改版后测试不会假通过。
-
-### 两个已知限制（如实反映，不编造）
-
-**1. 播放不可用** —— 视频为 MP4 CENC（AES-128 CTR）DRM 加密，密钥不下发到 Web 端。
-`GetPlayUrlAsync` 抛 `NotSupportedException` 并说明原因，不返回假装能播的地址。
-社区实现（`Erlmo/shortplay`，61★）用纯 C 解密，但作者声明算法不开源（六神、spade_a）。
-
-**2. 搜索不可用** —— 搜索页是纯前端渲染，服务端不返回结果，接口也未在 bundle 中暴露。
-`SearchAsync` 返回空，由站内已索引的本地库兜底（`SourceBootstrapper` 会把榜单/分类页播种进库）。
-
-**3. 只有前几集有播放页地址** —— SSR 只渲染前 3 集的 `href`，其余格子是无链接的 `<div>`。
-适配器如实留空，不编造地址。实测 24 部 × 3 = 72 集有地址，其余 1797 集只有集号。
-
-### 关于红果的结论
-
-**红果无法在服务端完整聚合**：目录可以索引，播放不行。
-要做到「在网页里直接看红果」，只能走客户端路线（Xposed 模块改 App，或自研播放器 + DRM 解密模块），
-与本项目的 .NET + Vue 服务端架构不兼容。
-
-
-协议来自公开逆向文档（`ckldy/surge-modules` 的 hddj-unlock 模块）：
-
-| 项 | 值 | 可信度 |
-|----|-----|--------|
-| 详情页路由 | `/watch/details/{id}` 或 `/series/details/{id}` | ✅ 文档确认 |
-| 免费集流 | `/play/{id}/{ep}.m3u8`（无鉴权，AES-128 HLS） | ✅ 文档确认 |
-| 付费集流 | 同端点返回 404（服务端 JWT HS384 + DB 权益） | ✅ 文档确认 |
-| 播放页属性 | `data-ep-src`（流地址）、`data-ep-free`（1 免费 / 0 付费） | ✅ 文档确认 |
-| 搜索 / 列表接口路径 | 候选路径自动探测 | ⚠️ **推测**，需实测 |
-
-**刻意未实现**：付费集绕过。逆向文档给出的方式是改走第三方盗版线路
-（`psfxhhox.top`，与 hddj.tv 并非同一站点），那属于接入另一个未授权源，不在适配器范围内。
-付费集会被如实标记为 `IsLocked` 并在取流时抛出明确异常。
-
-**验证方法**：本适配器开发环境无法连通 hddj.tv（DNS 解析到境外停放 IP，TCP 超时），
-因此**只对 HTML 解析逻辑做了单元测试**（8 个用例）。真实连通性需要你在国内网络下验证：
-
-```bash
-dotnet run --project ShortDrama.Api
-# 观察日志：
-#   "黄豆短剧：搜索路径探测成功 → /xxx"  → 说明探测命中
-#   "黄豆短剧：所有候选路径均不可用"      → 用 F12 抓真实路径，填进 appsettings.json 的 searchPathCandidates
-```
-
-### 关于红果短剧
-
-红果无法在服务端聚合，原因是视频流为 DRM 加密：
-
-- CDN 下发的是标准 MP4 CENC（AES-128 CTR）加密内容
-- 密钥需要 App 侧配合签名接口获取，Web 端拿不到
-- `Erlmo/shortplay` 用纯 C 实现了 `aes.c` / `mp4_cenc.c` 解密核心，但作者明确写了「涉及到的所有算法不开源（六神，spade_a）」
-
-**结论**：红果只能走客户端路线（Xposed / 自研播放器 + DRM 模块），与本项目的 .NET + Vue 服务端架构不兼容。
-
-
----
-
-## 五之五、本地种子搜索（可选增强）
+## 五之六、本地种子搜索（可选增强）
 
 采集源都放不出来的剧，可以走这条路：搜种子 → 边下边播。
 
@@ -565,7 +556,7 @@ compose 已经把地址传成 `host.docker.internal:8787` 并加了 `extra_hosts
 
 ## 五之二、苹果CMS 采集源（真实视频源）
 
-> 📋 **完整清单见 [docs/SOURCES.md](docs/SOURCES.md)**：官方平台与 12 个启用采集源的域名、短剧分类
+> 📋 **完整清单见 [docs/SOURCES.md](docs/SOURCES.md)**：官方平台与 22 个启用采集源的域名、短剧分类
 > `type_id`、实测入库量、平均集数、限流表现；46 个候选源的实测结果（假活 / 失效 / 重复上游）；
 > 采集协议字段映射；地区限制与排查方法。
 
@@ -639,9 +630,9 @@ compose 已经把地址传成 `host.docker.internal:8787` 并加了 `extra_hosts
 | ⚠️ 返回网页而非 API（假活） | 4 | 旺旺 / 天空 / 卧龙 / 芒果：响应 200 且以 `<` 开头，容易被误判成「XML 格式可用」，实际解析不出任何条目 |
 | ⚠️ 内容为成人向 | 9 | 155 / 滴滴 / 嘿嘿 / 乐播 / 鲨鱼 / 森林 / 精品 / 奶香 / 辣椒 —— **已刻意排除**（155 抽样 69 条标题命中 17 条露骨内容） |
 | ⚠️ 与其他源完全重复 | 4 | 无尽2 与无尽 100% 相同；极速 / 豪华 / 虎牙 与红牛 97%~99% 相同 |
-| ❌ 连接失败 / 非 JSON / 403 | 17 | 见 `apple-cms-sources.json` 末尾的备查清单 |
+| ❌ 连接失败 / 非 JSON / 403 | 17 | 见 [`ShortDrama.Api/apple-cms-sources.json`](ShortDrama.Api/apple-cms-sources.json) 末尾的备查清单 |
 
-**当前默认 12 个源**。新增的 6 个相对原有源的内容重合度只有 7%~31%。
+**当时默认 12 个源**（现为 22 个，见 [docs/SOURCES.md](docs/SOURCES.md)）。新增的 6 个相对原有源的内容重合度只有 7%~31%。
 
 ### 播种只读第一页（2026-09-30 修复）
 
@@ -669,7 +660,7 @@ compose 已经把地址传成 `host.docker.internal:8787` 并加了 `extra_hosts
 | `bootstrapPageDelayMs`（默认 300） | 页间节流。8 条关键词链并行翻 5 页会在短时间内对同一源打出约 40 个请求，实测会触发限流：暴风返回 429、**无尽直接超时并把该源整轮播种打废（86 秒只收到 80 部）**；加 300ms 间隔后无尽 6.9 秒收到 600 部 |
 | `bootstrapTotalTimeoutSeconds` 600 → 1800 | 源数与翻页深度都上去了，600 秒会导致后面的平台被静默跳过 |
 
-**效果（真实重新同步全部 12 个源实测）**：
+**效果（当时真实重新同步全部 12 个源实测）**：
 
 | | 修复前 | 修复后 |
 |---|---|---|
@@ -700,7 +691,7 @@ compose 已经把地址传成 `host.docker.internal:8787` 并加了 `extra_hosts
 
 实测发现：**部分采集源把整部短剧打包成一个 m3u8**，而不是按集切分。
 
-12 个源共入库 5923 部后的集数分布：
+当时那 12 个源共入库 5923 部后的集数分布：
 
 | 集数 | 数量 | 占比 |
 |------|------|------|
@@ -731,7 +722,7 @@ compose 已经把地址传成 `host.docker.internal:8787` 并加了 `extra_hosts
 
 ### 关于这些源的合规提醒
 
-`apple-cms-sources.json` 中的源均为**第三方公开采集站**，内容非本系统提供；
+`ShortDrama.Api/apple-cms-sources.json` 中的源均为**第三方公开采集站**，内容非本系统提供；
 这些站点多为未经授权的影视聚合站，使用前请自行评估法律风险。
 本系统只提供技术框架与适配能力，不对接入源的内容合法性负责。
 
@@ -746,7 +737,7 @@ GET /api/v1/drama/search?q=逆袭
         │
         ▼  并行 Task.WhenAll 调度（全部已注册平台）
 ┌───────────┬───────────┬───────────┬──────────────┐
-│ 黄果(官方)  │ 红果(官方)  │ 黄豆(官方)  │ 12 个采集源   │
+│ 黄果(官方)  │ 红果(官方)  │ 黄豆(官方)  │ 22 个采集源   │
 └───────────┴───────────┴───────────┴──────────────┘
         │  合并 + 本地库补充（跟随 platform 过滤）
         ▼
@@ -756,7 +747,7 @@ GET /api/v1/drama/search?q=逆袭
    相关度 / 热度 / 评分统一排序 + 分页
 ```
 
-去重算法见 `Application/Common/TextSimilarity.cs`：标题归一化（去噪、去平台后缀）→ 前缀包含判定（较短标题 ≥ 4 字且覆盖率 ≥ 40%）→ Levenshtein 相似度，阈值 0.85。
+去重算法见 `ShortDrama.Application/Common/TextSimilarity.cs`：标题归一化（去噪、去平台后缀）→ 前缀包含判定（较短标题 ≥ 4 字且覆盖率 ≥ 40%）→ Levenshtein 相似度，阈值 0.85。
 
 ### 本地只存一部分，其余用接口实时找
 
@@ -861,11 +852,16 @@ GET /api/v1/drama/search?q=逆袭
 dotnet test ShortDrama.slnx
 ```
 
-覆盖范围（39 个用例，全部通过）：
+覆盖范围（114 个用例，全部通过；实测 `dotnet test ShortDrama.slnx` → 通过 114 / 失败 0）：
 
 - **`AdFilterServiceTests`** —— 广告分片按 CUE-OUT 标记 / URL 特征 / 异常时长三种方式识别与剔除；干净列表不被误删；相对地址补全；代理地址重写；master playlist 处理；媒体序列号重写
+- **`AppleCmsAdapterTests`** —— 苹果CMS 接口的 JSON / XML 解析、字段映射与多播放源挑选
+- **`HuangGuoAiAdapterTests`** —— 黄果 catalog API 的分页遍历、`limit` 上限回归、明文 MP4 取流
+- **`HongGuoWebAdapterTests`** —— 红果 SSR HTML 解析（不依赖 CSS Modules 的 hash）、播放不可用时抛明确异常
+- **`HuangDouAdapterTests`** —— 黄豆 HTML 解析逻辑（8 个用例；真实连通性需国内网络验证）
 - **`TextSimilarityTests`** —— 同剧不同命名归一化匹配、包含关系匹配、不同剧不误合并、空输入边界
 - **`PlatformAdapterTests`** —— 5 个适配器的搜索/详情/播放地址/榜单契约一致性，未知 ID 返回 null，平台编码唯一
+- **`TorrentServiceTests`** —— 种子服务字段映射、未启动时的可读错误、播放地址生成
 
 ---
 
@@ -981,7 +977,7 @@ GET /api/v1/drama/platforms
 | Phase 4 用户系统 | 1-2 周 | 注册登录、JWT、收藏、观看历史 | ✅ 完成 |
 | Phase 5 管理后台 | 2 周 | 数据看板、短剧管理、平台源管理 | ✅ 完成 |
 | Phase 6 真实源接入 | 2 周 | 22 个苹果CMS 采集源 + 红果/黄果/黄豆官方源；按平台浏览；可播性跟踪 | ✅ 完成 |
-| Phase 7 种子增强 | 1 周 | 接入本地种子搜索与边下边播（可选，见[五之五](#五之五本地种子搜索可选增强)） | ✅ 完成 |
+| Phase 7 种子增强 | 1 周 | 接入本地种子搜索与边下边播（可选，见[五之六](#五之六本地种子搜索可选增强)） | ✅ 完成 |
 | Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |
 
 ---
@@ -989,7 +985,7 @@ GET /api/v1/drama/platforms
 ## 十四、接入真实平台数据源
 
 1. 新建适配器类实现 `IPlatformAdapter`（参考 `HongGuoAdapter`）
-2. 在 `Infrastructure/DependencyInjection.cs` 注册：
+2. 在 `ShortDrama.Infrastructure/DependencyInjection.cs` 注册：
    ```csharp
    services.AddSingleton<IPlatformAdapter, YourPlatformAdapter>();
    ```

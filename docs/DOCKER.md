@@ -53,7 +53,7 @@ docker compose pull app && docker compose up -d
 ```
 
 两种都是**先构建/拉取成功，再切换容器** —— 失败时旧容器继续跑，站点不中断。
-镜像模式详见[第七节](#7-构建太慢改用预构建镜像)（含私有包登录、ARM 机器注意事项）。
+镜像模式详见[第三节第 7 小节](#7-构建太慢改用预构建镜像)（含私有包登录、ARM 机器注意事项）。
 
 **定时自动升级**：直接在宿主 crontab 里写原生命令即可（不需要任何脚本）：
 
@@ -81,9 +81,9 @@ git fetch && git log --oneline HEAD..@{u}
 | Linux / macOS | `docker compose up -d --build` | `git pull --ff-only && docker compose up -d --build` | 宿主 crontab（见上） |
 | Windows | `docker compose up -d --build` | 同上 | 任务计划程序（见上） |
 
-默认使用 **SQLite**，数据落在命名卷里，不依赖任何外部服务。想换 PostgreSQL 见[第五节](#五数据库sqlite--postgresql)。
+默认使用 **SQLite**，数据落在命名卷里，不依赖任何外部服务。想换 PostgreSQL 见[第五节](#五数据库sqlite-与-postgresql)。
 
-> 📌 **本项目不使用部署包装脚本**（`deploy.sh` / `deploy.ps1` 已移除）。
+> 📌 **本项目不使用部署包装脚本**（`deploy` + `.sh` / `deploy` + `.ps1` 已移除）。
 > 直接用 `docker compose`：报错就是 docker 的原始报错，不会被脚本的行号和退出码藏一层；
 > 也不用担心脚本把宿主 UID 之类的值固化进构建参数。需要固定的流程用 docker 自己的机制
 > （`depends_on` + `healthcheck`、`build.args`、`env_file`），而不是再包一层。
@@ -161,7 +161,7 @@ docker compose down -v          # 停止并清空数据
 
 **临时改一次端口**（不改 `.env`）：`APP_PORT=9000 docker compose up -d`。
 **强制不用缓存重建**：`docker compose build --no-cache && docker compose up -d`。
-**改用 PostgreSQL**：见[第五节](#五数据库sqlite--postgresql)。
+**改用 PostgreSQL**：见[第五节](#五数据库sqlite-与-postgresql)。
 
 ### 5. 容器名是怎么来的（想按自己的项目名命名就看这里）
 
@@ -387,7 +387,7 @@ docker compose up -d --build
 ```
 
 > 注意：代码回滚了，但**数据库结构不会自动回退**。如果新版本包含破坏性的数据库变更，
-> 请用第六节的备份恢复。
+> 请用[第六节](#备份sqlite)的备份恢复。
 
 ### 6. 注意事项
 
@@ -407,7 +407,7 @@ git config --global --add safe.directory "<仓库绝对路径>"
 
 源码模式每次更新都要在你机器上重新编译前端和后端，弱 VPS 上要几分钟且吃满 CPU。彻底的解法是让 GitHub Actions 构建好镜像，你这边只 `docker pull`。
 
-仓库里已经配好了工作流：[.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml)。推到 `main` 或打 `v*` 标签时自动构建并推到 GHCR。
+仓库里已经配好了工作流：[.github/workflows/docker-publish.yml](../.github/workflows/docker-publish.yml)。推到 `main` 或打 `v*` 标签时自动构建并推到 GHCR。
 
 **启用方式**：在 `.env` 里填一行
 
@@ -501,9 +501,10 @@ Dockerfile 用的是浮动标签（`node:20-alpine`、`mcr.microsoft.com/dotnet/
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
 | `JWT_KEY` | 占位值 | JWT 签名密钥，**上线前必须自己替换**（`openssl rand -hex 48`） |
-| `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址。见下方「种子搜索」一节 |
+| `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址。见下方[「种子搜索」](#种子搜索可选增强)一节 |
 | `TORRENT_ENABLED` | `true` | 是否启用种子功能（关掉后「种子」入口显示未启用） |
 | `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
+| `COMPOSE_PROJECT_NAME` | 未设（用目录名） | 容器名 / 卷名的前缀；目录名含非 ASCII 字符时必须显式设成 ASCII 名。见[第一节第 5 小节](#5-容器名是怎么来的想按自己的项目名命名就看这里) |
 
 ### 种子搜索（可选增强）
 
@@ -559,7 +560,7 @@ openssl rand -hex 48
 
 ---
 
-## 五、数据库：SQLite / PostgreSQL
+## 五、数据库：SQLite 与 PostgreSQL
 
 ### SQLite（默认）
 
@@ -567,17 +568,7 @@ openssl rand -hex 48
 
 ### PostgreSQL（可选）
 
-会额外拉起 `postgres` 容器：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
-```
-
-```powershell
-（Windows 同一条命令）
-```
-
-等价的 compose 命令：
+会额外拉起 `postgres` 容器（Windows / PowerShell 同一条命令）：
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d

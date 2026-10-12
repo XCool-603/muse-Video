@@ -54,7 +54,7 @@
 | `.env` 里被注释掉的变量 | `SHORTDRAMA_IMAGE`（默认注释；填了就是「镜像模式」） | `.env.example:20` |
 | 默认访问口令 | `遵纪守法世界和平` | `.env.example:25`、`docker-compose.yml:42` |
 | 健康检查 | `GET /health`，返回 `{"status":"healthy",...}` | `docker-compose.yml:75`、`Dockerfile:149-150`、`ShortDrama.Api/Program.cs:162` |
-| 管理后台 | `/admin`，默认账号 `admin` / `admin123` | `README.md` 第四节「容器化部署」、`ShortDrama.Infrastructure/Data/DbSeeder.cs:147-151` |
+| 管理后台 | `/admin`，默认账号 `admin` / `admin123` | `README.md` 第一节「快速开始」→「4. 容器化部署（推荐）」、`ShortDrama.Infrastructure/Data/DbSeeder.cs:147-151` |
 | 站点首页 | `http://<宿主IP>:18080` | `docs/DOCKER.md` 第二节「跑起来之后」 |
 | 运行身份 | 镜像内置的非 root 用户 `app`：**容器仍以 root 启动**（要先给数据卷 `chown`），入口脚本再用 `gosu` 把业务进程降权到 `app`。UID/GID 以容器内实测为准（`docker compose exec app sh -c 'grep ^Uid /proc/1/status'` —— ⚠️ **不是** `docker compose exec app id`，那条输出 `0` 是正常的），**不要写死数字** | `Dockerfile:94-108`、`Dockerfile:127-133`、`docker/entrypoint.sh:17-31` |
 | 容器日志上限 | json-file，10MB × 3 个文件 | `docker-compose.yml:81-85` |
@@ -371,7 +371,7 @@ new-api             running(2)          /opt/new-api/docker-compose.yml
 
 ```bash
 docker compose ps -a --format 'table {{.Name}}\t{{.Service}}\t{{.Status}}'
-docker volume ls | grep shortdrama
+docker volume ls | grep -E 'shortdrama(-data|-pgdata)$'
 ```
 
 **成功判据（期望输出）**：
@@ -379,6 +379,11 @@ docker volume ls | grep shortdrama
 - **首次部署前**：第一条只打印表头 `NAME  SERVICE  STATUS`（还没有容器），第二条**无输出**
   （`grep` 找不到东西时退出码是 1，**这是正常的**，不是报错）；
 - **已经部署过**：第一条出现 `<项目名>-app-1`（服务名 `app`），第二条出现 `<项目名>_shortdrama-data`。
+
+> 第二条的 `grep` 模式写成 `-E 'shortdrama(-data|-pgdata)$'`，匹配的是**逻辑卷名的结尾**，
+> 这样就不依赖项目名前缀 —— 前缀由**项目名**决定（自检 2），本手册示例里才恰好是 `shortdrama`。
+> 如果你的项目名不是 `shortdrama`，写成 `grep shortdrama` 也照样能筛出来（前缀不同、结尾相同）；
+> 两种写法都只是**筛查**，最终判定归属看的是下面那条：`<项目名>` 必须与自检 2 一致。
 
 两条里的 `<项目名>` 必须**等于自检 2 打印的那个名字**。对不上 → 你之前是在**另一个目录 / 另一个项目名**
 下部署的，那个卷里的数据不在你现在这个项目手上。
@@ -489,8 +494,8 @@ Copy-Item .env.example .env
 - 提示 `.env` 已存在 → 说明之前部署过，**先备份**：`cp .env .env.bak`，再决定是否覆盖
   （老 `.env` 里可能有你改过的端口和口令，**不要无脑覆盖**）。
 
-> `.env` 已被 `.gitignore` 忽略（`.gitignore:25`），不会进仓库，也不会进构建上下文
-> （`.dockerignore:37-39`）。
+> `.env` 已被 `.gitignore` 忽略（`.gitignore:29`），不会进仓库，也不会进构建上下文
+> （`.dockerignore:36-42`）。
 
 ### 2.4 步骤 4：改掉必改项
 
@@ -1415,7 +1420,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
 
 **成功判据**：命令无报错，退出码 0；`docker compose ... ps` 仍全部 `Up`。
 
-> **切换数据库不会自动迁移数据**：SQLite 里的旧数据需要另行导出导入（`docs/DOCKER.md` 第五节「数据库：SQLite / PostgreSQL」）。
+> **切换数据库不会自动迁移数据**：SQLite 里的旧数据需要另行导出导入（`docs/DOCKER.md` 第五节「数据库：SQLite 与 PostgreSQL」）。
 > PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml:43-45`），需要直连调试时取消 `ports` 的注释。
 
 ### 7.5 卸载
