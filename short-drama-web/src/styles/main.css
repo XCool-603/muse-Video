@@ -1,12 +1,26 @@
+/* ==========================================================================
+   全局样式（基底）
+   --------------------------------------------------------------------------
+   赛博朋克主题的令牌与通用类在 ./cyberpunk.css（由 main.ts 在本文件之后引入）。
+   本文件只保留「布局骨架 + 旧令牌别名 + Ant Design Vue 深色覆盖」。
+
+   旧令牌 --sd-* 原样保留，但全部指向 --cy-* ——
+   这样 src/views/**、src/components/** 里已有的 var(--sd-*) 一行不改就能跟着换皮。
+   ========================================================================== */
+
 :root {
-  --sd-bg: #0f0f12;
-  --sd-bg-elevated: #1a1a1f;
-  --sd-border: #2a2a32;
-  --sd-text: #e8e8ea;
-  --sd-text-secondary: #9a9aa3;
-  --sd-primary: #ff4d6d;
-  --sd-primary-hover: #ff6b85;
-  --sd-radius: 10px;
+  /* ---------- 旧令牌 → 赛博朋克令牌（别名层） ---------- */
+  --sd-bg: var(--cy-bg);
+  --sd-bg-elevated: var(--cy-panel);
+  --sd-border: var(--cy-border);
+  --sd-text: var(--cy-text);
+  --sd-text-secondary: var(--cy-text-dim);
+  /* 这两个以前没定义过（只靠 fallback 值生效），现在正式指向令牌 */
+  --sd-text-muted: var(--cy-text-dim);
+  --sd-surface: var(--cy-panel-2);
+  --sd-primary: var(--cy-cyan);
+  --sd-primary-hover: var(--cy-cyan-hover);
+  --sd-radius: var(--cy-radius);
   --sd-max-width: 1200px;
 }
 
@@ -23,10 +37,9 @@ body,
 }
 
 body {
-  background: var(--sd-bg);
-  color: var(--sd-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI',
-    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--cy-bg);
+  color: var(--cy-text);
+  font-family: var(--cy-font-ui);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -62,8 +75,12 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3a3a44;
+  background: var(--cy-border);
   border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cy-cyan-line);
 }
 
 ::-webkit-scrollbar-track {
@@ -79,38 +96,94 @@ a {
 }
 
 .ant-card {
-  background: var(--sd-bg-elevated);
-  border-color: var(--sd-border);
+  background-color: var(--cy-panel);
+  border-color: var(--cy-border);
+}
+
+.ant-card-head {
+  color: var(--cy-text);
+  border-bottom-color: var(--cy-border);
 }
 
 .ant-card-body {
-  color: var(--sd-text);
+  color: var(--cy-text);
 }
 
 .ant-empty-description {
-  color: var(--sd-text-secondary);
+  color: var(--cy-text-dim);
 }
 
 .ant-btn-primary {
-  background: var(--sd-primary);
-  border-color: var(--sd-primary);
+  color: var(--cy-bg);
+  background-color: var(--cy-cyan);
+  border-color: var(--cy-cyan);
 }
 
 .ant-btn-primary:not(:disabled):hover {
-  background: var(--sd-primary-hover);
-  border-color: var(--sd-primary-hover);
+  color: var(--cy-bg);
+  background-color: var(--cy-cyan-hover);
+  border-color: var(--cy-cyan-hover);
+}
+
+.ant-btn-default {
+  background-color: transparent;
+  border-color: var(--cy-border);
+}
+
+.ant-btn-default:not(:disabled):hover {
+  color: var(--cy-cyan);
+  border-color: var(--cy-cyan);
 }
 
 .ant-tabs-tab {
-  color: var(--sd-text-secondary);
+  color: var(--cy-text-dim);
 }
 
 .ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--sd-primary) !important;
+  color: var(--cy-cyan) !important;
 }
 
 .ant-tabs-ink-bar {
-  background: var(--sd-primary);
+  background-color: var(--cy-cyan);
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-input-number,
+.ant-picker {
+  background-color: var(--cy-bg-soft) !important;
+  border-color: var(--cy-border) !important;
+  color: var(--cy-text);
+}
+
+.ant-input::placeholder,
+.ant-select-selection-placeholder {
+  color: var(--cy-text-dim);
+}
+
+.ant-modal-content,
+.ant-modal-header,
+.ant-drawer-content,
+.ant-dropdown-menu {
+  background-color: var(--cy-panel);
+  border-color: var(--cy-border);
+}
+
+.ant-table,
+.ant-table-thead > tr > th {
+  background-color: var(--cy-panel-2);
+  color: var(--cy-text);
+  border-color: var(--cy-border);
+}
+
+.ant-table-tbody > tr > td {
+  background-color: transparent;
+  border-color: var(--cy-border);
+}
+
+.ant-divider {
+  border-color: var(--cy-border);
 }
 
 /* ---------- 页面标题 ---------- */
@@ -125,7 +198,8 @@ a {
   font-size: 18px;
   font-weight: 600;
   margin: 0;
-  color: var(--sd-text);
+  color: var(--cy-text);
+  text-shadow: 0 0 12px var(--cy-cyan-glow-soft);
 }
 
 .sd-section-title h2::before {
@@ -133,13 +207,13 @@ a {
   display: inline-block;
   width: 3px;
   height: 16px;
-  background: var(--sd-primary);
+  background-color: var(--cy-cyan);
   border-radius: 2px;
   margin-right: 8px;
   vertical-align: -2px;
 }
 
 .sd-muted {
-  color: var(--sd-text-secondary);
+  color: var(--cy-text-dim);
   font-size: 12px;
 }

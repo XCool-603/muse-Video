@@ -1,9 +1,12 @@
 <template>
-  <div class="gate-view">
-    <div class="gate-card">
+  <div class="gate-view cy-grid-bg">
+    <!-- 扫描线铺满视口；pointer-events: none，不影响表单交互 -->
+    <div class="cy-scanline cy-scanline--fixed" aria-hidden="true"></div>
+
+    <div class="gate-card cy-panel cy-panel--glow">
       <div class="brand">
         <span class="logo-mark">剧</span>
-        <h1>短剧聚合</h1>
+        <h1 class="cy-title gate-title">短剧聚合</h1>
       </div>
 
       <p class="notice">本站为个人自用实例，请先输入访问口令</p>
@@ -21,16 +24,16 @@
           </a-input-password>
         </a-form-item>
 
-        <a-button
-          type="primary"
-          size="large"
-          block
-          html-type="submit"
-          :loading="loading"
-          :disabled="!form.password"
+        <!-- 原生 submit 按钮：a-form 在 <form> 上绑了 onSubmit -> validate -> emit('finish')，
+             所以原生按钮一样能触发 @finish（见 ant-design-vue/es/form/Form.js handleSubmit）。
+             这样就能直接套主题契约里的 .cy-btn / .cy-btn--primary，不必和 antd 按钮样式打架。 -->
+        <button
+          type="submit"
+          class="cy-btn cy-btn--primary gate-submit"
+          :disabled="loading || !form.password"
         >
-          进入
-        </a-button>
+          {{ loading ? '验证中…' : '进入' }}
+        </button>
       </a-form>
 
       <div class="pledge">
@@ -80,31 +83,42 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+/* 口令门页换皮：颜色一律取 cyberpunk.css 的 --cy-* 令牌，本文件不写死颜色。
+   卡片 / 标题 / 按钮复用主题契约类 .cy-panel .cy-panel--glow .cy-title .cy-btn--primary。 */
 .gate-view {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(900px 400px at 50% -10%, rgba(255, 77, 109, 0.18), transparent),
-    var(--sd-bg);
+  background-color: var(--cy-bg);
+}
+
+/* 顶部青光 + 底部品红辉光，压在网格之上、卡片之下 */
+.gate-view::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(760px 420px at 50% 0%, var(--cy-cyan-dim), transparent 70%),
+    radial-gradient(620px 380px at 50% 100%, var(--cy-magenta-dim), transparent 72%);
 }
 
 .gate-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 380px;
   padding: 32px 28px;
-  background: var(--sd-bg-elevated);
-  border: 1px solid var(--sd-border);
-  border-radius: 16px;
 }
 
 .brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .logo-mark {
@@ -112,25 +126,31 @@ async function handleSubmit() {
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
-  color: #fff;
+  background-image: linear-gradient(135deg, var(--cy-cyan), var(--cy-magenta));
+  clip-path: var(--cy-clip);
+  color: var(--cy-bg);
+  font-family: var(--cy-font-mono);
   font-weight: 700;
   font-size: 23px;
+  filter: drop-shadow(0 0 8px var(--cy-cyan-glow-soft));
 }
 
-.brand h1 {
-  margin: 0;
+/* .cy-title 默认是页面级大标题（clamp 到 38px），门页卡片里收小 */
+.gate-title {
   font-size: 19px;
-  font-weight: 600;
-  color: var(--sd-text);
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
 .notice {
   margin: 0 0 20px;
   text-align: center;
   font-size: 13px;
-  color: var(--sd-text-secondary);
+  color: var(--cy-text-dim);
+}
+
+.gate-submit {
+  width: 100%;
 }
 
 .pledge {
@@ -140,8 +160,8 @@ async function handleSubmit() {
   gap: 6px;
   margin-top: 22px;
   padding-top: 16px;
-  border-top: 1px solid var(--sd-border);
+  border-top: 1px solid var(--cy-border);
   font-size: 12px;
-  color: var(--sd-text-secondary);
+  color: var(--cy-text-dim);
 }
 </style>

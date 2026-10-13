@@ -9,6 +9,9 @@ import 'ant-design-vue/dist/reset.css'
 import App from './App.vue'
 import router from './router'
 import './styles/main.css'
+// 赛博朋克主题：必须排在 main.css **之后**，靠后加载覆盖旧样式。
+// 定义全部 --cy-* 设计令牌与 .cy-* 通用类（门户页 /portal 也引用它们）。
+import './styles/cyberpunk.css'
 
 const app = createApp(App)
 const pinia = createPinia()

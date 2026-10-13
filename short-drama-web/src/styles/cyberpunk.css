@@ -1,0 +1,353 @@
+/* ==========================================================================
+   赛博朋克主题 · 设计令牌（design tokens）+ 通用组件类
+   --------------------------------------------------------------------------
+   由 src/main.ts 在 `import './styles/main.css'` **之后**引入，
+   因此本文件覆盖在旧样式之上；main.css 里的 --sd-* 旧令牌已改成指向 --cy-*。
+
+   契约（令牌名 / 类名不可改，门户页 src/views/PortalView.vue 会引用它们）：
+     令牌：--cy-bg --cy-bg-soft --cy-panel --cy-panel-2 --cy-border
+           --cy-cyan --cy-magenta --cy-yellow --cy-lime
+           --cy-text --cy-text-dim
+           --cy-glow-cyan --cy-glow-magenta --cy-scanline-opacity
+           --cy-font-mono --cy-font-ui
+           --cy-radius --cy-clip
+     类：  .cy-panel .cy-panel--glow
+           .cy-btn .cy-btn--primary .cy-btn--ghost
+           .cy-title .cy-glow .cy-grid-bg .cy-scanline
+           .cy-tag .cy-code .cy-copy-btn
+   ========================================================================== */
+
+:root {
+  /* ---------- 底色 ---------- */
+  --cy-bg: #05070e;
+  --cy-bg-soft: #0a0f1c;
+  --cy-panel: #0d1424;
+  --cy-panel-2: #121c33;
+  --cy-border: #1e2c4a;
+
+  /* ---------- 霓虹 ---------- */
+  --cy-cyan: #00f0ff;
+  --cy-magenta: #ff2bd6;
+  --cy-yellow: #ffe14d;
+  --cy-lime: #9dff3c;
+
+  /* ---------- 文字 ---------- */
+  --cy-text: #e3f6ff;
+  --cy-text-dim: #7c93b8;
+
+  /* ---------- 效果 ---------- */
+  --cy-glow-cyan: 0 0 10px rgba(0, 240, 255, 0.55), 0 0 26px rgba(0, 240, 255, 0.22);
+  --cy-glow-magenta: 0 0 10px rgba(255, 43, 214, 0.55), 0 0 26px rgba(255, 43, 214, 0.22);
+  --cy-scanline-opacity: 0.14;
+
+  /* ---------- 字体 ---------- */
+  --cy-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Mono', ui-monospace, SFMono-Regular,
+    Menlo, Consolas, 'Courier New', monospace;
+  --cy-font-ui: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* ---------- 形状 ---------- */
+  --cy-radius: 10px;
+  /* 切角：四角各切掉 10px，用 clip-path 实现（改 --cy-radius 不会自动同步，见 THEME.md） */
+  --cy-clip: polygon(
+    0 10px,
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+
+  /* ---------- 派生令牌（本文件与外壳样式复用；rgba 只允许出现在本文件） ---------- */
+  --cy-cyan-hover: #5cf7ff;
+  --cy-cyan-dim: rgba(0, 240, 255, 0.14);
+  --cy-cyan-line: rgba(0, 240, 255, 0.42);
+  --cy-cyan-glow-soft: rgba(0, 240, 255, 0.3);
+  --cy-magenta-dim: rgba(255, 43, 214, 0.16);
+  --cy-panel-glass: rgba(7, 11, 20, 0.82);
+  --cy-hairline: rgba(255, 255, 255, 0.06);
+  --cy-grid-line: rgba(0, 240, 255, 0.07);
+  --cy-grid-line-strong: rgba(255, 43, 214, 0.06);
+}
+
+/* ==========================================================================
+   全局基底
+   ========================================================================== */
+
+body {
+  background-color: var(--cy-bg);
+  color: var(--cy-text);
+  font-family: var(--cy-font-ui);
+}
+
+::selection {
+  background: var(--cy-cyan-dim);
+  color: var(--cy-cyan);
+}
+
+/* ==========================================================================
+   面板
+   ========================================================================== */
+
+.cy-panel {
+  position: relative;
+  padding: 20px;
+  background-color: var(--cy-panel);
+  background-image: linear-gradient(160deg, var(--cy-panel-2), var(--cy-panel) 62%);
+  border: 1px solid var(--cy-border);
+  border-radius: var(--cy-radius);
+  clip-path: var(--cy-clip);
+  color: var(--cy-text);
+}
+
+/* 带外发光的面板。
+   注意：clip-path 会把 box-shadow 一起裁掉，所以发光只能用 filter: drop-shadow()；
+   代价是它会成为 fixed 子元素的包含块 —— 面板里不要放 position: fixed 的东西。 */
+.cy-panel--glow {
+  border-color: var(--cy-cyan-line);
+  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.4)) drop-shadow(0 0 18px rgba(0, 240, 255, 0.16));
+}
+
+/* ==========================================================================
+   按钮
+   ========================================================================== */
+
+.cy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  appearance: none;
+  font-family: var(--cy-font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  color: var(--cy-text);
+  text-decoration: none;
+  text-align: center;
+  background: transparent;
+  border: 1px solid var(--cy-border);
+  border-radius: var(--cy-radius);
+  clip-path: var(--cy-clip);
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.cy-btn:hover {
+  color: var(--cy-cyan);
+  border-color: var(--cy-cyan);
+  box-shadow: inset 0 0 14px var(--cy-cyan-dim);
+}
+
+.cy-btn:active {
+  transform: translateY(1px);
+}
+
+.cy-btn:focus-visible {
+  outline: 1px solid var(--cy-cyan);
+  outline-offset: 2px;
+}
+
+.cy-btn--primary {
+  color: var(--cy-bg);
+  background-color: var(--cy-cyan);
+  background-image: linear-gradient(120deg, var(--cy-cyan), var(--cy-magenta));
+  border-color: transparent;
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.45));
+}
+
+.cy-btn--primary:hover {
+  color: var(--cy-bg);
+  border-color: transparent;
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.28);
+}
+
+.cy-btn--ghost {
+  color: var(--cy-cyan);
+  background: transparent;
+  border-color: var(--cy-cyan-line);
+}
+
+.cy-btn--ghost:hover {
+  color: var(--cy-bg);
+  background-color: var(--cy-cyan);
+  border-color: var(--cy-cyan);
+}
+
+.cy-btn:disabled,
+.cy-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   文字
+   ========================================================================== */
+
+.cy-title {
+  margin: 0;
+  font-family: var(--cy-font-mono);
+  font-size: clamp(22px, 3.6vw, 38px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  color: var(--cy-text);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.5), 0 0 26px rgba(255, 43, 214, 0.28);
+}
+
+.cy-glow {
+  color: var(--cy-cyan);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.7), 0 0 22px rgba(0, 240, 255, 0.32);
+}
+
+.cy-glow--magenta {
+  color: var(--cy-magenta);
+  text-shadow: 0 0 8px rgba(255, 43, 214, 0.7), 0 0 22px rgba(255, 43, 214, 0.32);
+}
+
+.cy-glow--lime {
+  color: var(--cy-lime);
+  text-shadow: 0 0 8px rgba(157, 255, 60, 0.6), 0 0 22px rgba(157, 255, 60, 0.28);
+}
+
+/* ==========================================================================
+   背景层
+   ========================================================================== */
+
+/* 网格背景：只提供 background-*，定位交给调用方（可铺满页面，也可只铺一个区块） */
+.cy-grid-bg {
+  background-color: transparent;
+  background-image: linear-gradient(to right, var(--cy-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--cy-grid-line) 1px, transparent 1px),
+    linear-gradient(to right, var(--cy-grid-line-strong) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--cy-grid-line-strong) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 200px 200px, 200px 200px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+}
+
+/* 扫描线覆盖层：默认绝对定位铺满最近的定位祖先（区块内用）；
+   要铺满整个视口再加 .cy-scanline--fixed。 */
+.cy-scanline {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: var(--cy-scanline-opacity);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 240, 255, 0.55) 0px,
+    rgba(0, 240, 255, 0.55) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  animation: cy-scan 9s linear infinite;
+}
+
+.cy-scanline--fixed {
+  position: fixed;
+}
+
+@keyframes cy-scan {
+  from {
+    background-position-y: 0;
+  }
+  to {
+    background-position-y: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cy-scanline {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   小件
+   ========================================================================== */
+
+.cy-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  font-family: var(--cy-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.7;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--cy-cyan);
+  background-color: var(--cy-cyan-dim);
+  border: 1px solid var(--cy-cyan-line);
+  border-radius: 999px;
+}
+
+.cy-code {
+  display: block;
+  margin: 0;
+  padding: 12px 14px;
+  font-family: var(--cy-font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--cy-lime);
+  background-color: var(--cy-bg);
+  border: 1px solid var(--cy-border);
+  border-left: 3px solid var(--cy-cyan);
+  border-radius: var(--cy-radius);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cy-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  appearance: none;
+  font-family: var(--cy-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: var(--cy-cyan);
+  background-color: var(--cy-cyan-dim);
+  border: 1px solid var(--cy-cyan-line);
+  border-radius: var(--cy-radius);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.cy-copy-btn:hover {
+  color: var(--cy-bg);
+  background-color: var(--cy-cyan);
+  border-color: var(--cy-cyan);
+}
+
+.cy-copy-btn:active {
+  transform: translateY(1px);
+}
+
+.cy-copy-btn:focus-visible {
+  outline: 1px solid var(--cy-cyan);
+  outline-offset: 2px;
+}
+
+/* 复制成功态：两种写法都支持，调用方用哪个都行 */
+.cy-copy-btn.is-copied,
+.cy-copy-btn--done {
+  color: var(--cy-bg);
+  background-color: var(--cy-lime);
+  border-color: var(--cy-lime);
+}

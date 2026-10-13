@@ -18,6 +18,13 @@ const router = createRouter({
       meta: { title: '首页' }
     },
     {
+      // 面向访客的门户页：四条下载/部署入口，每条都能一键复制
+      path: '/portal',
+      name: 'portal',
+      component: () => import('@/views/PortalView.vue'),
+      meta: { title: '门户' }
+    },
+    {
       path: '/category',
       name: 'category',
       component: () => import('@/views/CategoryView.vue'),
