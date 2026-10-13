@@ -123,18 +123,44 @@ docker compose pull app && docker compose up -d
 两种都是**先构建/拉取成功，再切换容器** —— 失败时旧容器继续跑，站点不中断。
 
 > 📌 **端口由 `.env` 里的 `APP_PORT` 决定**（新部署默认 `18080`）。
-> `.env` 优先于 compose 的默认值，所以**升级不会改变你已有的端口** ——
-> 要改端口就编辑 `.env` 里的 `APP_PORT` 再 `docker compose up -d`，
-> 然后用 `docker compose config | grep -A3 'ports:'` 确认生效值，并放行云安全组与宿主防火墙。
-> 详见 [docs/DOCKER.md](docs/DOCKER.md#6-改运行端口)。
+> `.env` 优先于 compose 的默认值，所以**升级不会改变你已有的端口**。
+>
+> **换端口是三件事：先确认它空闲 → 设进去 → 验证外网真的能访问。** 一条都不能省：
+>
+> ```bash
+> # ① 先查空闲（无输出 = 空闲）。别随便挑一个大数字 —— 数字大 ≠ 空闲
+> ss -lntp | grep 18080
+> docker ps --format 'table {{.Names}}\t{{.Ports}}'        # 是不是别的容器占着
+>
+> # ② 设进去：编辑 .env 的 APP_PORT=<空闲端口>，重建并回读生效值
+> docker compose up -d && docker compose config | grep -A3 'ports:'
+>
+> # ③ 两处放行（只做一处 = 本机 curl 通、外网打不开）
+> sudo ufw allow <空闲端口>/tcp        # Ubuntu/Debian；CentOS：firewall-cmd --permanent --add-port=<端口>/tcp && firewall-cmd --reload
+> #    另一处是云厂商控制台的「安全组 → 入方向」
+>
+> # ④ 从外网验证：换一台机器 / 手机 4G（别在服务器上 curl 自己的公网 IP，NAT 回环会骗你）
+> curl -fsS http://<公网IP>:<空闲端口>/health       # 期望 {"status":"healthy","time":"..."}
+> ```
+>
+> 不想自己挑数字，也可以**让 Docker 自动分配一个空闲端口**（用 `docker-compose.override.yml`
+> 把 `ports` 写成 `- "8080"`，再用 `docker compose port app 8080` 回读实际端口）——
+> 代价是**端口不固定**，每次重建都可能变，防火墙与安全组没法提前放行，**不适合对公网长期暴露**。
+>
+> 完整的可粘贴做法（`ss` / `netstat` / PowerShell 三个版本的「逐个端口判空闲」循环、
+> 云安全组各家在哪放行、「本机通、外网不通」的 7 步排查顺序）见
+> [docs/RUNBOOK.md](docs/RUNBOOK.md) 第四章 **4.7 / 4.8 / 4.9**；
+> 主题式说明见 [docs/DOCKER.md](docs/DOCKER.md#6-改运行端口)。
 
 **常用运维**
 
 ```bash
-docker compose logs -f app     # 看日志
-docker compose restart app     # 重启
-docker compose down            # 停止（保留数据卷）
-docker compose down -v         # 停止并清空数据
+docker compose logs -f app                    # 看日志（服务名写法）
+docker logs -f docker-muse-video              # 同一个容器：容器名固定，可直接写
+docker compose restart app                    # 重启
+docker compose down                           # 停止（保留数据卷）
+docker compose down --remove-orphans          # 顺带清掉早先版本留下的旧服务容器（只动本项目）
+docker compose down -v                        # 停止并清空数据
 ```
 
 **定时自动升级**：直接写进宿主 crontab（不需要任何脚本）：
@@ -149,7 +175,9 @@ docker compose down -v         # 停止并清空数据
 > 详见 [docs/RUNBOOK.md](docs/RUNBOOK.md) 第五节。
 
 > ⚠️ **上线前务必改 `.env` 里的 `JWT_KEY`**（`.env.example` 里是占位值）和 `ACCESS_PASSWORD`。
-> 生成随机密钥：`openssl rand -hex 48`（Windows：`-join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })`）。
+> 生成随机密钥：`openssl rand -hex 48`（Windows：`-join ((1..96) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })`）。
+> 两条命令的结果**长度相同**，都是 **96 个十六进制字符**（= 48 字节）；判据与自检命令见
+> [docs/RUNBOOK.md](docs/RUNBOOK.md) 1.3。
 >
 > 种子搜索是可选增强，它由宿主机上的另一个进程提供。Docker 下要指向宿主机
 > （`host.docker.internal`，compose 已配好），详见 [docs/DOCKER.md](docs/DOCKER.md#种子搜索可选增强)。
@@ -158,6 +186,7 @@ docker compose down -v         # 停止并清空数据
 > 不会被脚本的行号与退出码藏一层。
 
 默认 **SQLite + 单容器**，零外部依赖，前端由 .NET 同端口托管。启动后访问 <http://localhost:18080>，管理后台 `/admin`（默认账号 `admin / admin123`），健康检查 `/health`。
+（`docker-compose.postgres.yml` 是**可选**的 PostgreSQL 覆盖文件，用它会变成 **2 个容器** —— `app` + `postgres`，见 [docs/RUNBOOK.md](docs/RUNBOOK.md) 7.4。）
 
 > 🚀 **第一次部署？直接看 [docs/RUNBOOK.md](docs/RUNBOOK.md)** —— 按**操作顺序**写的手册：
 > 首次部署 / 升级与回滚 / 改端口 / 定时更新与从旧脚本迁移 / 种子服务 / 备份与排障，
@@ -165,6 +194,39 @@ docker compose down -v         # 停止并清空数据
 > 配套的 [docs/DEPLOY-FACTS.md](docs/DEPLOY-FACTS.md) 把手册引用的每个配置值连 `文件:行` 一起钉住，可机械核对。
 >
 > 主题式文档见 **[docs/DOCKER.md](docs/DOCKER.md)**：配置项、更新与定时更新、**预构建镜像（构建慢的根治办法）**、PostgreSQL 切换、备份恢复、反向代理、故障排查。
+
+### 5. 容器名与卷名（容器名固定，卷名不动）
+
+compose 在 `app` 服务下**显式设了** `container_name: docker-muse-video`（`docker-compose.yml:42`），
+所以 `docker exec` / `docker logs` / `docker cp` 都可以**直接写这个名字**，不必再 `docker compose ps -q app` 取容器 id：
+
+```bash
+docker logs -f docker-muse-video                              # 看日志
+docker exec -it docker-muse-video sh                          # 进容器
+docker cp docker-muse-video:/data/shortdrama.db ./backup/     # 拷 SQLite 库文件
+```
+
+> ⚠️ **容器名固定 ≠ 卷名固定。卷名仍然随项目名。**
+> 数据卷的实际名字是 **`<项目名>_shortdrama-data`**（项目名默认取**部署目录名**，
+> 例如在 `shortdrama` 目录里部署就是 `shortdrama_shortdrama-data`）。
+> **不要为了让卷名跟容器名对齐去改卷名**（也别改 `COMPOSE_PROJECT_NAME` / 目录名）——
+> 卷名一变，`docker compose up -d` 会去挂一个**全新的空卷**，
+> 已有的 SQLite 库、收藏、观看历史都留在旧卷里**不会跟过来**，表现就是「数据没了」。
+> 详见 [docs/RUNBOOK.md](docs/RUNBOOK.md) 1.5 与 7.1。
+>
+> **代价**：容器名在全机唯一，所以**同一台机器上不能从两个目录同时部署本项目**（第二个会报名字冲突）。
+> 名字被占时先判归属，再**非破坏性**地让出名字：
+>
+> ```bash
+> # ① 看这个容器属于哪个 compose 项目（空输出 = 不是 compose 起的）
+> docker inspect docker-muse-video --format '{{index .Config.Labels "com.docker.compose.project"}}'
+> # ② 确认可以放弃就改名让位（容器还在，只是换了名字 —— 别直接 docker rm）
+> docker rename docker-muse-video docker-muse-video-old
+> ```
+>
+> 清理**本项目自己的**历史遗留容器（早先版本里的 `redis` 等已删服务）用
+> `docker compose down --remove-orphans` —— 它只清理带本项目标签的容器，**不会碰别人的容器**。
+> 详见 [docs/RUNBOOK.md](docs/RUNBOOK.md) 2.5 与 7.8。
 
 ---
 
@@ -192,8 +254,8 @@ docker compose down -v         # 停止并清空数据
 ├── ShortDrama.slnx
 ├── Dockerfile                            # 单镜像多阶段构建（前端 + 后端）
 ├── docker/entrypoint.sh                  # 容器入口：修正数据卷属主后降权运行
-├── docker-compose.yml                    # 默认：SQLite 单容器
-├── docker-compose.postgres.yml           # 可选：PostgreSQL
+├── docker-compose.yml                    # 默认：SQLite 单容器（容器名固定 docker-muse-video）
+├── docker-compose.postgres.yml           # 可选：PostgreSQL（2 容器路径：app + postgres）
 ├── .env.example                          # 部署环境变量模板（含对外端口、口令、种子服务地址）
 ├── scripts/gen-clash-rules.mjs           # 生成「视频 CDN 直连」的 Clash 规则与文档
 ├── docs/RUNBOOK.md                       # 部署与运维手册（按操作顺序，推荐先看）

@@ -4,8 +4,8 @@
 # 前端（Vue3 + Vite）与后端（.NET 10）打进同一个镜像，由 .NET 直接托管静态资源，
 # 不需要额外的 Nginx 容器。这样 docker compose up 一条命令就能跑起来。
 #
-# 构建：docker build -t shortdrama .
-# 运行：docker run -d -p 18080:8080 -v shortdrama-data:/data shortdrama
+# 构建：docker build -t docker-muse-video:latest .
+# 运行：docker run -d -p 18080:8080 -v shortdrama-data:/data docker-muse-video:latest
 #
 # 多架构：两个**构建**阶段都声明了 --platform=$BUILDPLATFORM（跑在构建机原生架构上），
 # 最终阶段不声明（必须是目标架构）。原因见下方阶段 1 的注释。

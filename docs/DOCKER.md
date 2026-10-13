@@ -83,6 +83,11 @@ git fetch && git log --oneline HEAD..@{u}
 
 默认使用 **SQLite**，数据落在命名卷里，不依赖任何外部服务。想换 PostgreSQL 见[第五节](#五数据库sqlite-与-postgresql)。
 
+> 📌 **默认部署只有 1 个容器**，名字固定为 **`docker-muse-video`**（`docker-compose.yml` 的 `container_name`）。
+> **卷名没有被固定**，仍然是 `<项目名>_shortdrama-data`（项目名默认取部署目录名）
+> —— 容器名与卷名是两件独立的事，**卷名一个字都不要改**（改了等于换卷、丢数据）。
+> 完整说明与「怎么清理历史遗留容器 / 名字被占怎么办」见[第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video)。
+
 > 📌 **本项目不使用部署包装脚本**（`deploy` + `.sh` / `deploy` + `.ps1` 已移除）。
 > 直接用 `docker compose`：报错就是 docker 的原始报错，不会被脚本的行号和退出码藏一层；
 > 也不用担心脚本把宿主 UID 之类的值固化进构建参数。需要固定的流程用 docker 自己的机制
@@ -111,6 +116,10 @@ git fetch && git log --oneline HEAD..@{u}
 > 已经克隆到中文目录里了，就 `cd` 进去后用 `docker compose -p shortdrama up -d --build`
 > 或在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释（`.env.example:67`）。规则与四种情况的完整对照见
 > 下面「5. 容器名是怎么来的」。
+>
+> 📌 **这条只管卷名，不管容器名**：容器名已经写死成 `docker-muse-video`，**与目录名无关**；
+> 目录名（或 `COMPOSE_PROJECT_NAME` / `-p`）影响的只是**卷名** `<项目名>_shortdrama-data`。
+> 两者的区别见下面「5. 容器名是怎么来的」。
 
 ### 2. 一条命令
 
@@ -142,7 +151,13 @@ docker compose restart app      # 重启
 docker compose ps               # 看容器状态
 docker compose down             # 停止（保留数据卷）
 docker compose down -v          # 停止并清空数据
+docker compose down --remove-orphans   # 停止，并清掉已删除服务的遗留容器（旧版本的 redis 等，见 5.2）
 ```
+
+> 📌 起来之后**只有一个容器，名字就叫 `docker-muse-video`**（**不再**是「项目名 + 服务名 + 序号」
+> 拼出来的那种名字 —— 容器名已经写死，与目录名无关）。
+> 所有 `docker compose` 子命令仍然用**服务名** `app`（`docker compose logs app`、`docker compose exec app ...`），
+> 两种写法都行，服务名与目录名无关、更省心。
 
 ### 4. 常用配置
 
@@ -154,37 +169,58 @@ docker compose down -v          # 停止并清空数据
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
 | `JWT_KEY` | 占位值 | JWT 签名密钥，**上线前必须替换** |
-| `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式；填镜像地址 = 镜像模式 |
+| `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码 / **离线**模式（本地已有 `docker-muse-video:latest` 就直接用，不再构建）；填镜像地址 = 镜像模式 |
 | `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址（可选功能） |
 | `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
-| `COMPOSE_PROJECT_NAME` | 未设（用目录名） | 容器名/卷名的前缀，见下方「容器名是怎么来的」 |
+| `COMPOSE_PROJECT_NAME` | 未设（用目录名） | **卷名**的前缀（容器名已固定为 `docker-muse-video`，**不受它影响**），见下方「容器名是怎么来的」 |
 
 **临时改一次端口**（不改 `.env`）：`APP_PORT=9000 docker compose up -d`。
 **强制不用缓存重建**：`docker compose build --no-cache && docker compose up -d`。
 **改用 PostgreSQL**：见[第五节](#五数据库sqlite-与-postgresql)。
 
-### 5. 容器名是怎么来的（想按自己的项目名命名就看这里）
+### 5. 容器名是怎么来的（已固定为 docker-muse-video）
 
-**本项目不写死任何容器名** —— 两个 compose 文件里 `container_name:` **键**出现 **0 次**
-（`docker-compose.yml:23`、`docker-compose.postgres.yml:13` 只是注释里提到这个词）。
-容器名一律由 Compose 按下面的规则生成：
+**容器名是写死的**：`docker-compose.yml` 的 `app` 服务上有
 
-```
-容器名 = <项目名>-<服务名>-1        例如  shortdrama-app-1
-卷名   = <项目名>_<卷名>            例如  shortdrama_shortdrama-data
+```yaml
+container_name: docker-muse-video
 ```
 
+所以**不管你从哪个目录、用什么项目名部署**，容器名永远是 **`docker-muse-video`**
+（完整名字就是它，前面**不带**项目名前缀）。这样定的理由与代价：
+
+| | 说明 |
+|---|---|
+| ✅ **为什么这个固定名是安全的** | `docker-muse-video` 是**本项目专属**的名字，不会撞上别人的通用名 —— `redis`、`new-api`、`postgres` 这类名字人人都可能用，本项目**一个都不占** |
+| ⚠️ **代价** | `container_name` 会**关掉 Compose 的项目名前缀**，于是**同一台机器上不能从两个目录同时部署本项目**：第二个目录敲 `docker compose up -d` 会报 `Conflict. The container name "/docker-muse-video" is already in use`。要跑第二份，必须先把第一份 `docker compose down` 停掉 |
+| 💡 操作建议 | 按**服务名**操作永远可用：`docker compose exec app` / `docker compose cp app:/data/...`；想按名字操作时现在可以直接写 `docker-muse-video` |
+
+> ⚠️⚠️ **「容器名固定」与「卷名随项目名」是两件独立的事，千万别混：**
+>
+> | 名字 | 谁决定 | 当前值 |
+> |---|---|---|
+> | **容器名** | `docker-compose.yml` 里的 `container_name`（**写死**） | **`docker-muse-video`** —— 与项目名 / 目录名**无关** |
+> | **卷名** | Compose 按**项目名**拼出来（`<项目名>_<卷名>`），**没有被写死** | `<项目名>_shortdrama-data`，例如 `shortdrama_shortdrama-data` |
+>
+> 🚫 **红线：卷名一个字都不要改。**
+> 改卷名 = 换卷 = 服务器上**已有的 SQLite 数据、收藏、观看历史全部变成孤儿**
+> （Compose 会去挂一个全新的空卷，应用起来就是空的）。
+> 本次只固定**容器名**；卷名继续随项目名走，`docker volume ls` 里看到的还是
+> `<项目名>_shortdrama-data`。改 `COMPOSE_PROJECT_NAME` / 用 `-p` 同样会换卷，
+> 已经有数据时**不要动**（详见本节末尾的警告）。
+
+**卷名（以及 PostgreSQL 模式下 `postgres` 容器的名字）仍然由项目名决定。**
 **项目名默认取「你执行 `docker compose` 时所在的目录名」**，并做两步规范化：
 **① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_` 这四类字符，其余字符一律「删掉」**
 （**不是**换成 `-`），最后再砍掉开头的 `-` / `_`。
 
-所以目录名直接决定项目名，四种情况的结果**完全不同**：
+所以目录名直接决定**卷名**，四种情况的结果**完全不同**：
 
-| 目录名 | 规范化后的项目名 | 容器名 | 结果 |
+| 目录名 | 规范化后的项目名 | 卷名 | 结果 |
 |---|---|---|---|
-| `shortdrama` | `shortdrama` | `shortdrama-app-1` | 正常 |
-| `ShortDrama`（含大写） | `shortdrama` | `shortdrama-app-1` | 正常 |
-| `short drama`（含空格） | `shortdrama` | `shortdrama-app-1` | 正常 |
+| `shortdrama` | `shortdrama` | `shortdrama_shortdrama-data` | 正常 |
+| `ShortDrama`（含大写） | `shortdrama` | `shortdrama_shortdrama-data` | 正常 |
+| `short drama`（含空格） | `shortdrama` | `shortdrama_shortdrama-data` | 正常 |
 | `短剧聚合`（纯中文） | **空串** | —— | **`docker compose` 直接拒绝执行** |
 
 - 前三种「跑得起来」，但项目名可能**不是你以为的那个**（`ShortDrama` → `shortdrama`）；
@@ -196,7 +232,7 @@ docker compose down -v          # 停止并清空数据
   project name must not be empty
   ```
 
-  **一个容器、一个卷都不会被创建** —— 不存在「中文前缀的容器名」这种东西。
+  **一个容器、一个卷都不会被创建** —— 不存在「中文前缀的卷名」这种东西。
   ⚠️ **本仓库当前的工作目录就是 `C:\Work\短剧聚合\短剧聚合`（中文）**，所以在这个目录里
   直接敲 `docker compose up -d` **必然报上面这个错**。必须先做下面两件事之一。
 - 混合目录名（中文 + ASCII，例如 `短剧聚合-drama`）不会报错，但项目名是**ASCII 那一半**
@@ -215,25 +251,91 @@ docker compose down -v          # 停止并清空数据
 > `.dsh-team/deploy-polish/work/consistency-auditor/verify-project-name.ps1`
 > （不依赖 docker，逐字符复算上表 4 个目录名 + 4 个边界情形）。
 
-想自己定，两种方式（优先级从高到低）：
+想自己定**项目名**（只影响卷名），两种方式（优先级从高到低）：
 
 ```bash
 # ① 一次性：命令行 -p
-docker compose -p mydrama up -d --build          # → mydrama-app-1
+docker compose -p mydrama up -d --build          # → 卷名 mydrama_shortdrama-data（容器名仍是 docker-muse-video）
 
 # ② 持久：写进 .env（`.env.example:46-67` 有这一段，把最后一行取消注释即可）
 COMPOSE_PROJECT_NAME=mydrama
 ```
 
-> ⚠️ **改项目名等于换项目**：卷名会跟着变，**旧数据卷不会被复用**（Compose 会建一套新的空卷）。
-> 已经跑过且有数据时，先 `docker volume ls | grep shortdrama` 记下现名，再决定要不要改。
-
-> 💡 **为什么我们不写死容器名**：写死名字会关掉 Compose 的项目名前缀，
-> 同一台机器上从两个目录部署同一份 compose 就必然撞名；
-> 更糟的是报错里的名字可能属于**完全无关的另一个项目**（`Conflict. The container name "/xxx" is already in use`），
-> 让人对着自己的 compose 白查半天。让 Compose 自动加前缀，就永远不会跨项目撞名。
+> ⚠️ **改项目名等于换卷**：卷名会跟着变，**旧数据卷不会被复用**（Compose 会建一套新的空卷），
+> 已有数据就"看不见"了。已经跑过且有数据时，先 `docker volume ls | grep shortdrama` 记下现名，
+> 再决定要不要改。**`-p` / `COMPOSE_PROJECT_NAME` 只改卷名，改不动容器名**（容器名已写死）。
 
 改完 `.env` 后需要重新创建容器才会生效：`docker compose up -d`。
+
+#### 5.1 默认就是 1 个容器；PostgreSQL 是可选的 2 容器路径
+
+| 部署方式 | 容器 | 数量 |
+|---|---|---|
+| **默认**（`docker compose up -d`，SQLite） | 只有 `app` → **`docker-muse-video`** | **1 个** |
+| **可选**（`-f docker-compose.yml -f docker-compose.postgres.yml`） | `docker-muse-video`（app）+ `<项目名>-postgres-1`（postgres） | **2 个** |
+
+- **默认路径不依赖任何外部服务**：没有 Redis、没有 Nginx、没有数据库容器，
+  前端静态资源由 .NET 直接托管，全部打进同一个镜像（见[附：文件说明](#附文件说明)）。
+- PostgreSQL 覆盖文件是**可选**的，只有在命令里显式带上 `-f docker-compose.postgres.yml`
+  时才会多出 `postgres` 容器；`postgres` 服务**刻意不设 `container_name`**，它的名字仍带项目名前缀。
+- 你如果在 `docker ps` 里看到**多于上面这些**的容器（`redis`、`new-api` 之类），
+  那多半是**历史遗留**或**别的项目**的容器，见下面 5.2。
+
+#### 5.2 清理历史遗留容器（旧版本的 redis 等）
+
+**我们早先的版本里有过一个 `redis` 服务，早已删除** —— 但删除的只是 compose 里的定义，
+**旧容器可能还留在机器上**（`docker ps -a` 里能看到），这也是"怎么有这么多容器"的常见来源。
+
+```bash
+# ① 先看清有哪些容器、分别属于哪个项目
+docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+docker compose ls -a
+
+# ② 清掉本项目的容器，连"服务已从 compose 里删掉"的遗留容器（--remove-orphans）一起
+cd <项目目录>
+docker compose down --remove-orphans
+
+# ③ 复查
+docker ps -a
+```
+
+> ⚠️ **`--remove-orphans` 只清理"属于本项目"的遗留容器**（按 `com.docker.compose.project`
+> 标签判定）。在**别的项目目录**里敲它，清掉的是**那个项目**的容器 —— 所以第 ① 步先看清归属。
+> 名字看着可疑、但属于**别人**的容器（`redis`、`new-api` 之类）**不要删**：
+> 删了会打断别人的应用，还可能连带删掉匿名卷。
+>
+> 📌 数据不会因此丢失：`docker compose down` **保留数据卷**，卷名依旧是 `<项目名>_shortdrama-data`
+> （只有 `-v` 才会删卷）。
+
+> 📌 **老部署升级后容器名会变**：你之前跑出来的容器名是「项目名 + 服务名 + 序号」那种（带项目名前缀），
+> 现在固定成 `docker-muse-video` 了，所以 `docker compose up -d` 会**重建容器**、换成新名字。
+> **卷名没变，所以数据不丢**。重建后如果 `docker ps -a` 里还留着旧名字的容器，
+> 用上面的 `docker compose down --remove-orphans` 清掉即可。
+
+#### 5.3 名字被占了怎么解封
+
+因为容器名是写死的，这个报错现在**特指** `docker-muse-video` 这个名字被占着
+（`Conflict. The container name "/docker-muse-video" is already in use`）：
+
+```bash
+# ① 先查它属于谁（working_dir 直接告诉你它在哪个目录起的）
+docker inspect docker-muse-video --format '{{index .Config.Labels "com.docker.compose.project"}} ← {{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+
+# ② 非破坏性解封：改个名就够，不删数据、不影响别的服务
+docker rename docker-muse-video docker-muse-video-old
+
+# ③ 顺手把旧容器停掉（两个容器同时挂同一个数据卷、同时写 SQLite 会损坏库）
+docker stop docker-muse-video-old
+
+# ④ 回到项目目录，正常启动；名字就腾出来了
+cd <项目目录>
+docker compose up -d
+```
+
+> ⚠️ **不要顺手 `docker rm -f docker-muse-video`**：先确认它确实没用了、里面的数据你也不需要。
+> 它是本项目旧容器时（换过目录、或早先版本留下的）删掉没问题；
+> 但如果 `working_dir` 指向**别的项目**，那是别人的容器，改名解封即可，**不要删**。
+> 确认不需要之后再 `docker rm docker-muse-video-old` 收尾。
 
 ### 6. 改运行端口
 
@@ -407,7 +509,7 @@ git config --global --add safe.directory "<仓库绝对路径>"
 
 源码模式每次更新都要在你机器上重新编译前端和后端，弱 VPS 上要几分钟且吃满 CPU。彻底的解法是让 GitHub Actions 构建好镜像，你这边只 `docker pull`。
 
-仓库里已经配好了工作流：[.github/workflows/docker-publish.yml](../.github/workflows/docker-publish.yml)。推到 `main` 或打 `v*` 标签时自动构建并推到 GHCR。
+仓库里已经配好了工作流：[.github/workflows/docker-publish.yml](../.github/workflows/docker-publish.yml)。推到 `main` 或打 `v*` 标签时自动构建并推到 GHCR，**同时把镜像导出成 `docker-muse-video.tar` 作为可下载工件**（工件名 `docker-muse-video-tar`）—— 给「拉不到 GHCR」的机器用，见[第三节第 8 小节](#8-离线部署把镜像打成-tar-单文件)。
 
 **启用方式**：在 `.env` 里填一行
 
@@ -426,15 +528,17 @@ docker compose pull app && docker compose up -d
 此时**不再拉代码、不再编译**，只做 `docker compose pull app` + `up -d`，几秒完成。
 镜像没有变化时 compose 会直接跳过重启。
 
-**两种模式对比**
+**三种模式对比**
 
-| | 源码模式（默认） | 镜像模式 |
-|---|---|---|
-| 触发条件 | `SHORTDRAMA_IMAGE` 留空 | `.env` 里填了镜像地址 |
-| 更新时做什么 | `git pull` + 编译前后端 + 重启 | 只 `docker pull` + 重启 |
-| 耗时 | 3-5 分钟（看 CPU） | 几秒 |
-| 服务器需要 git | 需要 | **不需要** |
-| 谁在构建 | 你的服务器 | GitHub Actions |
+| | 源码模式（默认） | 镜像模式 | 离线 tar 模式（见第 8 小节） |
+|---|---|---|---|
+| 触发条件 | `SHORTDRAMA_IMAGE` 留空，且本地**没有**该镜像 | `.env` 里填了 GHCR 地址 | `SHORTDRAMA_IMAGE` 留空，且本地已 `docker load` 了 `docker-muse-video:latest` |
+| 更新时做什么 | `git pull` + 编译前后端 + 重启 | 只 `docker pull` + 重启 | 拷 tar + `docker load` + 重启 |
+| 耗时 | 3-5 分钟（看 CPU） | 几秒 | 传几百 MB 的 tar（看带宽） |
+| 服务器需要 git | 需要 | **不需要** | **不需要**（连源码都不用） |
+| 服务器需要编译能力 | 需要（Node 20 + .NET SDK） | **不需要** | **不需要** |
+| 服务器要能连 GHCR | 不用 | **要** | **不用** |
+| 谁在构建 | 你的服务器 | GitHub Actions | GitHub Actions（或任何一台能构建的机器） |
 
 **拉取私有包要先登录**
 
@@ -456,7 +560,7 @@ PAT 需要 `read:packages` 权限。登录凭据存在 `~/.docker/config.json`�
 PLATFORMS: linux/amd64
 ```
 
-改成 `linux/amd64,linux/arm64`。
+改成 `linux/amd64,linux/arm64`（⚠️ 多平台时 CI **不再产出 tar 工件** —— `docker save` 的格式装不了多平台清单，见[第 8 小节](#8-离线部署把镜像打成-tar-单文件)）。
 
 > 💡 **编译阶段不会走 QEMU。** Dockerfile 的两个构建阶段都声明了 `--platform=$BUILDPLATFORM`，
 > 跑在构建机的**原生架构**上，而它们产出的又是架构无关的东西（前端打出来的 JS/CSS；
@@ -470,8 +574,15 @@ PLATFORMS: linux/amd64
 本地给 ARM 机器构建（需要 buildx）：
 
 ```bash
-docker buildx build --platform linux/arm64 -t shortdrama:arm64 --load .
+docker buildx build --platform linux/arm64 -t docker-muse-video:arm64 --load .
 ```
+
+> 📌 **给 ARM 服务器做离线 tar 时，标签必须对齐**：上面这条命令打出来的标签是 `docker-muse-video:arm64`，
+> 而 compose 的默认值是 `docker-muse-video:latest` —— 直接 `docker save` 这个标签、`load` 到服务器上，
+> compose 会因为找不到 `docker-muse-video:latest` 而**转去本地构建**（离线机器上必然失败）。
+> 两种做法：① 把构建命令的 `-t` 直接写成 `docker-muse-video:latest`（**在 ARM 机器上构建，最简单**）；
+> ② 或者 `load` 之后在服务器上补一句 `docker tag docker-muse-video:arm64 docker-muse-video:latest`。
+> 完整流程见[第 8 小节](#8-离线部署把镜像打成-tar-单文件)。
 
 架构不匹配的表现是容器起来就退出，日志里报 `exec format error`。
 
@@ -488,6 +599,88 @@ Dockerfile 用的是浮动标签（`node:20-alpine`、`mcr.microsoft.com/dotnet/
 
 把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，下一次 `docker compose up -d --build` 就回到本地构建。
 
+### 8. 离线部署：把镜像打成 tar 单文件
+
+**这一节解决两种场景**：
+
+- **部署机没有编译能力** —— 装不了 / 不想装 Node 20 与 .NET SDK，或 CPU、内存太小（源码模式要在这台机器上编译前后端，弱 VPS 上要几分钟且吃满 CPU）；
+- **部署机拉不到 GHCR** —— 服务器在受限网络里、镜像仓库不可达，或 GHCR 上的包是私有的而你不方便在上面登录。
+
+`docker save` 出来的 tar 是一个**自包含的单文件**：里面就是完整的镜像层，拷过去 `docker load` 进去就能跑，
+**中途不需要网络、也不需要源码**（部署机上只要有 `docker` + `docker-compose.yml` + `.env`）。
+
+**① 在能构建的机器上导出**（仓库根目录）：
+
+```bash
+docker build -t docker-muse-video:latest .
+docker image inspect docker-muse-video:latest --format '{{.Os}}/{{.Architecture}}'   # 期望 linux/amd64，必须与目标服务器一致
+docker save -o docker-muse-video.tar docker-muse-video:latest
+ls -lh docker-muse-video.tar        # 通常几百 MB（.NET 运行时基础镜像 + 前端产物），以实测为准
+```
+
+> 📌 **镜像名与 compose 的默认值一致**：`docker-compose.yml` 里是
+> `image: ${SHORTDRAMA_IMAGE:-docker-muse-video:latest}`，所以 `load` 进去之后
+> `docker compose up -d` 直接就能用，**不用改任何配置**。
+> ⚠️ **`save` 用的标签必须与 `build` 出来的标签完全一致**，否则报 `No such image`
+> —— 先 `docker images docker-muse-video` 确认实际标签（要导出别的标签就把两条命令里的
+> `docker-muse-video:latest` 一起换掉）。
+
+**② 拷到服务器**：
+
+```bash
+scp docker-muse-video.tar user@server:/tmp/
+# 或：rsync -avP docker-muse-video.tar user@server:/tmp/
+```
+
+Windows（PowerShell）同一条 `scp` 命令即可；也可以用任何文件传输工具（面板的文件管理器、U 盘都行）。
+
+> 💡 **出发前先自检 tar**：在本机 `docker load -i docker-muse-video.tar` 能读出
+> `Loaded image: docker-muse-video:latest`，说明这个文件没损坏（本机已有同名镜像时是幂等的，不会改动什么）。
+
+**③ 在服务器上导入并启动**：
+
+```bash
+docker load -i docker-muse-video.tar        # 期望输出：Loaded image: docker-muse-video:latest
+# 若 tar 不在当前目录，写路径即可：docker load -i /tmp/docker-muse-video.tar
+
+docker compose up -d                        # ⚠️ 不要加 --build
+```
+
+> ⚠️ **`docker compose up -d` 不会重新构建**：本地已经有 `docker-muse-video:latest` 时，
+> compose 直接用这个镜像；只有镜像**不存在**、或显式加了 `--build` 时才走 `build:` 那一段。
+> 所以离线机器上**不需要仓库源码**，只要 `docker-compose.yml` 和 `.env`。
+> ⚠️ **`.env` 里的 `SHORTDRAMA_IMAGE` 必须留空**：填了 GHCR 地址的话，compose 会先去 `pull`，
+> 离线机器上就会失败（`SHORTDRAMA_IMAGE` 留空 = 用本地这个 `docker-muse-video:latest`）。
+> ⚠️ **导入的镜像架构必须与服务器一致**（amd64 / arm64）：不一致时容器起来就退出，
+> 日志里报 `exec format error`。ARM 服务器要在 ARM 机器（或 `docker buildx --platform linux/arm64`）上导出。
+
+**④ 验证**：
+
+```bash
+docker images docker-muse-video            # 有 docker-muse-video:latest
+docker compose ps                          # 容器在跑（名字是 docker-muse-video）
+curl -fsS http://127.0.0.1:18080/health    # 本机能访问（端口以 .env 的 APP_PORT 为准）
+```
+
+**⑤ 以后更新**：重新导出 → 重新拷贝 → 重新导入（同名标签会被覆盖），再重建容器：
+
+```bash
+docker load -i docker-muse-video.tar       # 覆盖本地的同名标签
+docker compose up -d                       # 用新镜像重建容器
+```
+
+**⑥ 不用自己构建：CI 已经产出这个 tar**
+
+工作流 [.github/workflows/docker-publish.yml](../.github/workflows/docker-publish.yml) 在构建、推送 GHCR 之后，
+会把镜像导出成 `docker-muse-video.tar`，并作为工件 **`docker-muse-video-tar`** 上传
+（`actions/upload-artifact`）。在那次 Actions 运行的页面底部 **Artifacts** 区就能下载，
+部署机上**连构建机都不需要**。
+
+> ⚠️ **tar 工件只支持单平台**：`docker save` 的格式装不了多平台清单（manifest list）。
+> 工作流顶部 `PLATFORMS` 只写一个平台（默认 `linux/amd64`）时才会产出 tar；
+> 写成 `linux/amd64,linux/arm64` 时那几步会被**跳过**，日志里有一条 `::warning::`，
+> 此时仍可用上面的镜像模式（`docker compose pull app`）或在本机按目标架构重新导出。
+
 ---
 
 ## 四、配置
@@ -497,14 +690,14 @@ Dockerfile 用的是浮动标签（`node:20-alpine`、`mcr.microsoft.com/dotnet/
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `APP_PORT` | `18080` | 对外端口（容器内仍是 8080） |
-| `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式（本机构建）；填镜像地址 = 镜像模式（拉预构建镜像，更新只要几秒）。见[第三节第 7 小节](#7-构建太慢改用预构建镜像) |
+| `SHORTDRAMA_IMAGE` | 留空 | 留空 = 源码模式（本机构建）或**离线模式**（本地已有 `docker-muse-video:latest` 就直接用，不再构建）；填镜像地址 = 镜像模式（拉预构建镜像，更新只要几秒）。见[第三节第 7 小节](#7-构建太慢改用预构建镜像)与[第 8 小节](#8-离线部署把镜像打成-tar-单文件) |
 | `ACCESS_GATE_ENABLED` | `true` | 是否启用访问口令门 |
 | `ACCESS_PASSWORD` | `遵纪守法世界和平` | 访问口令 |
 | `JWT_KEY` | 占位值 | JWT 签名密钥，**上线前必须自己替换**（`openssl rand -hex 48`） |
 | `TORRENT_BASE_URL` | `http://host.docker.internal:8787` | 本地种子服务地址。见下方[「种子搜索」](#种子搜索可选增强)一节 |
 | `TORRENT_ENABLED` | `true` | 是否启用种子功能（关掉后「种子」入口显示未启用） |
 | `POSTGRES_PASSWORD` | `shortdrama_pwd` | 仅 PostgreSQL 模式使用 |
-| `COMPOSE_PROJECT_NAME` | 未设（用目录名） | 容器名 / 卷名的前缀；目录名含非 ASCII 字符时必须显式设成 ASCII 名。见[第一节第 5 小节](#5-容器名是怎么来的想按自己的项目名命名就看这里) |
+| `COMPOSE_PROJECT_NAME` | 未设（用目录名） | **卷名**的前缀（容器名已固定为 `docker-muse-video`，**不受它影响**）；目录名含非 ASCII 字符时必须显式设成 ASCII 名。见[第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video) |
 
 ### 种子搜索（可选增强）
 
@@ -568,15 +761,18 @@ openssl rand -hex 48
 
 ### PostgreSQL（可选）
 
-会额外拉起 `postgres` 容器（Windows / PowerShell 同一条命令）：
+这是**可选**路径：默认部署只有 **1 个**容器（`docker-muse-video`），套上本覆盖文件后变成 **2 个**
+（`docker-muse-video` + `<项目名>-postgres-1`）。Windows / PowerShell 同一条命令：
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 ```
 
-- 数据卷：`shortdrama-pgdata`（数据库）
+- 数据卷：`shortdrama-pgdata`（数据库）—— 卷名仍然带项目名前缀，**没有被固定**，别改
 - `postgres` 默认**不对外暴露端口**；需要直连调试时，取消 `docker-compose.postgres.yml` 里 `ports` 的注释
 - 切换数据库不会自动迁移已有数据，SQLite 里的旧数据需要另行导出导入
+- ⚠️ `postgres` 服务**刻意不设 `container_name`**（名字仍是 `<项目名>-postgres-1`），
+  被固定成 `docker-muse-video` 的只有 `app`；原因见[第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video)
 
 ---
 
@@ -588,6 +784,14 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 |----|------|---------|
 | `shortdrama-data` | SQLite 库文件、运行时数据 | 默认模式 |
 | `shortdrama-pgdata` | PostgreSQL 数据目录 | 带 `-f docker-compose.postgres.yml` 时 |
+
+> 🚫 **卷名没有被写死，仍然是 `<项目名>_shortdrama-data` / `<项目名>_shortdrama-pgdata`**
+> （项目名默认取部署目录名，例如 `shortdrama_shortdrama-data`）。
+> **容器名固定为 `docker-muse-video`，卷名照旧随项目名** —— 两者是独立的，见[第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video)。
+>
+> ⚠️ **不要为了让名字"统一"去改卷名**（也不要改 `COMPOSE_PROJECT_NAME` / 加 `-p`）：
+> 改卷名 = 换卷 = 服务器上已有的 SQLite 数据、收藏、观看历史**全部变成孤儿**，
+> 应用起来是空的。数据比名字重要。
 
 ### 容器以非 root 运行（镜像内置的 app 用户）
 
@@ -683,14 +887,18 @@ docker run --rm -v <卷名>:/data alpine chown -R <UID>:<UID> /data
 ```bash
 mkdir -p backup
 docker compose stop app
-# 用容器 id 而不是容器名：compose 的容器名带项目前缀，写死名字以后很容易失效
+# 用服务名取容器 id（容器名已固定为 docker-muse-video，但按服务名取与名字解耦）
 docker cp "$(docker compose ps -aq app):/data/shortdrama.db" ./backup/shortdrama-$(date +%F).db
 docker compose start app
 ```
 
-> 这里刻意用 `docker compose ps -aq app` 取容器 id，而不是 `docker cp shortdrama:...`：
-> compose 里**没有**设 `container_name`，实际容器名形如 `shortdrama-app-1`（带项目名前缀），
-> 写死名字在换目录、改项目名之后就会失效。
+> 容器名现在**是写死的** `docker-muse-video`（见[第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video)），
+> 所以 `docker cp docker-muse-video:/data/shortdrama.db ./backup/` 也能用。
+> 这里仍然用 `docker compose ps -aq app` 取容器 id：它按**服务名**定位，与容器名解耦，
+> 将来万一再改名字这段备份命令不用动；服务名 `app` 在 SQLite / PostgreSQL 两种模式下都一样。
+>
+> ⚠️ 备份和恢复都**只碰容器，不碰卷名** —— 卷名依旧是 `<项目名>_shortdrama-data`，
+> 不要为了"名字统一"去改它（改了等于换卷，等于把现有数据丢掉）。
 
 ### 恢复（SQLite）
 
@@ -771,27 +979,38 @@ docker compose restart app            # 重启
 docker compose stop app               # 停止
 docker compose up -d                  # 应用 .env 改动（重新创建容器）
 docker compose down                   # 移除容器（保留数据卷）
+docker compose down --remove-orphans  # 移除容器，并清掉已删除服务的遗留容器（旧版 redis 等）
 docker compose down -v                # 移除容器并删除数据卷（清空数据）
 docker compose exec app sh            # 进容器
-docker stats $(docker compose ps -q app)   # 资源占用（用容器 id，别写死名字）
+docker stats $(docker compose ps -q app)   # 资源占用（容器名已固定，也可直接 docker stats docker-muse-video）
+docker rename docker-muse-video docker-muse-video-old   # 名字被占时解封（非破坏性，见 5.3）
 ```
+
+> 📌 默认部署起来**只有 1 个容器**，名字是 **`docker-muse-video`**（写死的，不带项目名前缀）。
+> 上面的命令都按**服务名** `app` 操作 —— 服务名与目录名无关，最省心；
+> 想按名字操作时，直接写 `docker-muse-video` 即可。容器名与卷名的区别见
+> [第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video)。
 
 单镜像方式（不用 compose）：
 
 ```bash
-docker build -t shortdrama .
-docker run -d --name shortdrama \
+docker build -t docker-muse-video:latest .
+docker run -d --name docker-muse-video-manual \
   -p 18080:8080 \
   -v shortdrama-data:/data \
   -e AccessGate__Password='你的口令' \
   -e Jwt__Key="$(openssl rand -hex 48)" \
   --restart unless-stopped \
-  shortdrama
+  docker-muse-video:latest
 ```
 
-> 注意：这条手动命令里的卷名就是 **`shortdrama-data`**（没有前缀）——
-> 卷名带项目前缀是 **compose** 的行为。两种方式的卷是各自独立的，别指望它们共用数据。
-> 换成 compose 之后，`docker volume ls` 里看到的会是 `shortdrama_shortdrama-data` 这种形式。
+> 📌 这条是**绕开 compose** 的手动路径，和上面那套**不是一回事**：
+> 镜像名与 compose 的默认值一致（都叫 `docker-muse-video:latest`），
+> 但**容器名用 `docker-muse-video-manual`**（**故意不叫 `docker-muse-video`** —— 否则会和 compose 创建的那个容器撞名），
+> 卷名也是裸的 **`shortdrama-data`**（**没有**项目前缀，因为卷名前缀是 **compose** 的行为）。
+> 两种方式的容器与卷**各自独立**，别指望它们共用数据。
+> 换成 compose 之后，`docker volume ls` 里看到的会是 `shortdrama_shortdrama-data` 这种形式
+> —— **卷名没有被固定，仍然随项目名**（见[第一节第 5 小节](#5-容器名是怎么来的已固定为-docker-muse-video)）。
 
 ---
 
@@ -803,7 +1022,7 @@ docker run -d --name shortdrama \
 | `Docker 守护进程未运行` | 启动 Docker Desktop，等托盘图标变为运行中 |
 | `未找到 docker compose（v2）` | 只有 Compose v1（`docker-compose`）。升级 Docker 以获得 `docker compose` |
 | 构建失败，提示连不上仓库 | 网络无法访问 Docker Hub / NuGet / npm registry。给 Docker 配置国内镜像加速后 `docker compose build --no-cache` |
-| 构建很慢或卡住 | 首次构建要拉基础镜像。确认网络与磁盘空间（约需 3-5 GB）；想知道是哪一层没命中缓存，用 `docker build --progress=plain -t shortdrama .` 看每层的 `CACHED` 标记 |
+| 构建很慢或卡住 | 首次构建要拉基础镜像。确认网络与磁盘空间（约需 3-5 GB）；想知道是哪一层没命中缓存，用 `docker build --progress=plain -t docker-muse-video:latest .` 看每层的 `CACHED` 标记 |
 | 健康检查超时 | 首次启动要同步数据源，等 1-2 分钟。仍不行就看 `docker compose logs -f app` |
 | 打开站点一直跳 `/gate` | 这是口令门，输入 `ACCESS_PASSWORD` 即可。忘了口令就改 `.env` 再 `docker compose up -d` |
 | 改了 `.env` 但没生效 | 环境变量在创建容器时注入，需要 `docker compose up -d` 重建容器 |
@@ -814,13 +1033,19 @@ docker run -d --name shortdrama \
 | 定时更新卡住不返回 | git 网络不通。给 `git` 设超时（如 `timeout 300 git pull`），或改用 HTTPS 远端地址 |
 | 定时更新一直失败 | 先看 cron 的日志：`PATH` 里没有 `docker`/`git` 是最常见原因（见第三节第 2 小节） |
 | 镜像模式报 `镜像拉取失败` | 包是私有的但没登录：`docker login ghcr.io`；或把包设为公开 |
-| 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（如 ARM 机器拉了 amd64 镜像）。改工作流的 `PLATFORMS` 重新构建 |
+| 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（如 ARM 机器拉了 amd64 镜像）。改工作流的 `PLATFORMS` 重新构建；离线 tar 也要在与服务器同架构的机器上导出 |
+| `docker save` 报 `No such image: docker-muse-video:latest` | 本机没有这个标签：先 `docker build -t docker-muse-video:latest .`，或 `docker images` 看实际标签 —— **save 的标签必须与 build 出来的完全一致** |
+| `docker load` 报 `open docker-muse-video.tar: no such file or directory` | 当前目录里没有这个 tar：`ls -lh docker-muse-video.tar` 确认路径，或写成绝对路径（`docker load -i /tmp/docker-muse-video.tar`） |
+| `docker load` 成功了，但 `docker compose up -d` 又开始编译 | `.env` 里 `SHORTDRAMA_IMAGE` 没留空（填了 GHCR 地址 → compose 先去 pull，离线上失败），或命令里带了 `--build`。离线机器上要**留空**且**不加 `--build`**，见[第三节第 8 小节](#8-离线部署把镜像打成-tar-单文件) |
+| Actions 里没有 `docker-muse-video-tar` 工件 | 工作流顶部 `PLATFORMS` 写成了多平台（带逗号）→ 导出 tar 那几步被跳过，日志里有一条 `::warning::`；改成单个平台重跑即可。也可能是那一步自己失败了，看该次运行的日志 |
 | Actions 里没有自动构建 | 确认 `.github/workflows/docker-publish.yml` 已推送，且仓库 Settings → Actions 允许运行工作流 |
 | 想确认当前是哪种模式 | `grep '^SHORTDRAMA_IMAGE' .env`：有值 = 镜像模式；无输出（只有注释行）= 源码模式 |
 | 端口被占用 | `APP_PORT=18081 docker compose up -d` 换个端口，或用 `ss -lntp` 找出占用端口的进程 |
 | 磁盘占用越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像） |
 | 面板「更新容器」报 `invalid endpoint settings: user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把容器**当前的动态 IP** 当成"要保留的静态 IP"回填，而 compose 自动创建的网络没有自定义子网，Docker 拒绝。别用面板的容器更新，改用 `docker compose up -d`（见下方说明） |
-| `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：报错里的容器可能是别的项目的（先 `docker inspect xxx` 看 `com.docker.compose.project` 标签）。解封用 `docker rename xxx xxx-old`（非破坏性）；本仓库的 compose 已不设 `container_name`，不会自己撞名 |
+| `Conflict. The container name "/docker-muse-video" is already in use` | 容器名现在是**写死的**（`docker-compose.yml` 的 `container_name`），所以这个报错特指这个名字被占着 —— 常见于**同一台机器上从两个目录部署本项目**（写死的名字关掉了项目名前缀，第二份必然撞名）。先查归属：`docker inspect docker-muse-video --format '{{index .Config.Labels "com.docker.compose.project"}}'`，解封用 `docker rename docker-muse-video docker-muse-video-old`（**非破坏性**，别急着 `docker rm -f`）。完整步骤见[第一节 5.3](#53-名字被占了怎么解封) |
+| `Conflict. The container name "/redis"`、`"/new-api"` 之类**通用名**被占 | 那个名字**不是本项目的**：本项目只固定了 `docker-muse-video` 这一个专属名，`redis` / `new-api` 是别的项目留下的容器。**不要去删**（删了会打断别人，还可能连带删掉匿名卷）；真需要腾名字就 `docker inspect <名字>` 看归属，再 `docker rename <名字> <名字>-old` |
+| `docker ps` 里容器比预期多（有 `redis` 等） | 早先版本里有过 `redis` 服务（已从 compose 删除），旧容器可能还留着；也可能混进了别的项目的容器。先 `docker ps -a` 看清归属，再在本项目目录里 `docker compose down --remove-orphans`。见[第一节 5.2](#52-清理历史遗留容器旧版本的-redis-等) |
 
 ### 端口打不开？按「从内到外」的顺序查，别一上来就换端口
 
@@ -892,10 +1117,10 @@ git pull --ff-only && docker compose up -d --build
 如果你必须用面板管理它，就在面板里把该容器的**静态 IP 留空**，或者给网络显式配一个子网
 （不推荐：写死的子网可能和宿主已有的网段冲突，导致网络创建失败）。
 
-查看某个容器的详细状态：
+查看某个容器的详细状态（容器名已固定，可以直接写）：
 
 ```bash
-docker inspect --format '{{.State.Status}} {{.State.Health.Status}}' shortdrama
+docker inspect --format '{{.State.Status}} {{.State.Health.Status}}' docker-muse-video
 ```
 
 ---
@@ -903,10 +1128,13 @@ docker inspect --format '{{.State.Status}} {{.State.Health.Status}}' shortdrama
 ## 十、卸载
 
 ```bash
-docker compose down             # 停止并移除容器，保留数据
+docker compose down --remove-orphans   # 停止并移除本项目容器（含遗留容器），保留数据
 docker compose down -v          # 停止并移除容器，同时删除数据卷（不可恢复）
-docker rmi shortdrama:latest        # 删除镜像
+docker rmi docker-muse-video:latest     # 删除镜像（离线 tar 导入的也是这个名字）
 ```
+
+> 📌 `--remove-orphans` 会一并清掉"服务已从 compose 里删掉"的遗留容器（旧版本的 `redis` 等），
+> 只影响**本项目**的容器；卷不受影响（只有 `-v` 才删卷）。见[第一节 5.2](#52-清理历史遗留容器旧版本的-redis-等)。
 
 Windows 上这些命令完全一样（在项目目录里用 PowerShell 执行即可）。
 
@@ -917,14 +1145,17 @@ docker volume ls | grep shortdrama
 docker volume rm <上面列出的卷名>
 ```
 
+> ⚠️ 这里的卷名仍然带**项目前缀**（`<项目名>_shortdrama-data`）—— 容器名固定不影响卷名。
+> `docker volume rm` 是**不可恢复**的，删之前确认卷名对不对。
+
 ---
 
 ## 附：文件说明
 
 | 文件 | 作用 |
 |------|------|
-| `docker-compose.yml` | 主配置（SQLite，单容器） |
-| `docker-compose.postgres.yml` | PostgreSQL 覆盖配置（不含 Redis） |
+| `docker-compose.yml` | 主配置（SQLite，**单容器**，容器名固定为 `docker-muse-video`；卷名仍随项目名） |
+| `docker-compose.postgres.yml` | PostgreSQL 覆盖配置（**可选**，套上后共 2 个容器：`docker-muse-video` + `<项目名>-postgres-1`；不含 Redis） |
 | `Dockerfile` | 多阶段构建：前端 → 后端 → 运行时，单镜像 |
 | `docker/entrypoint.sh` | 容器入口：修正数据卷属主后降权运行 |
 | `.env.example` | 环境变量模板 |

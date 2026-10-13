@@ -27,7 +27,7 @@
 > **再次刷新（那一轮，因 `docker-compose.postgres.yml` 删除了 `redis` 服务）**：该覆盖文件**删掉了 `redis` 服务与 `shortdrama-redisdata` 卷** —— 应用用的是进程内内存缓存（`AddMemoryCache`），**根本不连 Redis**；那个容器是纯累赘，还会让部署机上的 `redis` 这个名字被反复申请、撞上别的项目留下的同名容器（`Conflict. The container name "/redis" is already in use`）。文件因此从 **1785B / 57 行缩到 2004B / 49 行**（净减 8 行：删掉 `redis` 服务与 `shortdrama-redisdata` 两行声明，文件头新增一段 ⚠️ 说明注释；`git diff --numstat` 实测 **+7 / -15**）。本次刷新的节：**F13**（服务从 3 个减到 2 个，该文件全部行号与字面值重测）、**F17**（该文件的字节 / 行数，并新增「本次变化」一条）、**§2-3**（卷表里已没有 `shortdrama-redisdata` 这一行）、**§2-10**（问题已修复，改标「✅ 已修复」）、**§2-12**、**§3 速查表**、**§4 第 5 项**、**§5 的 C2 表**里指向该文件的行号与条数。同时**逐条核查了 `docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述**（结论与实测命令见 §2-10）：**三者都没有与事实不符的 redis 表述**；核查中顺带发现的**非 redis** 行号漂移记入新增的 **§2-17**，本次**只报告、不改这三个文件**。
 
 > **本次刷新（docs-detail 结构审计轮，本角色 = facts-guard）**：本轮**只核对与同步本文件**，没有改仓库里任何其它文件（`git status --porcelain -uall` 实测：除本文件外，` M` 的只有 `README.md`、`docs/DOCKER.md`、`docs/RUNBOOK.md` 这三个**别的角色**正在改的文档）。做的事：
-> - **代码与配置文件逐条回读**（按内容回读，不看行号）：`docker-compose.yml`（`:17`、`:22`、`:23-26`、`:27`、`:30`、`:33`、`:36-37`、`:41-43`、`:46-48`、`:51`、`:58-59`、`:62-64`、`:67-68`、`:72`、`:75-79`、`:81-85`、`:87-89`）、`docker-compose.postgres.yml`（`:4`、`:6`、`:9-13`、`:17`、`:19-23`、`:25-34`、`:36`、`:38-42`、`:43-45`、`:47-49`）、`Dockerfile`（`:10-11`、`:18-24`、`:38-39`、`:63`、`:69`、`:78`、`:85`、`:94-108`、`:113-115`、`:117-133`、`:137`、`:139-147`、`:149-156`）、`.env.example`（`:7`、`:11`、`:20`、`:24-25`、`:29-31`、`:35`、`:40-41`、`:44`、`:46-67`）、`.dockerignore`（`:7-8`、`:16-18`、`:22`、`:26`、`:29`、`:40-42`、`:51-52`、`:54-55`、`:57-59`、`:63`、`:65-66`、`:69-71`）、`docker/entrypoint.sh`（`:5-9`、`:11-13`、`:15`、`:17-18`、`:20-24`、`:26-28`、`:30`、`:33-35`）、`.gitattributes`（`:12-13`、`:19`、`:31`）、`ShortDrama.Api/appsettings.json`（`:11`、`:13-19`、`:35-42`、`:117`、`:119`、`:122`）、`.github/workflows/docker-publish.yml`（`:15-19`、`:22`、`:27`、`:40-42`、`:56`、`:58`、`:60-62`）、`.gitignore`（`:19`、`:29`、`:49`）、`Program.cs:162`、`DbSeeder.cs:143/147/150/151/156/159/165/168`、`AccessGateMiddleware.cs:66/72-77/81-84`、`router/index.ts:64`、`LoginView.vue:60`、`DependencyInjection.cs:41-42` —— **全部指向正确内容，一处未改**（`apple-cms-sources.json` 复算仍为 **22 个源、全部 enabled**；逐条结果见 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md`）。
+> - **代码与配置文件逐条回读**（按内容回读，不看行号）：`docker-compose.yml`（`:17`、`:22`、`:23-26`、`:27`、`:30`、`:33`、`:36-37`、`:41-43`、`:46-48`、`:51`、`:58-59`、`:62-64`、`:67-68`、`:72`、`:75-79`、`:81-85`、`:87-89`）、`docker-compose.postgres.yml`（`:4`、`:6`、`:9-13`、`:17`、`:19-23`、`:25-34`、`:36`、`:38-42`、`:43-45`、`:47-49`）、`Dockerfile`（`:10-11`、`:18-24`、`:38-39`、`:63`、`:69`、`:78`、`:85`、`:94-108`、`:113-115`、`:117-133`、`:137`、`:139-147`、`:149-156`）、`.env.example`（`:7`、`:11`、`:20`、`:24-25`、`:29-31`、`:35`、`:40-41`、`:44`、`:46-67`）、`.dockerignore`（`:7-8`、`:16-18`、`:22`、`:26`、`:29`、`:40-42`、`:51-52`、`:54-55`、`:57-59`、`:63`、`:65-66`、`:69-71`）、`docker/entrypoint.sh`（`:5-9`、`:11-13`、`:15`、`:17-18`、`:20-24`、`:26-28`、`:30`、`:33-35`）、`.gitattributes`（`:12-13`、`:19`、`:31`）、`ShortDrama.Api/appsettings.json`（`:11`、`:13-19`、`:35-42`、`:117`、`:119`、`:122`）、`.github/workflows/docker-publish.yml`（`:15-19`、`:22`、`:27`、`:40-42`、`:56`、`:58`、`:60-62`）、`.gitignore`（`:19`、`:29`、`:49`）、`Program.cs:162`、`DbSeeder.cs:143/147/150/151/156/159/165/168`、`AccessGateMiddleware.cs:66/72-77/81-84`、`router/index.ts:71`、`LoginView.vue:60`、`DependencyInjection.cs:41-42` —— **全部指向正确内容，一处未改**（`apple-cms-sources.json` 复算仍为 **22 个源、全部 enabled**；逐条结果见 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md`）。
 > - **F17 全表复测**：11 个文件的字节 / 行数 / `CR` / `BOM` 逐项重测，**`CR=0`、`BOM=False`**；**11 个文件的 `LF` 计数都等于行数**（`README.md` 的结尾换行一度缺失，18:45:51 复测已补上 —— 见 F17 表下方那条 ✅）；三个**被别的角色改写**的文档已按最后一次复测刷新 —— `docs/RUNBOOK.md` **82280B / 1531 行 → 82833B / 1536 行**、`README.md` **48689B / 999 行 → 48933B / 995 行**、`docs/DOCKER.md` **41631B / 941 行 → 41815B / 932 行**；其余 8 个文件与上一版**逐字一致**。F17 表与 §4 第 7 / 8 项已同步。⚠️ 这三个文档**本轮还在被改**，它们的字节 / 行数只是**核对时刻**的值（测量时刻 `2026-10-12 18:42`）。⚠️ **其中 `README.md` 与 `docs/DOCKER.md` 随后又被改写**（第 2 轮返工期间），最后一次复测为 `README.md` **48970B / 995 行**、`docs/DOCKER.md` **41833B / 932 行** —— 见下一条与 F17 表。
 > - **F19 计数复测**：四种口径当时为 **52 / 29 / 6 / 6**（口径 ② 追加 C 表三条分支后 **31**），分布为 `.gitattributes` **1** / `README.md` **1** / `docs/DOCKER.md` **4**（含 2 行标题锚点假阳性）/ `docs/RUNBOOK.md` **23**。⚠️ **第 2 轮返工复测已变为 `50 / 27 / 4 / 4`**（`docs/DOCKER.md` **2** 行、假阳性 **0** 行），成因与逐条依据见 F19。
 > - ⚠️ **修掉三处「指向文档的裸行号」**：① F19 的「命中位置快照」里 `docs/RUNBOOK.md` 那一串行号**与实测已不符**（该文件之后又被改写，12 分支命中的行号**整串偏移**）；② §2-17「当前实测」里的两处 `docs/RUNBOOK.md` 行号（记录值 `:1321` / `:1419`）与实测（**`:1326`** / **`:1424`**）不符；③ §2-10 里三个文档的 redis 核查行号。三处**一律改成章节 / 标题引用**（F19 改成按章节的分布；§2-17 改成「§7.1 卷表内 `shortdrama-pgdata` 那一行」/「§7.4 提示块」并保留内容引文；§2-10 改成 §「附：文件说明」表 / §1.8 自检 3 / §二「技术栈」表 + §十三「开发路线图」表），行号只作为**带测量时刻的快照**保留 —— 这是本文件对文档类引用既定的书写约定（见上一条）。
@@ -36,8 +36,16 @@
 > **第 2 轮返工复测（本角色 = facts-guard；测量时刻 `2026-10-12 19:16`）**：本轮按产品初筛的 B1 / B2 / B3 重跑全部实测，F17 与 F19 的**现状值**已同步为下面这些数：
 > - **F17 表三行刷新**：`README.md` **48933B / 995 行 → 48970B / 995 行**（`LastWriteTime` = **2026-10-12 18:59:55**）、`docs/DOCKER.md` **41815B / 932 行 → 41833B / 932 行**（**18:56:10**）、`docs/RUNBOOK.md` **82833B / 1536 行 → 82835B / 1536 行**（**19:17:15**）。**行数都没变，只有字节数变了** —— 前两个分别由本轮 B3（`README.md` 3 处改写，净 +37B）与 B1（`docs/DOCKER.md` 4 处改写，净 +18B）造成，`docs/RUNBOOK.md` 是本角色核对期间又被别的角色写入 2 字节。**其余 8 行逐项复测与表内值完全一致，一字未动。** 11 个文件仍全部 `CR=0`、`BOM=False`、`LF` 计数 = 行数。
 > - **F19 四种口径刷新为 `50 / 27 / 4 / 4`**（口径 ② 追加 C 表三条分支后 **29**），口径 ② 的分布改为 `.gitattributes` 1 / `README.md` 1 / `docs/DOCKER.md` **2** / `docs/RUNBOOK.md` 23。成因：B1 把 `docs/DOCKER.md` 的两处标题锚点由「`sqlite` + 两个连字符 + `postgresql`」改成 `#五数据库sqlite-与-postgresql`，那 2 行**不再命中** 12 分支模式的第 8 分支（两个连字符 + `postgres`）—— **模式假阳性归零，B 表随之清空**。详见 F19 全节。
-> - **B3 同步**：`docs/DOCKER.md` §五标题已由「数据库：SQLite / PostgreSQL」改为「**数据库：SQLite 与 PostgreSQL**」（实测 `docs/DOCKER.md:563`），旧锚点字面量（两个连字符形式）全仓库 **0 命中**（`git grep` 退出码 1）。本文件 §0.1、F13、§2-10 里引用该标题与锚点的地方已一并改写。
+> - **B3 同步**：`docs/DOCKER.md` §五标题已由「数据库：SQLite / PostgreSQL」改为「**数据库：SQLite 与 PostgreSQL**」（实测 `docs/DOCKER.md` §五「数据库：SQLite 与 PostgreSQL」的标题行），旧锚点字面量（两个连字符形式）全仓库 **0 命中**（`git grep` 退出码 1）。本文件 §0.1、F13、§2-10 里引用该标题与锚点的地方已一并改写。
 > - **复现命令**：`[System.IO.File]::ReadAllBytes('C:\Work\短剧聚合\短剧聚合\README.md').Length` → **48970**；同一写法换 `...\docs\DOCKER.md` → **41833**；F19 的四种口径用 F19 声明的那条 12 分支模式重扫（脚本与逐条输出见 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md` §2-D）。
+
+> **本次刷新（pack-and-port 轮，本角色 = facts-guard；最后一次测量时刻 `2026-10-13 18:45`）**：本轮仓库的改动**全部由另两个角色写入**，本文件只做「按实测同步」，本角色**只写了 `docs/DEPLOY-FACTS.md` 这一个文件**（`git status --porcelain -uall` 实测：` M` 的是 `.env.example`、`.github/workflows/docker-publish.yml`、`Dockerfile`、`README.md`、`docker-compose.postgres.yml`、`docker-compose.yml`、`docs/DOCKER.md`、`docs/RUNBOOK.md` 八个，全部是别人的边界）。三处改动与同步结果：
+> - ① **镜像名统一为 `docker-muse-video`**：`docker-compose.yml:27` 的默认值由 `shortdrama:latest` 改成 **`docker-muse-video:latest`**（`SHORTDRAMA_IMAGE` 覆盖机制保留）；`Dockerfile:7-8` 的构建 / 运行示例同步改名；工作流新增「构建到本地 → `docker save` → 上传工件」三步（`.github/workflows/docker-publish.yml:103-145`，工件名 `docker-muse-video-tar`）。→ **新增 F24**。
+> - ② **容器名早已固定为 `docker-muse-video`**（`docker-compose.yml:42` 的 `container_name`，来自上一轮 `one-container` 的未提交改动）：**F1 / F5 / F14 / §3 速查表**据此重写 —— 上一版写的「两个 compose 里 `container_name:` 键 0 个」**已失效**。
+> - ③ **端口内容**：`.env.example` 新增「查空闲端口 → 设进去 → 验证外网可达」的指引段（`:10-24`），`docs/RUNBOOK.md` 新增 **§4.7 / §4.8 / §4.9**（查空闲、让 Docker 自动分配、五层验证外网可达），`docs/DOCKER.md` 新增 **§三「8. 离线部署：把镜像打成 tar 单文件」**。→ **新增 F25**。
+> - ④ **行号漂移（本轮最大的一批）**：`docker-compose.yml` **89 → 105 行**、`docker-compose.postgres.yml` **49 → 59 行**、`.env.example` **67 → 80 行**、工作流 **75 → 145 行**、`docs/DOCKER.md` 932 → **1163 行**、`docs/RUNBOOK.md` 1536 → **1962 行**、`README.md` 995 → **1057 行**。**F2 / F4 / F5 / F6 / F10 / F11 / F12 / F13 / F14 / F16 / F17 / F19 与 §3 速查表**的行号与字节数已按实测整体刷新；指向三个文档（`README.md` / `docs/DOCKER.md` / `docs/RUNBOOK.md`）的定位**一律继续用章节引用**。
+> - ⑤ **一如既往的两条约定**：① **定位以内容为准**，行号只是核对时刻的快照；② 本文件继续遵守 §0.1 的断开写法，两条 C3 判据扫本文件仍为 **0 / 0 命中**（§5）。
+> ⚠️ **本轮曾如实记录的「别的文件里的问题」（只报告、不改）—— 三处均已在同一轮内由 `port-runbook` / `image-packager` 修掉（第 1 轮返工复测）**：① `docs/RUNBOOK.md` 的卸载示例曾写着 **`docker rmi shortdrama:latest`** —— 旧镜像名残留，与 C1「仓库里不再有 `shortdrama:latest`」冲突；**复测该文件全文搜 `shortdrama:latest` → 0 命中**（全仓库只剩本文件历史记录段里的 7 行），已改对。② `docs/RUNBOOK.md` §1.2 速查表「对外端口」行与 §4.1 / §4.5 曾把证据写成 `docker-compose.yml:45`（那是 `ports:` 键所在行，**映射字面值在 `:46`**）—— **复测该文件现一律写 `docker-compose.yml:46`，写 `:45` 的行 0 处**。③ `docs/RUNBOOK.md` §7.4 的提示块曾写 `docker-compose.postgres.yml:54-55`，按字面应为 `:53-55`（漏了 `:53` 那条说明注释）—— **复测已写 `:53-55`**。三处都在别人的边界内，本角色**只报告不改**，现已闭环。
 
 > **第 2 轮返工（本角色 = consistency-auditor）**：本轮只做两件事 —— **① 修掉产品初筛 B1**：§2-10 里对 `docs/RUNBOOK.md` 的 redis 实测数字失效（上一版记「搜 `redis|Redis|REDIS` → **0 命中**」，而 `docs/RUNBOOK.md` §1.8「部署前自检」落定后该文件已有 **3 行** `redis` 字样 —— `:257` / `:344` / `:363`，全部是「别的项目的容器名 / 迁移提示」口径）。**该行的结论「未发现与事实不符的 redis 表述」仍然成立，失效的只是它的证据数字**，本轮已按实测改成 3 行并附复现命令；同一段的 `docs/DOCKER.md`（**1 行**，`:936`）与 `README.md`（**2 行**，`:178` / `:985`）两个子条也一并补上了实测行号，三个子条现在口径统一、都可复现。**② C6 同步**：`docs/RUNBOOK.md` 在第 2 轮返工期间又被写入一次（**82252B → 82280B**，行数仍 1531），F17 表、「第 1 轮返工后重测」条、§4 第 7 / 8 项与文末「第 1 轮返工」段的对应数字已全部同步为 **82280B / 1531 行**（`LastWriteTime` = 2026-10-12 11:50:19，SHA256 前 16 位 `87AB86F53D91EAE8`）。**本轮未改任何别的文件**（核对表见 `.dsh-team/deploy-polish/work/consistency-auditor/CONSISTENCY.md`，该目录被 `.gitignore:49` 忽略）。
 
@@ -71,26 +79,29 @@
 
 同理，**本文件全文一律不写出已删参数的原写法**（即不在参数名前加连字符），覆盖 F20 登记的**全部**参数，不只是其中几个：sh 版的 `p` / `port` / `postgres` / `rebuild` / `update` / `check` / `install-cron` / `uninstall-cron` / `down` / `purge`，ps1 版的 `Port` / `Postgres` / `Rebuild` / `Update` / `Check` / `InstallTask` / `TaskTime` / `UninstallTask` / `Down` / `Purge`。**原写法是在参数名前面加两个连字符**（PowerShell 版是一个连字符）。F20 的参数表、§2 的引用、§5 的自检一律按此书写。这样做是为了满足机械判据，**不是**说这些参数可以不写连字符就能用 —— 它们本身已全部失效（见 F20）。
 
-**关于 Markdown 标题锚点（第 2 轮返工改写，原「同一条约定也适用于 Markdown 标题锚点」一段）**：`docs/DOCKER.md` 第五节的标题**现在是**「五、数据库：**SQLite 与 PostgreSQL**」（实测 `docs/DOCKER.md:563`），它的 GitHub 锚点是 `#五数据库sqlite-与-postgresql` —— **不含两个连字符**，因此不会与已删 sh 脚本 `postgres` 参数的原写法撞字符串，本文件可以逐字引用它。上一版该标题是「五、数据库：SQLite / PostgreSQL」，其中 `/` 被 GitHub 锚点规则去掉后留下了「`sqlite` + 两个连字符 + `postgresql`」，那个字面量**恰好等于**已删 sh 脚本 `postgres` 参数的原写法，所以本文件当时约定「引用该锚点一律用断开写法、不逐字抄」以避免 C5 机械判据命中。**该标题已随本轮 B1 改动改掉，这个假阳性来源已经消失**（实测：全仓库搜旧的双连字符字面量 → **0 命中**，`git grep` 退出码 1）。§0.1 的断开写法约定**本身仍然有效**，继续适用于两个已删脚本的文件名与 F20 登记的全部参数 —— 只是不再需要为这一处锚点写专门的例外说明。
+**关于 Markdown 标题锚点（第 2 轮返工改写，原「同一条约定也适用于 Markdown 标题锚点」一段）**：`docs/DOCKER.md` 第五节的标题**现在是**「五、数据库：**SQLite 与 PostgreSQL**」（实测 `docs/DOCKER.md` §五「数据库：SQLite 与 PostgreSQL」的标题行），它的 GitHub 锚点是 `#五数据库sqlite-与-postgresql` —— **不含两个连字符**，因此不会与已删 sh 脚本 `postgres` 参数的原写法撞字符串，本文件可以逐字引用它。上一版该标题是「五、数据库：SQLite / PostgreSQL」，其中 `/` 被 GitHub 锚点规则去掉后留下了「`sqlite` + 两个连字符 + `postgresql`」，那个字面量**恰好等于**已删 sh 脚本 `postgres` 参数的原写法，所以本文件当时约定「引用该锚点一律用断开写法、不逐字抄」以避免 C5 机械判据命中。**该标题已随本轮 B1 改动改掉，这个假阳性来源已经消失**（实测：全仓库搜旧的双连字符字面量 → **0 命中**，`git grep` 退出码 1）。§0.1 的断开写法约定**本身仍然有效**，继续适用于两个已删脚本的文件名与 F20 登记的全部参数 —— 只是不再需要为这一处锚点写专门的例外说明。
 
 ---
 
 ## 1. 事实清单（每条：文件:行 → 实际值）
 
-### F1 compose 服务名
+### F1 compose 服务名与容器名（容器名已固定）
 
-- `docker-compose.yml:17` → `  app:`
+- `docker-compose.yml:22` → `  app:`
 - **服务名是 `app`**。全仓库所有运维命令都用 `app` 指代它（`docker compose logs -f app` 等）。
-- `docker-compose.yml:23-26` 注释明确说明：**刻意不设 `container_name`**（`:23` 原文「刻意不设 container_name：固定名字会关掉 Compose 的项目名前缀」）。实测 `Select-String -Path docker-compose.yml -Pattern 'container_name'` 只命中 `:23` 这一行注释，**没有任何生效的 `container_name` 键**。容器实际名字形如 `<项目名>-app-1`。手册里任何地方都不该出现写死的容器名（如 `shortdrama`）。
-- ✅ **「中文 / 非 ASCII 目录名会得到什么项目名前缀」本轮已裁决并统一（原为文档之间的矛盾）**：规范化只做两步 —— **① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_`，其余字符一律「删掉」**（**不是**换成 `-`），最后再砍掉开头的 `-` / `_`。因此纯中文 / 纯非 ASCII 目录名（例如 `短剧聚合`）规范化结果是**空串**，Compose 报 `project name must not be empty` 并**拒绝执行任何子命令**，**不会**得到「中文前缀的容器名」。四处口径已统一为这一句：`docs/DOCKER.md` §一「5. 容器名是怎么来的」（含四种目录名的对照表）、`docs/RUNBOOK.md` §1.5「部署目录必须是 ASCII 名」（含同一张对照表）、`.env.example:46-67` 的括注、本文件 §3 速查表的「容器名规则」一行。
+- **容器名是写死的**：`docker-compose.yml:42` → 逐字为 `container_name: docker-muse-video`（其上方 `:29-41` 是解释性注释：为什么这个固定名安全、代价是什么、名字被占怎么解封）。实测 `Select-String -Path docker-compose.yml -Pattern '^\s*container_name:'` → **只命中这一行**。
+  - 所以容器实际名字**恒为 `docker-muse-video`**，**不带**项目名前缀。手册里可以直接写 `docker logs -f docker-muse-video`；按服务名写（`docker compose logs -f app`）同样可用。
+  - ⚠️ **代价**：`container_name` 会关掉 Compose 的项目名前缀，因此**同一台机器上不能从两个目录同时部署本项目** —— 第二个目录敲 `docker compose up -d` 会报 `Conflict. The container name "/docker-muse-video" is already in use`（`docker-compose.yml:33-34` 注释原文）。解封用 `docker rename`（非破坏性），见 `docs/DOCKER.md` §一「5.3 名字被占了怎么解封」。
+  - ⚠️ **上一版这里写的是「刻意不设 `container_name`、容器名形如 `<项目名>-app-1`」，该说法已随上一轮 `one-container` 的改动失效** —— 现在被固定的**只有** `app` 这一个服务；`docker-compose.postgres.yml` 的 `postgres` 服务**刻意不设** `container_name`（`:33-35` 注释），名字仍是 `<项目名>-postgres-1`。
+- ✅ **「中文 / 非 ASCII 目录名会得到什么项目名前缀」本轮已裁决并统一（原为文档之间的矛盾）**：规范化只做两步 —— **① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_`，其余字符一律「删掉」**（**不是**换成 `-`），最后再砍掉开头的 `-` / `_`。因此纯中文 / 纯非 ASCII 目录名（例如 `短剧聚合`）规范化结果是**空串**，Compose 报 `project name must not be empty` 并**拒绝执行任何子命令**，**不会**得到「中文前缀的容器名」。四处口径已统一为这一句：`docs/DOCKER.md` §一「5. 容器名是怎么来的（已固定为 docker-muse-video）」（含四种目录名的对照表）、`docs/RUNBOOK.md` §1.5「部署目录必须是 ASCII 名」（含同一张对照表）、`.env.example:59-80` 的括注、本文件 §3 速查表的「容器名规则」一行。⚠️ **项目名现在只影响卷名**（容器名已写死），上一版那句「不会得到「中文前缀的容器名」」仍成立，但原因更简单：容器名根本不看项目名。
 - **裁决依据（源码级，非实跑）**：写文档的机器上**没有 docker**，所以用上游官方实现逐字核对 —— `compose-go` 的 `NormalizeProjectName()` = `regexp.MustCompile("[a-z0-9_-]")` + `strings.ToLower` + `strings.TrimLeft(s, "_-")`；空项目名由 `loader.go` 的 `errors.New("project name must not be empty")` 抛出（`SkipValidation` 默认为 false，Compose CLI 不跳过该校验），并被 `cli/options_test.go` 的 "by name must not come from root directory" 与 `loader/loader_test.go` 的 "default" 两个官方用例断言。官方文档 <https://docs.docker.com/compose/how-tos/project-name/> 同样写明项目名「must contain only lowercase letters, decimal digits, dashes, and underscores」。本仓库内可复现的复算脚本（不依赖 docker）：`.dsh-team/deploy-polish/work/consistency-auditor/verify-project-name.ps1`。
 - **混合目录名**（中文 + ASCII，例如 `短剧聚合-drama`）不报错，但项目名只取 ASCII 那一半（`drama`）—— 可能与其他项目撞前缀，手册不建议。
-- ⚠️ **本仓库当前工作目录 `C:\Work\短剧聚合\短剧聚合` 就是纯中文**，因此在这台机器上直接跑任何 `docker compose` 子命令**必然**报 `project name must not be empty`；必须显式设 `COMPOSE_PROJECT_NAME=shortdrama`（`.env.example:67`）或加 `-p shortdrama`。
+- ⚠️ **本仓库当前工作目录 `C:\Work\短剧聚合\短剧聚合` 就是纯中文**，因此在这台机器上直接跑任何 `docker compose` 子命令**必然**报 `project name must not be empty`；必须显式设 `COMPOSE_PROJECT_NAME=shortdrama`（`.env.example:80`，仅注释行）或加 `-p shortdrama`。
 
 ### F2 对外端口：完整写法与默认值
 
-- `docker-compose.yml:30` → `      - "${APP_PORT:-18080}:8080"`
-- `.env.example:11` → `APP_PORT=18080`
+- `docker-compose.yml:46` → `      - "${APP_PORT:-18080}:8080"`（`:45` 是它的键 `    ports:`）
+- `.env.example:24` → `APP_PORT=18080`（`:10-23` 是「对外端口」说明段：**只改这一项**、换端口前先确认空闲、留空**不能**让 Docker 自动分配）
 - 展开：**宿主机 18080 → 容器 8080**。默认值 18080 有两层来源且一致（compose 兜底值、`.env.example` 默认值）。
 - ⚠️ compose 的变量插值优先级是 **shell 环境变量 > `.env` 文件**。所以 `APP_PORT=9000 docker compose up -d`（`docs/DOCKER.md` §一「30 秒上手」→「4. 常用配置」）是临时覆盖，`.env` 里的值不会赢。手册若要讲「改了 `.env` 为什么不生效」，这是第二种原因（第一种是没重建容器）。
 
@@ -103,8 +114,8 @@
 
 ### F4 健康检查命令
 
-- `docker-compose.yml:75` → `      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]`
-- `docker-compose.yml:76-79` → `interval: 30s` / `timeout: 5s` / `start_period: 40s` / `retries: 3`
+- `docker-compose.yml:91` → `      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]`（`:90` 是键 `    healthcheck:`）
+- `docker-compose.yml:92-95` → `interval: 30s` / `timeout: 5s` / `start_period: 40s` / `retries: 3`
 - `Dockerfile:149-150` → `HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \` + `CMD curl -fsS http://localhost:8080/health || exit 1`
 - **两处参数完全一致**（compose 的 healthcheck 覆盖 Dockerfile 的同名定义）。
 - 依赖 `curl`：`Dockerfile:85` → ` && apt-get install -y --no-install-recommends curl tzdata gosu \`（aspnet 基础镜像不自带 curl，见 `Dockerfile:78` 注释）。
@@ -112,33 +123,34 @@
 
 ### F5 数据卷：逻辑名、挂载点、命名规则
 
-- `docker-compose.yml:72` → `      - shortdrama-data:/data`（逻辑卷名 `shortdrama-data` → 容器内 `/data`）
-- `docker-compose.yml:87-89` → 顶层 `volumes:` 声明 `shortdrama-data:` / `driver: local`
+- `docker-compose.yml:88` → `      - shortdrama-data:/data`（逻辑卷名 `shortdrama-data` → 容器内 `/data`；`:86` 是键 `    volumes:`）
+- `docker-compose.yml:103-105` → 顶层 `volumes:` 声明 `shortdrama-data:`（`:104`）/ `driver: local`（`:105`）
 - `Dockerfile:137` → `VOLUME ["/data"]`
 - `Dockerfile:145` → `    ConnectionStrings__Default="Data Source=/data/shortdrama.db"`（SQLite 文件位置）
-- **命名规则**：`docker-compose.yml` **没有顶层 `name:` 字段**（实测 `Select-String -Path docker-compose.yml -Pattern '^name:'` → **无输出**），也没有 `COMPOSE_PROJECT_NAME`（**本次刷新实测**：对两个 compose 文件搜 `COMPOSE_PROJECT_NAME` → **0 行**；`docker-compose.postgres.yml` 同样既无顶层 `name:` 也无该变量）。⚠️ **但 `.env.example` 里有它**：`:46-67` 是「容器名 / 卷名的前缀」段，`:67` 是**注释形式**的 `# COMPOSE_PROJECT_NAME=shortdrama` —— **不取消注释就不生效**（该段 `:52` 还把「只保留 `a-z0-9_-`、其余字符删掉」与四种目录名的对照写进了注释）。因此不显式设它时，compose 项目名由**目录名**推导，实际卷名 = `<项目名>_shortdrama-data`、容器名 = `<项目名>-<服务名>-1`。
+- **命名规则**：`docker-compose.yml` **没有顶层 `name:` 字段**（实测 `Select-String -Path docker-compose.yml -Pattern '^name:'` → **无输出**），也没有生效的 `COMPOSE_PROJECT_NAME` **键**（**本次实测**：`docker-compose.yml:39` 的注释里出现了 `COMPOSE_PROJECT_NAME` 这个**变量名**（「可用 COMPOSE_PROJECT_NAME 或 -p 指定」），但**没有任何生效的键**；`docker-compose.postgres.yml` 连这个字样都没有。⚠️ **上一版写的「对两个 compose 文件搜 `COMPOSE_PROJECT_NAME` → 0 行」已因 `docker-compose.yml:39` 的这行注释而失效**）。⚠️ **但 `.env.example` 里有它**：`:59-80` 是「容器名 / 卷名的前缀」段，`:80` 是**注释形式**的 `# COMPOSE_PROJECT_NAME=shortdrama` —— **不取消注释就不生效**（该段 `:64-73` 还把「只保留 `a-z0-9_-`、其余字符删掉」与四种目录名的对照写进了注释）。因此不显式设它时，compose 项目名由**目录名**推导，实际卷名 = `<项目名>_shortdrama-data`。⚠️ **容器名不再由它决定**（`app` 的容器名已写死为 `docker-muse-video`，见 F1）。
 - `docs/DOCKER.md` §八「常用运维命令」（单镜像方式那段之后的说明）举例为 `shortdrama_shortdrama-data` —— 该例子**仅在 clone 目录名为 `shortdrama` 时成立**（`docs/DOCKER.md` §「部署（复制即用）」的 Linux/macOS 代码块里的 clone 命令确实带 `shortdrama`）。
-- ⚠️ **本机目录名是中文 `短剧聚合`**（工作目录 `C:\Work\短剧聚合\短剧聚合`）。项目名由目录名推导 + Compose 的项目名规范化只保留 `a-z0-9_-`（**其余字符删掉，不是换成 `-`**）→ 纯中文目录名规范化后是**空串** → **必然**报 `project name must not be empty`（裁决依据见 F1；本机无 docker，故为源码级核对而非实跑）。因此卷名前缀**不会**是 `shortdrama`，**也根本不会创建任何卷 / 容器**，除非显式固定项目名。手册必须写成「先 `docker volume ls` 查实际卷名」，或显式 `COMPOSE_PROJECT_NAME=shortdrama`（`.env.example:67`）/ `-p shortdrama` 固定它。
+- ⚠️ **本机目录名是中文 `短剧聚合`**（工作目录 `C:\Work\短剧聚合\短剧聚合`）。项目名由目录名推导 + Compose 的项目名规范化只保留 `a-z0-9_-`（**其余字符删掉，不是换成 `-`**）→ 纯中文目录名规范化后是**空串** → **必然**报 `project name must not be empty`（裁决依据见 F1；本机无 docker，故为源码级核对而非实跑）。因此卷名前缀**不会**是 `shortdrama`，**也根本不会创建任何卷 / 容器**，除非显式固定项目名。手册必须写成「先 `docker volume ls` 查实际卷名」，或显式 `COMPOSE_PROJECT_NAME=shortdrama`（`.env.example:80`）/ `-p shortdrama` 固定它。
 
 ### F6 `.env` 的每个变量名与默认值
 
-来源文件：`.env.example`（**第 1 轮返工后实测 67 行 / 3670 字节**；上一版是 57 行 / 2986 字节 —— 本轮「容器名 / 卷名的前缀」段从 12 行长到 22 行，见 F5 与 F17）。**7 个活动变量 + 2 个注释掉的变量**（`SHORTDRAMA_IMAGE`、`COMPOSE_PROJECT_NAME`）：
+来源文件：`.env.example`（**本次实测 80 行 / 4732 字节**；上一版是 67 行 / 3670 字节 —— 本轮「对外端口」说明段从 2 行长到 15 行，见 F25 与 F17）。**7 个活动变量 + 2 个注释掉的变量**（`SHORTDRAMA_IMAGE`、`COMPOSE_PROJECT_NAME`）：
 
 | 变量 | `.env.example` 行 | 默认值（字面） |
 |---|---|---|
-| `APP_PORT` | `:11` | `18080` |
-| `ACCESS_GATE_ENABLED` | `:24` | `true` |
-| `ACCESS_PASSWORD` | `:25` | `遵纪守法世界和平` |
-| `JWT_KEY` | `:31` | `please-change-this-secret-key-in-production-2025` |
-| `TORRENT_BASE_URL` | `:40` | `http://host.docker.internal:8787` |
-| `TORRENT_ENABLED` | `:41` | `true` |
-| `POSTGRES_PASSWORD` | `:44` | `shortdrama_pwd` |
-| `SHORTDRAMA_IMAGE` | `:20` | **仅注释行**（`# SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest`），未启用 |
-| `COMPOSE_PROJECT_NAME` | `:67` | **仅注释行**（`# COMPOSE_PROJECT_NAME=shortdrama`），未启用；它上方的 `:46-66` 是命名规则说明（见 F5） |
+| `APP_PORT` | `:24` | `18080`（`:10-23` 是说明段，含「留空不会让 Docker 自动分配」的警告） |
+| `ACCESS_GATE_ENABLED` | `:37` | `true` |
+| `ACCESS_PASSWORD` | `:38` | `遵纪守法世界和平` |
+| `JWT_KEY` | `:44` | `please-change-this-secret-key-in-production-2025` |
+| `TORRENT_BASE_URL` | `:53` | `http://host.docker.internal:8787` |
+| `TORRENT_ENABLED` | `:54` | `true` |
+| `POSTGRES_PASSWORD` | `:57` | `shortdrama_pwd` |
+| `SHORTDRAMA_IMAGE` | `:33` | **仅注释行**（`# SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest`），未启用 |
+| `COMPOSE_PROJECT_NAME` | `:80` | **仅注释行**（`# COMPOSE_PROJECT_NAME=shortdrama`），未启用；它上方的 `:59-79` 是命名规则说明（见 F5） |
 
-- `.env.example:7` 注明 `.env` 已被 `.gitignore` 忽略；`.gitignore:29` → `.env`（**本次刷新实测**：`:29` 是 `.env`、`:30-31` 是 `.env.local` / `.env.*.local`；上一版记的 `.gitignore:25` 已过期，那里现在是数据库备份段的注释）。**仓库根目录当前不存在 `.env`**（`Test-Path .env` → `False`）。
-- ⚠️ 因为 `SHORTDRAMA_IMAGE` 在模板里是**注释**，`docs/DOCKER.md` §九「故障排查」表内「想确认当前是哪种模式」那一行的 `grep SHORTDRAMA_IMAGE .env` 会命中注释行、看起来像「已配了镜像模式」。正确写法是 `grep '^SHORTDRAMA_IMAGE' .env`。
+- `.env.example:7` 注明 `.env` 已被 `.gitignore` 忽略；`.gitignore:29` → `.env`（**本次实测**：`:29` 是 `.env`、`:30-31` 是 `.env.local` / `.env.*.local`、`:26` 是 `backup/`）。**仓库根目录当前不存在 `.env`**（`Test-Path .env` → `False`）。
+- ⚠️ 因为 `SHORTDRAMA_IMAGE` 在模板里是**注释**（`:33`），`docs/DOCKER.md` §九「故障排查」表内「想确认当前是哪种模式」那一行的 `grep SHORTDRAMA_IMAGE .env` 会命中注释行、看起来像「已配了镜像模式」。正确写法是 `grep '^SHORTDRAMA_IMAGE' .env`。
 - ⚠️ `.env` **不是必需的**：compose 里每个变量都写成 `${VAR:-默认值}`，`README.md` §一「快速开始」→「4. 容器化部署（推荐）」也写了「不执行这行也能跑，用内置默认值」。
+- 📌 **`.env.example` 的「对外端口」段（`:10-23`）是本轮新增的** —— 它把「查空闲 → 设进去 → 验证外网可达」的三步指向 `docs/RUNBOOK.md` §4.7–§4.9（见 F25）。⚠️ 同一个 `.env.example` 的 `:61` **曾**写着「容器名 = `<项目名>-<服务名>-1`，例如 `shortdrama-app-1`」，与本项目已固定 `container_name` 的事实不符（那是通用规则的说明）—— **✅ 第 1 轮返工复测已修掉**：该行现为 `#   容器名 = docker-muse-video      固定，不受项目名影响`，与本项目事实一致（该文件不在本角色边界内，本角色只读实测、未写入）。
 
 ### F7 容器运行用户（注意：用的是镜像内置用户）
 
@@ -170,23 +182,23 @@
 - `ShortDrama.Infrastructure/Data/DbSeeder.cs:143` → `if (!await db.Users.AnyAsync())` —— **只在用户表为空时创建**（改过密码后再升级不会重置）
 - `ShortDrama.Infrastructure/Data/DbSeeder.cs:156` → 日志 `"已创建默认管理员账号 admin / admin123"`
 - 旁证：`README.md` §一「快速开始」→「1. 启动后端」、`README.md` §一「快速开始」→「4. 容器化部署（推荐）」、`docs/DOCKER.md` §二「跑起来之后」表的「默认管理员」行、`short-drama-web/src/views/LoginView.vue:60`（登录页提示「演示账号：admin / admin123」）
-- 后台入口 `/admin`：`short-drama-web/src/router/index.ts:64` → `      path: '/admin',`
+- 后台入口 `/admin`：`short-drama-web/src/router/index.ts:71` → `      path: '/admin',`
 
 ### F10 默认访问口令
 
-- `docker-compose.yml:42` → `      AccessGate__Password: "${ACCESS_PASSWORD:-遵纪守法世界和平}"`
-- `.env.example:25` → `ACCESS_PASSWORD=遵纪守法世界和平`
+- `docker-compose.yml:58` → `      AccessGate__Password: "${ACCESS_PASSWORD:-遵纪守法世界和平}"`
+- `.env.example:38` → `ACCESS_PASSWORD=遵纪守法世界和平`
 - `ShortDrama.Api/appsettings.json:14` → `    "password": "遵纪守法世界和平",`
 - 旁证：`docs/DOCKER.md` §一「30 秒上手」→「4. 常用配置」表的 `ACCESS_PASSWORD` 行、`docs/DOCKER.md` §二「跑起来之后」的「默认口令」条
 - **三处默认值一致**。
 
 ### F11 访问口令门的开关变量
 
-- `docker-compose.yml:41` → `      AccessGate__Enabled: "${ACCESS_GATE_ENABLED:-true}"`
-- `.env.example:24` → `ACCESS_GATE_ENABLED=true`
+- `docker-compose.yml:57` → `      AccessGate__Enabled: "${ACCESS_GATE_ENABLED:-true}"`
+- `.env.example:37` → `ACCESS_GATE_ENABLED=true`
 - `ShortDrama.Api/appsettings.json:13` → `    "enabled": true,`（注意 appsettings 里是**小写 `enabled`**；.NET 配置绑定大小写不敏感，compose 的 `AccessGate__Enabled` 同样生效）
 - 其它口令门事实：
-  - `docker-compose.yml:43` → `      AccessGate__ValidDays: "30"`（**硬编码在 compose，不在 `.env`**）
+  - `docker-compose.yml:59` → `      AccessGate__ValidDays: "30"`（**硬编码在 compose，不在 `.env`**）
   - `appsettings.json:15-18` → `cookieName: "sd_access"`、`validDays: 30`、`gatePath: "/gate"`、`verifyPath: "/api/v1/access"`
   - `ShortDrama.Api/Access/AccessGateMiddleware.cs:66` → 页面请求 `context.Response.Redirect(_options.GatePath);`
   - **免口令白名单**：`AccessGateMiddleware.cs:72-77` → `/gate`、`/api/v1/access`、`/health`、`/openapi`、`/assets`、`/favicon`；`:81-84` 额外放行 `.ico/.png/.svg/.webmanifest`
@@ -194,44 +206,47 @@
 
 ### F12 种子服务的默认地址与启用变量
 
-- `docker-compose.yml:58` → `      Torrent__BaseUrl: "${TORRENT_BASE_URL:-http://host.docker.internal:8787}"`
-- `docker-compose.yml:59` → `      Torrent__Enabled: "${TORRENT_ENABLED:-true}"`
-- `.env.example:40-41` → `TORRENT_BASE_URL=http://host.docker.internal:8787` / `TORRENT_ENABLED=true`
+- `docker-compose.yml:74` → `      Torrent__BaseUrl: "${TORRENT_BASE_URL:-http://host.docker.internal:8787}"`
+- `docker-compose.yml:75` → `      Torrent__Enabled: "${TORRENT_ENABLED:-true}"`
+- `.env.example:53-54` → `TORRENT_BASE_URL=http://host.docker.internal:8787` / `TORRENT_ENABLED=true`
 - **appsettings 里的默认值是另一个地址**：`ShortDrama.Api/appsettings.json:36` → `    "baseUrl": "http://127.0.0.1:8787",`；`:35` → `    "enabled": true,`
-- ⚠️ **这是最容易写错的一处**：`appsettings.json` 的 `127.0.0.1` 在容器里指**容器自己**，Docker 部署下**必须**用 compose 传的 `host.docker.internal`。`appsettings.json:37` 的注释、`docker-compose.yml:54-57` 的注释、`.env.example:35`、`docs/DOCKER.md` §四「配置」→「种子搜索（可选增强）」的 ⚠️ 提示块 都在讲同一件事。
-- 让 `host.docker.internal` 在 Linux 也能解析：`docker-compose.yml:67-68` → `extra_hosts:` + `      - "host.docker.internal:host-gateway"`
+- ⚠️ **这是最容易写错的一处**：`appsettings.json` 的 `127.0.0.1` 在容器里指**容器自己**，Docker 部署下**必须**用 compose 传的 `host.docker.internal`。`appsettings.json:37` 的注释、`docker-compose.yml:70-73` 的注释、`.env.example:48`、`docs/DOCKER.md` §四「配置」→「种子搜索（可选增强）」的 ⚠️ 提示块 都在讲同一件事。
+- 让 `host.docker.internal` 在 Linux 也能解析：`docker-compose.yml:83-84` → `extra_hosts:` + `      - "host.docker.internal:host-gateway"`
 - 相关配置（`appsettings.json:38-42`）：`timeoutSeconds: 30`、`streamWaitSeconds: 30`、`copyBufferBytes: 65536`
 
 ### F13 PostgreSQL 覆盖文件包含哪几个服务
 
-文件 `docker-compose.postgres.yml`（**本次实测 2004 字节 / 49 行**，CR=0、无 BOM）。**2 个服务**（`redis` 服务与 `shortdrama-redisdata` 卷已于本次删除，见 §2-10）：
+文件 `docker-compose.postgres.yml`（**本次实测 2940 字节 / 59 行**，CR=0、无 BOM）。**2 个服务**（`redis` 服务与 `shortdrama-redisdata` 卷早已删除，见 §2-10）：文件头从 8 行长到 **21 行**（新增容器名 / 卷名规则的说明），所以下面所有行号比上一版整体下移。
 
 | 服务 | 定义位置 | 关键值 |
 |---|---|---|
-| `app` | `:17` | 覆盖 `Database__Provider: PostgreSql`（`:19`）、`ConnectionStrings__Default: "Host=postgres;Port=5432;Database=shortdrama;Username=shortdrama;Password=${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:20`）、`depends_on: postgres: condition: service_healthy`（`:21-23`） |
-| `postgres` | `:25` | `image: postgres:16-alpine`（`:26`）、`restart: unless-stopped`（`:27`）、`POSTGRES_DB` / `POSTGRES_USER: shortdrama`（`:29-30`）、`POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:31`）、`TZ: Asia/Shanghai`（`:32`）、`POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"`（`:34`）、卷 `shortdrama-pgdata:/var/lib/postgresql/data`（`:36`）、健康检查 `pg_isready -U shortdrama -d shortdrama`（`:38`，10s/5s/10/20s 见 `:39-42`）、**端口默认注释掉**（`:43-45`，其中 `:43` 是说明注释、`:44` 是 `# ports:`、`:45` 是 `#   - "5432:5432"`） |
+| `app` | `:24` | 覆盖 `Database__Provider: PostgreSql`（`:26`）、`ConnectionStrings__Default: "Host=postgres;Port=5432;Database=shortdrama;Username=shortdrama;Password=${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:27`）、`depends_on: postgres: condition: service_healthy`（`:28-30`） |
+| `postgres` | `:32` | ⚠️ **刻意不设 `container_name`**（`:33-35` 注释：它的名字继续带项目名前缀，跨项目不会撞名）、`image: postgres:16-alpine`（`:36`）、`restart: unless-stopped`（`:37`）、`POSTGRES_DB` / `POSTGRES_USER: shortdrama`（`:39-40`）、`POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-shortdrama_pwd}"`（`:41`）、`TZ: Asia/Shanghai`（`:42`）、`POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"`（`:44`）、卷 `shortdrama-pgdata:/var/lib/postgresql/data`（`:46`）、健康检查 `pg_isready -U shortdrama -d shortdrama`（`:48`，10s/5s/10/20s 见 `:49-52`）、**端口默认注释掉**（`:53-55`，其中 `:53` 是说明注释、`:54` 是 `# ports:`、`:55` 是 `#   - "5432:5432"`） |
 
-- 覆盖文件自身的 `volumes:` 段：`:47-49` → **只剩 `shortdrama-pgdata`**（`:48`）、`driver: local`（`:49`）。**`shortdrama-redisdata` 已随 `redis` 服务一起删除**（实测该文件内 `redisdata` 命中 **0 行**）。
+- 覆盖文件自身的 `volumes:` 段：`:57-59` → **只剩 `shortdrama-pgdata`**（`:58`）、`driver: local`（`:59`）。**`shortdrama-redisdata` 已随 `redis` 服务一起删除**（实测该文件内 `redisdata` 命中 **0 行**）。
+- 文件头 `:16-20` 写明容器数量规则：默认（只用 `docker-compose.yml`）是 **1 个**容器 `docker-muse-video`；套上本文件变成 **2 个**（`docker-muse-video` + `<项目名>-postgres-1`），且卷名同样**没有**被固定。
 - 调用方式（`docker-compose.postgres.yml:4`、`docs/DOCKER.md` §五「数据库：SQLite 与 PostgreSQL」→「PostgreSQL（可选）」）：`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d`
-- ✅ **应用不连 Redis（这条事实结论仍然成立）**：覆盖段只改了数据库 Provider 与连接串，**没有给 `app` 传任何 Redis 连接配置**；全仓库 `*.cs` 搜 `Redis` 只命中一句注释 —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`，紧接着 `:42` → `            services.AddMemoryCache();`。**应用用的是进程内内存缓存**。手册写「PostgreSQL 模式会启用 Redis 缓存」是错的；现在连「会额外拉起一个没人连的 `redis` 容器」这个坑也不存在了。
+- ✅ **应用不连 Redis（这条事实结论仍然成立）**：覆盖段只改了数据库 Provider 与连接串，**没有给 `app` 传任何 Redis 连接配置**；全仓库 `*.cs` 搜 `Redis` 只命中一句注释 —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`（**本次复测行号未变**），紧接着 `:42` → `            services.AddMemoryCache();`。**应用用的是进程内内存缓存**。手册写「PostgreSQL 模式会启用 Redis 缓存」是错的；现在连「会额外拉起一个没人连的 `redis` 容器」这个坑也不存在了。
 
 ### F14 compose 里其它硬编码（不在 `.env`，改要动 compose）
 
 | 项 | 文件:行 | 值 |
 |---|---|---|
-| 重启策略 | `docker-compose.yml:27` | `restart: unless-stopped` |
-| 环境 | `docker-compose.yml:33` | `ASPNETCORE_ENVIRONMENT: Production` |
-| 数据库 Provider | `docker-compose.yml:36` | `Database__Provider: Sqlite` |
-| 连接串 | `docker-compose.yml:37` | `ConnectionStrings__Default: "Data Source=/data/shortdrama.db"` |
-| 口令门有效期 | `docker-compose.yml:43` | `AccessGate__ValidDays: "30"` |
-| JWT 占位密钥 | `docker-compose.yml:46` | `Jwt__Key: "${JWT_KEY:-please-change-this-secret-key-in-production-2025}"` |
-| JWT 签发/受众 | `docker-compose.yml:47-48` | `Jwt__Issuer: ShortDrama` / `Jwt__Audience: ShortDramaClient` |
-| 演示数据 | `docker-compose.yml:51` | `Demo__Enabled: "false"` |
-| 日志级别 | `docker-compose.yml:62-64` | `Default: Information`、`Microsoft.AspNetCore: Warning`、`System.Net.Http.HttpClient: Warning` |
-| 日志轮转 | `docker-compose.yml:81-85` | `driver: json-file`、`max-size: "10m"`、`max-file: "3"` |
-| 镜像标签 | `docker-compose.yml:22` | `image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}` |
+| 容器名 | `docker-compose.yml:42` | `container_name: docker-muse-video`（**写死**，见 F1） |
+| 重启策略 | `docker-compose.yml:43` | `restart: unless-stopped` |
+| 服务名 | `docker-compose.yml:22` | `  app:` |
+| 环境 | `docker-compose.yml:49` | `ASPNETCORE_ENVIRONMENT: Production` |
+| 数据库 Provider | `docker-compose.yml:52` | `Database__Provider: Sqlite` |
+| 连接串 | `docker-compose.yml:53` | `ConnectionStrings__Default: "Data Source=/data/shortdrama.db"` |
+| 口令门有效期 | `docker-compose.yml:59` | `AccessGate__ValidDays: "30"` |
+| JWT 占位密钥 | `docker-compose.yml:62` | `Jwt__Key: "${JWT_KEY:-please-change-this-secret-key-in-production-2025}"` |
+| JWT 签发/受众 | `docker-compose.yml:63-64` | `Jwt__Issuer: ShortDrama` / `Jwt__Audience: ShortDramaClient` |
+| 演示数据 | `docker-compose.yml:67` | `Demo__Enabled: "false"` |
+| 日志级别 | `docker-compose.yml:78-80` | `Default: Information`、`Microsoft.AspNetCore: Warning`、`System.Net.Http.HttpClient: Warning` |
+| 日志轮转 | `docker-compose.yml:97-101` | `driver: json-file`、`max-size: "10m"`、`max-file: "3"` |
+| **镜像标签（本地默认）** | `docker-compose.yml:27` | `image: ${SHORTDRAMA_IMAGE:-docker-muse-video:latest}`（**本轮由 `shortdrama:latest` 改名而来**，见 F24） |
 
-- ⚠️ **`Jwt__Key` 有两套占位值**：compose 是 `please-change-this-secret-key-in-production-2025`（`:46`），而 `ShortDrama.Api/appsettings.json:122` 是 `ShortDrama-Aggregation-Platform-Secret-Key-Please-Change-In-Production-2025`。环境变量优先，**容器里生效的是 compose 那个**。手册若要引用「默认 JWT 密钥」，必须用 compose 的值，别抄 appsettings 的。
+- ⚠️ **`Jwt__Key` 有两套占位值**：compose 是 `please-change-this-secret-key-in-production-2025`（`:62`），而 `ShortDrama.Api/appsettings.json:122` 是 `ShortDrama-Aggregation-Platform-Secret-Key-Please-Change-In-Production-2025`。环境变量优先，**容器里生效的是 compose 那个**。手册若要引用「默认 JWT 密钥」，必须用 compose 的值，别抄 appsettings 的。
 
 ### F15 默认采集源数量
 
@@ -246,26 +261,29 @@
 - `.github/workflows/docker-publish.yml:22` → `  REGISTRY: ghcr.io`
 - `.github/workflows/docker-publish.yml:27` → `  PLATFORMS: linux/amd64`（`:23-26` 是「什么时候才需要加 arm64」的注释）
 - `.github/workflows/docker-publish.yml:60-62` → 标签 `latest`（仅默认分支）、`sha-<short>`、`<tag>`
-- ⚠️ **本次刷新**：上面 5 处行号已按当前文件重测（该工作流新增了多架构说明注释，上一版记的 `:40` / `:56` / `:25` / `:58-60` 分别指向注释行与 `uses:` 行）。**触发条件那几条（`:15-19`）实测未变**。
-- 推导结果：`ghcr.io/xcool-603/muse-video:latest`，与 `.env.example:20`、`docs/DOCKER.md` §三「更新与自动更新」→「7. 构建太慢？改用预构建镜像」的示例一致
+- ✅ **本次复测**：上面 5 处行号（`:42` / `:58` / `:22` / `:27` / `:60-62`）与触发条件（`:15-19`）**全部仍指向正确内容** —— 本轮工作流在 **`:77` 之后新增了「判断单平台」与 tar 导出的三步**（`:103-145`），前 75 行一字未动。新增部分见 F24。
+- 推导结果：`ghcr.io/xcool-603/muse-video:latest`，与 `.env.example:33`、`docs/DOCKER.md` §三「更新与自动更新」→「7. 构建太慢？改用预构建镜像」的示例一致
 - 触发条件（`:15-19`）：push 到 `main`（`:16-17`）、打 `v*` 标签（`:18`）、`workflow_dispatch`（`:19`）
 
 ### F17 编码与行尾（实测字节）
 
 | 文件 | 字节（实测） | BOM | CRLF 数 | LF 数 |
 |---|---|---|---|---|
-| `.env.example` | 3670 | 无 BOM | 0 | 67 |
-| `docker-compose.yml` | 3468 | 无 BOM | 0 | 89 |
-| `docker-compose.postgres.yml` | 2004 | 无 BOM | 0 | 49 |
-| `Dockerfile` | 8164 | 无 BOM | 0 | 156 |
+| `.env.example` | 4732 | 无 BOM | 0 | 80 |
+| `docker-compose.yml` | 4774 | 无 BOM | 0 | 105 |
+| `docker-compose.postgres.yml` | 2940 | 无 BOM | 0 | 59 |
+| `Dockerfile` | 8192 | 无 BOM | 0 | 156 |
 | `docker/entrypoint.sh` | 1441 | 无 BOM | 0 | 35 |
 | `.dockerignore` | 1999 | 无 BOM | 0 | 71 |
-| `README.md` ⚠️核对时刻 | 48970 | 无 BOM | 0 | 995 |
-| `docs/DOCKER.md` ⚠️核对时刻 | 41833 | 无 BOM | 0 | 932 |
-| `docs/RUNBOOK.md` ⚠️核对时刻 | 82835 | 无 BOM | 0 | 1536 |
+| `.github/workflows/docker-publish.yml` | 6739 | 无 BOM | 0 | 145 |
+| `README.md` ⚠️核对时刻 | 53451 | 无 BOM | 0 | 1057 |
+| `docs/DOCKER.md` ⚠️核对时刻 | 61181 | 无 BOM | 0 | 1163 |
+| `docs/RUNBOOK.md` ⚠️核对时刻 | 111309 | 无 BOM | 0 | 1962 |
 | `ShortDrama.Api/appsettings.json` | 7888 | 无 BOM | 0 | 127 |
 | `.gitattributes` | 2022 | 无 BOM | 0 | 38 |
+| `docs/DEPLOY-FACTS.md`（本文件自身） | 见 §5 | 无 BOM | 0 | 见 §5 |
 
+- **本次（pack-and-port 轮）实测**：13 行逐项重测，**`CR` 全为 0、`BOM` 全为 `False`、`LF` 计数全部等于行数**。本轮发生变化的是 **8 个文件**：`docker-compose.yml` **3468B / 89 行 → 4774B / 105 行**（容器名固定 + 镜像改名 + 注释加长）、`docker-compose.postgres.yml` **2004B / 49 行 → 2940B / 59 行**（文件头新增容器名 / 卷名说明）、`Dockerfile` **8164B / 156 行 → 8192B / 156 行**（只有顶部两行构建 / 运行示例改名，**行数不变**）、`.env.example` **3670B / 67 行 → 4732B / 80 行**（新增「对外端口」说明段）、`.github/workflows/docker-publish.yml` **2688B / 75 行 → 6739B / 145 行**（新增「判断单平台」+ tar 导出三步）、`README.md` **48970B / 995 行 → 53451B / 1057 行**、`docs/DOCKER.md` **41833B / 932 行 → 61181B / 1163 行**、`docs/RUNBOOK.md` **82835B / 1536 行 → 111309B / 1962 行**；未变的 **5 个**：`docker/entrypoint.sh` **1441B / 35 行**、`.dockerignore` **1999B / 71 行**、`ShortDrama.Api/appsettings.json` **7888B / 127 行**、`.gitattributes` **2022B / 38 行**（以及本文件自身）。
 - ⚠️ **表内标了「⚠️核对时刻」的三行（`README.md` / `docs/DOCKER.md` / `docs/RUNBOOK.md`）本轮正被别的角色改写**，它们的字节 / 行数是**最后一次复测**的值，随时会再变（`docs/RUNBOOK.md` 在核对期间就由 82280B / 1531 行变成 **82835B** / 1536 行、`docs/DOCKER.md` 由 41631B / 941 行变成 **41833B** / 932 行、`README.md` 由 48689B / 999 行变成 **48970B** / 995 行 —— 后两个的**行数没变、只有字节数又涨了一点**，即第 2 轮返工那两次改写的净增量）；其余 8 个文件本轮**未被改动**。**本文件对这三个文档的引用一律是章节引用**，不受这些数字漂移影响。
 - ✅ **`README.md` 末行的结尾换行已补上（本轮发现并已由别人修掉）**：**18:42 核对时**实测它末行**没有**结尾换行（`ReadAllLines` = 995 行、逐字节 `LF(0x0A)` = 994，末字节 `0x82`）；**18:45:51 复测已变成 48933B / 995 行、`LF` = 995**（末字节 `0x0A`；该文件随后又被改写，**当前是 48970B / 995 行、`LF` 仍 = 995**）。现在**11 个文件的 `LF` 计数全部等于行数**。该修复在 `link-path-auditor` 的边界内完成，本文件只做记录（发现经过见 `FACTS-CHECK.md` 的 §5 / Q1）。
 - **测量方式（`字节` 列必须这样量）**：`[System.IO.File]::ReadAllBytes('C:\...\绝对路径').Length` —— **必须传绝对路径**。.NET 的「当前目录」与 PowerShell 的 `$PWD` 不一定是同一个，传相对路径会读到别处或直接抛异常。行数与 `CRLF/LF` 用 `Get-Content <绝对路径> -Encoding UTF8` 计数、逐字节统计 `13` / `10` 的出现次数。
@@ -372,8 +390,8 @@
 
 > **本节表格的定位方式**：A / B / C 三张表的「位置」列一律用**章节引用**（章节号 + 标题文字），**不再用 `文件:行`** —— 这三个文档会经常改、行号必然漂移（本轮核对期间 `docs/DOCKER.md` 就被改了三次）。`.gitattributes` 是配置文件、改动少，行号照旧给出（本轮已按实测刷新）。
 > **命中位置的定位方式（docs-detail 结构审计轮已统一成「文档引用一律用章节引用」）**：`docs/RUNBOOK.md` 的 23 行命中**不再逐行给行号**，按章节分布列出（见下一条）—— 上一版记的那串行号（`12、221、935、939、980…1464`，C 表追加 `145、1167`）**与实测已经不符**（该文件之后又被改写），本轮已废弃。**`docs/DOCKER.md` 的命中只剩 2 行**（第 2 轮返工后）：§「平台速查」（1 行「本项目不使用部署类包装脚本」的说明）与 §三「更新与自动更新」→「1. 手动更新一次」（1 行历史口径）—— ⚠️ 上一版记的另外 2 行在 §「平台速查」与 §一「30 秒上手」→「4. 常用配置」，是**标题锚点假阳性**，第 2 轮返工后锚点改写、**已不再命中**（见下方 B 表）；`README.md` 的 1 行在 §一「快速开始」→「4. 容器化部署（推荐）」。**唯一保留行号的是配置文件** `.gitattributes`（实测 `:12` 与 `:19`，见 A 表）。
-> **核对时刻快照（仅供追溯，不要拿它定位；测量时刻 `2026-10-12 19:16`）**：`docs/DOCKER.md` 命中行 **86、320**（上一版快照为 `84、86、164、320`，其中 `84` / `164` 是已消失的锚点假阳性）；`README.md` 命中行 **157**；`.gitattributes` 命中行 **12**；`docs/RUNBOOK.md` 命中行 **12、221、940、944、985、1002、1003、1011、1045、1070、1077、1079、1095、1096、1106、1110、1126、1127、1143、1145、1193、1205、1469**；再追加 C 表三条分支后新增 `docs/RUNBOOK.md` 命中行 **145、1172**。⚠️ 这些行号**随时会漂**（`docs/RUNBOOK.md` 在核对期间就由 **1531 行**长到 **1536 行**；`docs/DOCKER.md` 由 **941 行**缩到 **932 行**，随后又被改写到 **41833B**）—— **定位请用上面的章节引用**。（更早的快照：`docs/DOCKER.md` 84、86、156、273；`docs/RUNBOOK.md` 12、187、894、898…1423；C 表新增 144、1126。）
-> **命中行数的分布（docs-detail 结构审计轮 + 第 2 轮返工复测）**：口径 ② 的 **27** 行 = `docs/RUNBOOK.md` **23** 行（文首 1、§1.6「四条禁令」1、§5.2「Linux / macOS：写进宿主 crontab」2、§5.3「Windows：用任务计划程序（原生 docker compose）」4、§5.5「从旧脚本时代迁移」14、§7.6「故障速查表」1）+ `docs/DOCKER.md` **2** 行 + `.gitattributes` **1** 行 + `README.md` **1** 行。四种口径为 **50 / 27 / 4 / 4**（口径 ② 追加 C 表三条分支后为 **29**）。
+> **核对时刻快照（仅供追溯，不要拿它定位；测量时刻 `2026-10-13 18:40`）**：`docs/DOCKER.md` 命中行 **91、422**；`README.md` 命中行 **185**；`.gitattributes` 命中行 **12**；`docs/RUNBOOK.md` 命中行 **12、235、1333、1337、1378、1395、1396、1404、1438、1463、1470、1472、1488、1489、1499、1503、1519、1520、1536、1538、1586、1598、1883**；再追加 C 表三条分支后新增 `docs/RUNBOOK.md` 命中行 **155、1565**。⚠️ 这些行号**随时会漂**（`docs/RUNBOOK.md` 在上一轮核对期间由 **1536 行**长到 **1962 行**，`docs/DOCKER.md` 由 **932 行**长到 **1163 行**）—— **定位请用上面的章节引用**。（更早的快照：`docs/DOCKER.md` 86、320；`README.md` 157；`docs/RUNBOOK.md` 12、221、940…1469；C 表新增 145、1172。再早：`docs/DOCKER.md` 84、86、156、273。）
+> **命中行数的分布（pack-and-port 轮复测，`2026-10-13 18:40`）**：口径 ② 的 **27** 行 = `docs/RUNBOOK.md` **23** 行（文首 1、§1.6「四条禁令」1、§5.2「Linux / macOS：写进宿主 crontab」2、§5.3「Windows：用任务计划程序（原生 docker compose）」4、§5.5「从旧脚本时代迁移」14、§7.6「故障速查表」1）+ `docs/DOCKER.md` **2** 行（§「平台速查」、§三「更新与自动更新」→「1. 手动更新一次」）+ `.gitattributes` **1** 行 + `README.md` **1** 行（§一「快速开始」→「4. 容器化部署（推荐）」）。四种口径为 **50 / 27 / 4 / 4**（口径 ② 追加 C 表三条分支后为 **29** —— 追加的两行在 `docs/RUNBOOK.md` §1.3「上线前必须改的 3 项」与 §5.5「从旧脚本时代迁移」→「步骤 M7：旧脚本能力 → 原生命令对照表」）。⚠️ **分布与计数本轮未变**；变的只是逐行行号（该轮两个文档都大幅改写）。
 
 其中 **0 行是模式假阳性**（第 2 轮返工后 B 表已清空，见下）—— 口径 ② 的 **27 行全部**是「已删除 / 已移除 / 历史 / 迁移 / 用户自建」口径，**有效残留 = 0 行**。（上一版这里写「其中 2 行是模式假阳性、其余 27 行……」；那 2 行已随本轮 B1 的锚点改写消失，计数相应从 29 降到 27。）
 
@@ -396,8 +414,8 @@
 
 **第 2 轮返工后这两行不再命中**，原因如下（实测）：
 
-- 该锚点已随标题改写：`docs/DOCKER.md:563` 现为 `## 五、数据库：SQLite 与 PostgreSQL`（上一版是「SQLite / PostgreSQL」），GitHub 锚点因此变成 `#五数据库sqlite-与-postgresql` —— **不含两个连字符**；
-- `docs/DOCKER.md:84` 与 `:164` 两处链接**都已实测为这个新写法**（`Select-String -Path docs\DOCKER.md -Pattern 'sqlite'` 后逐行回读确认）；
+- 该锚点已随标题改写：`docs/DOCKER.md` §五「数据库：SQLite 与 PostgreSQL」的标题行 现为 `## 五、数据库：SQLite 与 PostgreSQL`（上一版是「SQLite / PostgreSQL」），GitHub 锚点因此变成 `#五数据库sqlite-与-postgresql` —— **不含两个连字符**；
+- `docs/DOCKER.md` §「平台速查」与 §一「30 秒上手」里的两处锚点链接（核对时刻 `:84` 与 `:179`）**都已实测为这个新写法**（`Select-String -Path docs\DOCKER.md -Pattern 'sqlite'` 后逐行回读确认）；
 - 全仓库搜旧的双连字符字面量 → **0 命中**（`git grep` 退出码 **1**），即那个字面量已从仓库里彻底消失。
 
 所以 **口径 ② / ③ / ④ 的计数各减 2**（29 → 27、6 → 4、6 → 4），本表**已无内容可列**。
@@ -422,7 +440,7 @@
 
 | 已删参数（sh 版） | 已删参数（ps1 版） | 现在该怎么做 |
 |---|---|---|
-| `p` / `port <端口>`（原为单/双连字符） | `Port <端口>` | 改 `.env` 的 `APP_PORT`（`.env.example:11`） |
+| `p` / `port <端口>`（原为单/双连字符） | `Port <端口>` | 改 `.env` 的 `APP_PORT`（`.env.example:24`） |
 | `postgres` | `Postgres` | `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` |
 | `rebuild` | `Rebuild` | `docker compose build --no-cache && docker compose up -d`（`docs/DOCKER.md` §一「30 秒上手」→「4. 常用配置」） |
 | `update` | `Update` | `git pull --ff-only && docker compose up -d --build` |
@@ -482,6 +500,45 @@
 - 与镜像无关的其它既有排除（供交叉核对，行号实测）：`**/bin/`（`:7`）、`**/obj/`（`:8`）、`**/*.db` 一族（`:16-18`）、`short-drama-web/dist/`（`:22`）、`ShortDrama.Api/wwwroot/`（`:26`）、`.git/`（`:29`）、`**/.env` + `**/.env.*` + `!**/.env.example`（`:40-42`）、`**/*.md` + `!README.md`（`:51-52`）、`**/*.log` + `logs/`（`:54-55`）、`scripts/`（`:63`）、以及最后的 `Dockerfile` / `docker-compose*.yml` / `.dockerignore`（`:69-71`）。
 - ⚠️ **`.dockerignore` 的匹配语义本机未实测**（本机未安装 docker）：上面只给出「行号 → 字面值」，不推断某条排除在 `docker build` 里到底命中哪些路径。例如 `**/*.md`（`:51`）与 `!README.md`（`:52`）的相互作用、以及不带斜杠的模式是否跨目录匹配，都需要真跑一次 `docker build` 才能确认。
 
+### F24 镜像名统一为 `docker-muse-video`（含 `docker save` 单文件与 CI tar 工件）
+
+**本轮（pack-and-port）的核心改动：把「打包产物」和「容器」统一叫 `docker-muse-video`。**
+
+| # | 文件:行 | 实际值 | 说明 |
+|---|---|---|---|
+| 1 | `docker-compose.yml:27` | `image: ${SHORTDRAMA_IMAGE:-docker-muse-video:latest}` | **本地默认镜像名**（本轮由 `shortdrama:latest` 改名而来）；设了 `SHORTDRAMA_IMAGE` 仍可覆盖成远端镜像，覆盖机制**保留** |
+| 2 | `Dockerfile:7` | `# 构建：docker build -t docker-muse-video:latest .` | 顶部构建示例（本轮改名） |
+| 3 | `Dockerfile:8` | `# 运行：docker run -d -p 18080:8080 -v shortdrama-data:/data docker-muse-video:latest` | 顶部运行示例（本轮改名；**数据卷逻辑名仍是 `shortdrama-data`**，没有跟着改） |
+| 4 | `.github/workflows/docker-publish.yml:125` | `          tags: docker-muse-video:latest` | 「构建到本地」步的标签，**必须与 compose 默认值一致**（该步 `:116`，`if: steps.plat.outputs.single == 'true'` 在 `:117`） |
+| 5 | `.github/workflows/docker-publish.yml:134` | `          docker save -o docker-muse-video.tar docker-muse-video:latest` | 导出单文件 tar（该步 `:130`） |
+| 6 | `.github/workflows/docker-publish.yml:141` | `          name: docker-muse-video-tar` | **工件名**（`actions/upload-artifact@v4`，`:139`；`:144` `if-no-files-found: error`；该步 `:137`） |
+| 7 | `docs/DOCKER.md` §三「8. 离线部署：把镜像打成 tar 单文件」 | `docker save -o docker-muse-video.tar docker-muse-video:latest` + 拷贝 + `docker load -i docker-muse-video.tar` + `docker compose up -d` | **成对的保存 / 导入步骤**，并写明最适用场景是「部署机**没有编译能力**」或「拉不到 GHCR」 |
+| 8 | `docs/RUNBOOK.md` §四「端口配置」/ §7.5「卸载」 | — | 端口这一侧的配套内容见 F25 |
+
+- **为什么 tar 是「自包含单文件」**：`docker save` 写出的是完整的镜像层，`docker load` 进去后 `docker images docker-muse-video` 能看到 `docker-muse-video:latest`，**中途不需要网络、也不需要源码**（`docs/DOCKER.md` §三 8 的 ①②③ 步）。
+- ⚠️ **`save` 的标签必须与 `build`/`load` 的标签完全一致**，否则报 `No such image`（`docs/DOCKER.md` §三 8 的 📌 提示块）。
+- ⚠️ **离线机器上 `.env` 里的 `SHORTDRAMA_IMAGE` 必须留空**，否则 compose 会先去 `pull` 而失败（同上 ⚠️）。
+- ⚠️ **tar 只支持单平台**：工作流顶部 `PLATFORMS`（`:27`）写成多平台（含逗号）时，先由一个独立步骤 `判断 PLATFORMS 是否为单平台（tar 只支持单平台）`（`:103-112`，`id: plat`）把 `single=false` 写进 `$GITHUB_OUTPUT` 并打印 `::warning::`，随后的三步用 `if: steps.plat.outputs.single == 'true'`（`:117` / `:131` / `:138`）跳过；GHCR 推送不受影响。
+- ✅ **旧名残留已清零（第 1 轮返工复测）**：核对时 `docs/RUNBOOK.md` 的卸载示例第 4 行仍是 **`docker rmi shortdrama:latest`**（旧镜像名，当时的行号 `:1843`），**该处已由别的角色在本轮修掉** —— 复测 `docs/RUNBOOK.md` 全文搜 `shortdrama:latest` → **0 命中**（全仓库只剩本文件历史记录段里的 7 行）。`docs/DOCKER.md` §十「卸载」的同类行**一直是改对的**（核对时刻 `:1133` → `docker rmi docker-muse-video:latest`）。该文件不在本角色边界内，本角色只读实测、未写入。
+- 复现命令：`Select-String -Path docker-compose.yml,Dockerfile,.github\workflows\docker-publish.yml,docs\RUNBOOK.md,docs\DOCKER.md -Pattern 'shortdrama:latest|docker-muse-video:latest' -Encoding UTF8` —— 复测结果：这五个文件里 **`shortdrama:latest` 0 命中**、`docker-muse-video:latest` 命中 F24 表里的那几行；全仓库 `shortdrama:latest` 文本只剩本文件历史记录段（7 行）。
+
+### F25 对外端口：查空闲 → 设进去 → 验证外网可达
+
+**本轮（pack-and-port）的另一半：把「暴露一个空闲端口」写成可执行步骤。** 三层端口的定义见 F2 / F3；这里记文档落点与其中的硬事实。
+
+| # | 位置 | 内容 |
+|---|---|---|
+| 1 | `.env.example:10-24` | 「对外端口」说明段（本轮新增）：**只改 `APP_PORT` 这一项**、容器内固定 8080、换端口前先确认空闲、并给出三步的指向 |
+| 2 | `docs/RUNBOOK.md` §4.7「先查后定：确认一个端口真的空闲（推荐做法）」 | 三条查占用命令（`ss -lntp` / `netstat -lnt` / `docker ps --format 'table {{.Names}}\t{{.Ports}}'`）+ 对一串候选端口逐个判定的可粘贴整段 + 选端口经验规则 + 设进去后**回读**（`docker compose config \| grep -A3 'ports:'`） |
+| 3 | `docs/RUNBOOK.md` §4.8「备选：让 Docker 自己分配一个空闲端口（不用手工查）」 | override 里写 `ports: !override` + `- "8080"`，随后用 **`docker compose port app 8080`** 回读 Docker 实际分配的端口；并列出三条代价（端口不固定 / 安全组没法提前放行 / 回读有前提）与回滚方式 |
+| 4 | `docs/RUNBOOK.md` §4.9「验证「外网真的能访问」（换完端口必做）」 | **五层**逐层验证：① 容器内 `docker compose exec app curl -fsS http://localhost:8080/health` ② 宿主本机 `curl` / `ss` ③ **宿主防火墙**（`ufw` / `firewall-cmd`）④ **云安全组** ⑤ **从外网 curl**（唯一可信判据）；末尾附「本机通、外网不通」的排查顺序 |
+| 5 | `docs/DOCKER.md` §一「6. 改运行端口」、§九「故障排查」→「端口打不开？按「从内到外」的顺序查」 | 同一件事的简版（`APP_PORT` 改法、三处端口表、四处放行示例） |
+| 6 | `README.md` §一「快速开始」→「4. 容器化部署（推荐）」的 📌 提示块 | 「端口由 `.env` 的 `APP_PORT` 决定；升级不会改已有端口；改完用 `docker compose config \| grep -A3 'ports:'` 确认并放行云安全组与宿主防火墙」 |
+
+- **一条容易写错的硬事实（`.env.example:21-23` 原文口径）**：**`APP_PORT=` 留空并不会让 Docker 自动分配端口** —— compose 写的是 `"${APP_PORT:-18080}:8080"`，`:-` 对「未设置**或为空**」都取默认值，所以留空得到的是 **18080**。要自动分配必须把映射改成只有容器内端口（`- "8080"`），即 §4.8 的 override 写法。
+- **默认对外端口仍是 18080**（`docker-compose.yml:46` + `.env.example:24`），**没有变**；本轮加的是「怎么挑一个空闲的、怎么验证它真的通」。
+- ⚠️ **端口相关的运行期行为本机未实测**（本机未安装 docker）：`docker compose port` 的实际输出、`!override` 的合并语义、云安全组是否放行，都需要在真机上跑。文档里给出的都是命令 + 成功判据，不是实测结论。
+
 ---
 
 ## 2. 文档里容易与仓库事实不一致的点（每条带证据）
@@ -500,22 +557,22 @@
   - `docs/DOCKER.md` §四「配置」的变量表现写「JWT 签名密钥，**上线前必须自己替换**（`openssl rand -hex 48`）」；
   - `docs/DOCKER.md` §二「跑起来之后」现写「上线前请务必：改掉 `ACCESS_PASSWORD`、改掉 `admin123` 密码、确认 `JWT_KEY` 已换成随机值（生成命令见第一节）。」
   - 实测命令：`Select-String -Path docs/DOCKER.md -Pattern '脚本首次运行|脚本会自动|首次运行脚本' -Encoding UTF8` → **0 命中**。
-- **不变的事实**（仍然成立）：两个包装脚本已删（F18）；`.env.example:31` 仍是占位值 `please-change-this-secret-key-in-production-2025`；`docker-compose.yml:46` 的兜底值也是同一个占位值。
-- **手册口径**：不执行任何脚本时，`JWT_KEY` 会**一直**是占位值，必须由人手动替换。生成方式：`openssl rand -hex 48`（`.env.example:29-30`）。
+- **不变的事实**（仍然成立）：两个包装脚本已删（F18）；`.env.example:44` 仍是占位值 `please-change-this-secret-key-in-production-2025`；`docker-compose.yml:62` 的兜底值也是同一个占位值。
+- **手册口径**：不执行任何脚本时，`JWT_KEY` 会**一直**是占位值，必须由人手动替换。生成方式：`openssl rand -hex 48`（`.env.example:42-43`）。
 
 ### 2-2 ✅ **已修复** —— 原「清空 SHORTDRAMA_IMAGE，脚本会自动回到本地构建」
 
 - **原问题**：`docs/DOCKER.md` §三「更新与自动更新」→「7. 构建太慢？改用预构建镜像」的「改回源码模式」段曾写「把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，**脚本会自动**回到本地构建。」
 - **当前实测（已修复）**：同一段现写「把 `.env` 里的 `SHORTDRAMA_IMAGE` 清空即可，**下一次 `docker compose up -d --build` 就回到本地构建**。」
-- **不变的事实**：`docker-compose.yml:22` → `image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}`，**兜底值就在 compose 里**，不需要任何脚本。
-- **手册口径**：清空 `.env` 的 `SHORTDRAMA_IMAGE` 后，compose 自己就回落到 `shortdrama:latest` 并走本地构建。
+- **不变的事实（本轮已改名）**：`docker-compose.yml:27` → `image: ${SHORTDRAMA_IMAGE:-docker-muse-video:latest}`，**兜底值就在 compose 里**，不需要任何脚本。
+- **手册口径**：清空 `.env` 的 `SHORTDRAMA_IMAGE`（`.env.example:33`，是注释行）后，compose 自己就回落到**本地构建的那个 `docker-muse-video:latest`** 并走本地构建。
 
 ### 2-3 ✅ **已修复** —— 原「卷表格用已删脚本的 `postgres` 参数当『何时创建』」
 
 - **原问题**：`docs/DOCKER.md` §六「数据卷、备份与恢复」→「数据卷」的卷表「何时创建」列曾写 `postgres`（**原写法为两个连字符**，见 F20），那是已删脚本的参数。
 - **证据（已删脚本）**：`git show 09cdd7b^:deploy` + `.sh` 里有「**两个连字符 + `postgres`**」开头的那一行 —— 原文是 `postgres) USE_POSTGRES=1; shift ;;`，**前导连字符按 §0.1 约定不写出**；该文件已不存在。
 - **当前实测（已修复）**：同一卷表的「何时创建」列现为「带 `-f docker-compose.postgres.yml` 时」，已不含已删参数。**该卷表现只剩 `shortdrama-pgdata` 一行** —— `shortdrama-redisdata` 已随 `redis` 服务一起删除（本次实测：`docs/DOCKER.md` 全文搜 `redisdata` → **0 命中**，见 §2-10）。
-- **手册口径**：这个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:47-49`）。
+- **手册口径**：这个卷在 `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` 时创建（`docker-compose.postgres.yml:57-59`）。
 
 ### 2-4 ✅ **已修复** —— 原「Windows 用 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate` 确认任务在」
 
@@ -550,7 +607,7 @@
 
 - 证据（文档）：`docs/DOCKER.md` §「平台速查」表 → Linux/macOS 那一行的升级列写 `git pull --ff-only && docker compose up -d --build`
 - 冲突证据：`docs/DOCKER.md` §「升级（复制即用）」的「镜像模式」代码块明确镜像模式的升级是 `docker compose pull app && docker compose up -d`
-- **风险**：镜像模式（`.env` 里配了 `SHORTDRAMA_IMAGE`）下执行 `--build` 会在本机重新编译，并把结果打上**远端镜像同名标签**（`docker-compose.yml:22`），下次 `pull` 才纠正。
+- **风险**：镜像模式（`.env` 里配了 `SHORTDRAMA_IMAGE`）下执行 `--build` 会在本机重新编译，并把结果打上**远端镜像同名标签**（`docker-compose.yml:27`），下次 `pull` 才纠正。
 - **正确表述**：手册必须按模式分叉，不能只给一条 `--build`。
 
 ### 2-9 ✅ **已修复（本轮顺带刷新）** —— 原「`logs/auto-update.log` 被当成仓库文件列出，且该目录当前不存在」
@@ -563,29 +620,29 @@
 ### 2-10 ✅ **已修复** —— 原「PostgreSQL 模式的 `redis` 容器起了但应用不连它」
 
 - **原问题**（上一版清单记录的事实）：`docker-compose.postgres.yml` 曾定义一个 `redis` 服务（`image: redis:7-alpine`、`command: ["redis-server", "--appendonly", "yes"]`、卷 `shortdrama-redisdata:/data`、健康检查 `redis-cli ping`），但该覆盖文件对 `app` 只改了 `Database__Provider` 与 `ConnectionStrings__Default`，**没有任何 Redis 配置** —— 于是那个容器**起来了却没人连**：白白多一个故障面，还会让部署机上的 `redis` 这个名字被反复申请、撞上别的项目留下的同名容器。
-- **当前实测（已修复）**：该覆盖文件现在**只有 `app` 与 `postgres` 两个服务**（`docker-compose.postgres.yml:17`、`:25`），顶层 `volumes:` 段**只剩 `shortdrama-pgdata`**（`:47-49`）。实测命令与输出：
-  - `[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml', [Text.Encoding]::UTF8).Count` → **49**（文件 **2004 字节**、`CR=0`、无 BOM）；
+- **当前实测（已修复；pack-and-port 轮按 59 行版本重测行号）**：该覆盖文件现在**只有 `app` 与 `postgres` 两个服务**（`docker-compose.postgres.yml:24`、`:32`），顶层 `volumes:` 段**只剩 `shortdrama-pgdata`**（`:57-59`）。实测命令与输出：
+  - `[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docker-compose.postgres.yml', [Text.Encoding]::UTF8).Count` → **59**（文件 **2940 字节**、`CR=0`、无 BOM；上一版记的 49 行 / 2004 字节是该文件加长文件头之前的旧值）；
   - 同一份内容用 `^\s*redis:` 匹配 → **0 行**；用 `redisdata` 匹配 → **0 行**；
   - `git diff --numstat -- docker-compose.postgres.yml` → **`7  15`**（新增 7 行、删除 15 行，净减 8 行）；删除的 15 行 = `redis` 服务块 **12 行** + `volumes:` 里的 `shortdrama-redisdata` **2 行** + 文件头那句「额外拉起 postgres 与 redis 两个容器」**1 行**；
   - 文件头 `:9-13` 现在是一段 ⚠️ 注释，原文写「这里**不提供 Redis**。应用现在用的是进程内内存缓存（`AddMemoryCache`），根本不连接 Redis —— 起一个没人连的容器只会多一个故障面：它曾经让部署机上的 `redis` 这个名字被反复申请，撞上别的项目留下的同名容器（报错 `Conflict. The container name "/redis" is already in use`，而那个容器压根不是本项目的）。将来真要上分布式缓存再加，届时也**不要写 `container_name`**，让 Compose 自己加项目前缀。」；`:6` 也从「额外拉起 postgres 与 redis 两个容器」改成「额外拉起一个 postgres 容器」。
 - **不变的事实结论（仍然成立）**：应用用的是**进程内内存缓存**，**不连 Redis** —— `ShortDrama.Infrastructure/DependencyInjection.cs:41` → `            // 内存缓存（生产可替换为 Redis）`、`:42` → `            services.AddMemoryCache();`。手册**不要**写「PostgreSQL 模式启用了 Redis 缓存」，也**不要**再让用户去找 `shortdrama-redisdata` 卷或 `redis` 容器。
 - **`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的 redis 表述核查（本次逐条实测，只报告不改）**：
-  - `docs/DOCKER.md`：§五「数据库：SQLite 与 PostgreSQL」→「PostgreSQL（可选）」现写「会额外拉起 `postgres` 容器：」（**已去掉 redis**）；§「附：文件说明」表现写「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（**不含 Redis**）」；§六「数据卷、备份与恢复」→「数据卷」的卷表**只剩 `shortdrama-pgdata` 一行**。实测（**docs-detail 结构审计轮 + 第 2 轮返工复扫，计数不变**）：该文件搜 `redis|Redis|REDIS` → **1 行**（即 §「附：文件说明」表里「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（不含 Redis）」那一行，核对时刻行号 `:927`），搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
-  - `docs/RUNBOOK.md`：§7.4「PostgreSQL 模式（可选）」现写「启用（会额外拉起 `postgres` 容器）：」、成功判据现写「`ps` 里 `app`、`postgres` 两个服务都是 `Up`」。实测（**docs-detail 结构审计轮复扫，计数不变**）：该文件搜 `redis|Redis|REDIS` → **3 行**（都在 **§1.8「部署前自检」**内：1 行是自检 3 引用的报错原文 `Conflict. The container name "/redis" is already in use`、1 行是自检 3 的标题、1 行是自检 3 的「不对时怎么办」），**三处都是「别的项目的容器名 / 迁移提示」口径，没有一处把 `redis` 写成本项目的服务**；搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
-    - ⚠️ **上一版这里记的是「0 命中」，那个数字已失效**：它是 §1.8「部署前自检」小节落定**之前**测的；该小节落定后新增了上面那 3 行（全部正当用法）。**结论不变，实测数字已同步**（C6）。复现命令：`Select-String -Path docs\RUNBOOK.md -Pattern 'redis|Redis|REDIS' -Encoding UTF8` → 计数 **3**（`LineNumber` 核对时刻为 **257 / 344 / 363** —— **行号是快照，会随该文件改动漂移，按 §1.8 定位**）。
-  - `README.md`：只有两处提到 Redis，都是**技术栈 / 路线图**口径 —— §二「技术栈」表的缓存行 → `| 缓存 | IMemoryCache（可换 Redis） | - |`（陈述的是**当前用 IMemoryCache**，与事实一致）、§十三「开发路线图」表里 `| Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |`（Redis 属**待做**项）。实测（**docs-detail 结构审计轮复扫，计数不变**）：该文件搜 `redis|Redis|REDIS` → **2 行**（都在 **§二「技术栈」**表的缓存行与 **§十三「开发路线图」**表内），搜 `redisdata` / `两个容器` → **0 命中**。**未发现与事实不符的 redis 表述。**
-  - ⚠️ **顺带发现（不是 redis 表述问题）**：`docs/RUNBOOK.md` 里两处指向 `docker-compose.postgres.yml` 的**行号已因本次删除而过期** —— 记入 **§2-17**，本次**不改该文件**。
+  - `docs/DOCKER.md`：§一「5.1 默认就是 1 个容器；PostgreSQL 是可选的 2 容器路径」与 §一「5.2 清理历史遗留容器（旧版本的 redis 等）」现写「**没有 Redis**」、「早先的版本里有过一个 `redis` 服务，早已删除」；§「附：文件说明」表现写「`docker-compose.postgres.yml` | PostgreSQL 覆盖配置（**不含 Redis**）」；§六「数据卷、备份与恢复」→「数据卷」的卷表**只剩 `shortdrama-pgdata` 一行**。实测（**pack-and-port 轮复扫**）：该文件搜 `redis|Redis|REDIS` → **13 行**（**第 1 轮返工复扫**，核对时刻 `:154`、`:194`、`:277`、`:281`、`:284`、`:286`、`:304`、`:982`、`:1047`、`:1048`、`:1136`、`:1137`、`:1158` —— 全部是「本项目不占这个通用名 / 旧版本服务已删 / 别的项目的容器名」口径），搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**（上一版这里记的是「1 行，`:927`」—— 那是 `docs/DOCKER.md` 还没写入 §一 5.1 / 5.2 时的旧计数，**已过期**。）
+  - `docs/RUNBOOK.md`：§7.4「PostgreSQL 模式（可选）」现写「启用（会额外拉起 `postgres` 容器）：」（核对时刻 `:1791`）、§7.5「卸载」的成功判据现写「`docker volume ls | grep shortdrama` 在 `down` 后仍有卷」。实测（**pack-and-port 轮复扫**）：该文件搜 `redis|Redis|REDIS` → **8 行**（核对时刻 `:34`、`:273`、`:365`、`:384`、`:390`、`:399`、`:1067`、`:1851` —— 分别在 §1.1（「不需要额外的 Nginx / Redis 容器」）、§1.8 自检 3 与 4（引用 `Conflict. The container name "/redis" is already in use`、以及「那个 `/redis` 是谁的」）、§4.7 步骤 3（「避开 6379 等有明确用途的端口」）、§7.5（「不会碰别人的 `redis`」）），**全部是「本项目不提供 / 别的项目的容器名」口径，没有一处把 `redis` 写成本项目的服务**；搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**（上一版这里记的是「3 行，都在 §1.8」—— 那是该文件还没写入 §1.1 / §4.7 等段落时的旧计数，**已过期**。）
+    - ⚠️ **上一版这里记的是「0 命中」，那个数字已失效**：它是 §1.8「部署前自检」小节落定**之前**测的；该小节落定后新增了 3 行（全部正当用法）。**结论不变，实测数字已同步**（C6）。复现命令：`Select-String -Path docs\RUNBOOK.md -Pattern 'redis|Redis|REDIS' -Encoding UTF8` → **第 1 轮返工复扫计数 8**（`LineNumber` 核对时刻为 **34 / 273 / 365 / 384 / 390 / 399 / 1067 / 1851** —— **行号是快照，会随该文件改动漂移，按 §1.1 / §1.8 / §4.7 / §7.5 等章节定位**）。
+  - `README.md`：三处提到 Redis，都是**技术栈 / 路线图 / 遗留容器**口径 —— §二「技术栈」表的缓存行 → `| 缓存 | IMemoryCache（可换 Redis） | - |`（陈述的是**当前用 IMemoryCache**，与事实一致）、§十三「开发路线图」表里 `| Phase 8 运维与优化 | 1-2 周 | Redis 缓存、CDN 接入、多实例部署 | 🔜 待做 |`（Redis 属**待做**项）、§一「快速开始」→「5. 容器名与卷名」的提示块（「早先版本里的 `redis` 等已删服务」）。实测（**pack-and-port 轮复扫**）：该文件搜 `redis|Redis|REDIS` → **3 行**（核对时刻 `:227`、`:240`、`:1043`），搜 `redisdata` → **0 命中**。**未发现与事实不符的 redis 表述。**
+  - ✅ **顺带发现已闭环（不是 redis 表述问题）**：`docs/RUNBOOK.md` 里两处指向 `docker-compose.postgres.yml` 的**行号**曾因该文件删除 `redis` 服务而过期 —— 记入 **§2-17**；**第 1 轮返工复测两处都已改对**（§7.1 卷表写 `:46` / `:58`、§7.4 提示块写 `:53-55`），本角色**不改该文件**。
 
 ### 2-11 ✅ **已修复** —— 原「`grep SHORTDRAMA_IMAGE .env` 会命中注释行」
 
 - **原问题**：`docs/DOCKER.md` §九「故障排查」表内「想确认当前是哪种模式」那一行曾建议用 `grep SHORTDRAMA_IMAGE .env` 判断当前模式，而 `.env.example:20` 的 `SHORTDRAMA_IMAGE=...` 是**注释**，会命中注释行、看起来像「已配了镜像模式」；同一行还曾写「看部署完成后打印的『部署方式』一行」—— 那一行只有已删脚本才会打印。
 - **当前实测（已修复）**：同一行现为「`grep '^SHORTDRAMA_IMAGE' .env`：有值 = 镜像模式；无输出（只有注释行）= 源码模式」，**「看打印的部署方式」那句也已删除**（实测：`Select-String -Path docs/DOCKER.md -Pattern '部署方式'` → 0 命中）。这两处正是提交 `687e7d3` 修掉的「模式确认方式」失效说法。
-- **不变的事实**：`.env.example:20` 的 `SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest` 仍是**注释行**；要判断模式就用 `grep '^SHORTDRAMA_IMAGE' .env`（有输出才是真的配了）。
+- **不变的事实**：`.env.example:33` 的 `SHORTDRAMA_IMAGE=ghcr.io/xcool-603/muse-video:latest` 仍是**注释行**（上一版记的 `:20` 已随「对外端口」说明段加长而下移到 `:33`）；要判断模式就用 `grep '^SHORTDRAMA_IMAGE' .env`（有输出才是真的配了）。
 
 ### 2-12 ⚠️ README 说支持 MySQL，compose 只提供 SQLite / PostgreSQL 两条路
 
 - 证据：`README.md` §一「快速开始」→「环境要求」表 → `| 数据库 | SQLite（默认，零配置） / PostgreSQL 16+ / MySQL 8+ |`；`ShortDrama.Api/appsettings.json:119` → `"_MySql": "Server=localhost;Database=shortdrama;User=root;Password=xxx"`（是**注释掉的示例键**）
-- 证据（compose）：`docker-compose.yml:36` 只有 `Database__Provider: Sqlite`；`docker-compose.postgres.yml:19` 只有 `PostgreSql`。没有 MySQL 覆盖文件。
+- 证据（compose）：`docker-compose.yml:52` 只有 `Database__Provider: Sqlite`；`docker-compose.postgres.yml:26` 只有 `PostgreSql`。没有 MySQL 覆盖文件。
 - **正确表述**：容器部署手册只讲 SQLite 与 PostgreSQL；MySQL 属于「框架代码支持、仓库未提供部署编排」。
 
 ### 2-13 ⚠️ 「健康检查通过」≠「内容就绪」
@@ -604,9 +661,9 @@
 
 | 配置 | `appsettings.json` | `docker-compose.yml` | 容器内实际生效 |
 |---|---|---|---|
-| `ConnectionStrings:Default` | `Data Source=shortdrama.db`（相对路径，`:117`） | `Data Source=/data/shortdrama.db`（`:37`） | compose 值（另有 `Dockerfile:145` 的 `ENV` 同值兜底） |
-| `Jwt:Key` | `ShortDrama-Aggregation-...-2025`（`:122`） | `${JWT_KEY:-please-change-this-secret-key-in-production-2025}`（`:46`） | compose/`.env` 值 |
-| `Torrent:BaseUrl` | `http://127.0.0.1:8787`（`:36`） | `${TORRENT_BASE_URL:-http://host.docker.internal:8787}`（`:58`） | compose/`.env` 值（**必须**是 host.docker.internal） |
+| `ConnectionStrings:Default` | `Data Source=shortdrama.db`（相对路径，`:117`） | `Data Source=/data/shortdrama.db`（`:53`） | compose 值（另有 `Dockerfile:145` 的 `ENV` 同值兜底） |
+| `Jwt:Key` | `ShortDrama-Aggregation-...-2025`（`:122`） | `${JWT_KEY:-please-change-this-secret-key-in-production-2025}`（`:62`） | compose/`.env` 值 |
+| `Torrent:BaseUrl` | `http://127.0.0.1:8787`（`:36`） | `${TORRENT_BASE_URL:-http://host.docker.internal:8787}`（`:74`） | compose/`.env` 值（**必须**是 host.docker.internal） |
 
 - **规则**：`.NET` 配置的优先级是「环境变量 > `appsettings.json`」。手册引用「容器里的默认值」时，一律以 `docker-compose.yml` / `.env.example` 为准，不要抄 `appsettings.json`。
 
@@ -627,9 +684,9 @@
   - §7.1「数据卷与「卷名前缀」（备份前必须看懂）」的卷表曾写「`docker-compose.postgres.yml` 的 `:30`、`:54`」（**过期值**）—— 那两个行号实际指向 `POSTGRES_USER: shortdrama` 与注释掉的 `#   - "5432:5432"`；
   - §7.4「PostgreSQL 模式（可选）」的提示块曾写「默认不对外暴露端口（`docker-compose.postgres.yml` 的 `:37-39`，**过期值**）」。
 - **当前实测（docs-detail 结构审计轮复测，两处内容都已改对）**：
-  - `docs/RUNBOOK.md` **§7.1「数据卷与「卷名前缀」（备份前必须看懂）」**的卷表内 `shortdrama-pgdata` 那一行现写「`docker-compose.postgres.yml:36`（卷挂载）、`:48`（顶层 volumes 声明）」—— 与实测一致（`:36` = `      - shortdrama-pgdata:/var/lib/postgresql/data`、`:48` = `    shortdrama-pgdata:`、`:49` = `      driver: local`，整段 `:47-49`）；
-  - `docs/RUNBOOK.md` **§7.4「PostgreSQL 模式（可选）」**的提示块现写「`docker-compose.postgres.yml:43-45`」—— 与实测一致（`:43` 是说明注释、`:44` 是 `# ports:`、`:45` 是 `#   - "5432:5432"`）。
-  - ⚠️ **定位一律用上面两个章节引用，本文件不再用行号定位它们**：这两处的行号会随 `docs/RUNBOOK.md` 改动漂移（沿革：`:1280` / `:1378` → `:1321` / `:1419` → 本轮实测 `:1326` / `:1424`；该文件在本次核对期间又从 **1531 行长到 1536 行**）。
+  - `docs/RUNBOOK.md` **§7.1「数据卷与「卷名前缀」（备份前必须看懂）」**的卷表内 `shortdrama-pgdata` 那一行现写「`docker-compose.postgres.yml:46`（卷挂载）、`:58`（顶层 volumes 声明）」—— 与实测一致（`:46` = `      - shortdrama-pgdata:/var/lib/postgresql/data`、`:58` = `    shortdrama-pgdata:`、`:59` = `      driver: local`，整段 `:57-59`）。✅ 该处已随本轮的覆盖文件加长同步改对。
+  - ✅ **§7.4 的提示块也已改对（第 1 轮返工复测）**：核对时它写的是「`docker-compose.postgres.yml:54-55`」（当时的行号 `:1833`）—— 按字面**应为 `:53-55`**：`:53` 是说明注释（「默认不对外暴露端口；需要直连调试时取消注释」）、`:54` 是 `# ports:`、`:55` 是 `#   - "5432:5432"`，即当时遗漏了那条说明注释所在的行。**复测该处现写 `:53-55`**，与实测一致（该文件不在本角色边界内，本角色只读实测、未写入）。
+  - ⚠️ **定位一律用上面两个章节引用，本文件不再用行号定位它们**：这两处的行号会随 `docs/RUNBOOK.md` 改动漂移（沿革：`:1280` / `:1378` → `:1321` / `:1419` → docs-detail 轮 `:1326` / `:1424`；pack-and-port 轮该文件已长到 **1962 行**，这些行号一律只作**带轮次的历史快照**，不要拿来定位）。
   - 复现命令：用 `[System.IO.File]::ReadAllLines('C:\Work\短剧聚合\短剧聚合\docs\RUNBOOK.md', [Text.Encoding]::UTF8)` 回读全文，在 §7.1 / §7.4 内按**内容**（`docker-compose.postgres.yml:36` / `docker-compose.postgres.yml:43-45`）搜索定位，再用同一方式回读 `docker-compose.postgres.yml` 的 `:36` / `:48` / `:43-45` 比对。
 - **结论**：**已修复，无需再提给仓库维护者。** 上一版「只报告、不改 `docs/RUNBOOK.md`」的处置已完成闭环。
 
@@ -639,23 +696,28 @@
 
 | 手册要写的值 | 直接引用 |
 |---|---|
-| 服务名 | `app`（`docker-compose.yml:17`） |
-| 访问地址 | `http://localhost:18080`（`docker-compose.yml:30` + `.env.example:11`） |
-| 端口映射写法 | `"${APP_PORT:-18080}:8080"`（`docker-compose.yml:30`） |
+| 服务名 | `app`（`docker-compose.yml:22`） |
+| 容器名 | **固定 `docker-muse-video`**（`docker-compose.yml:42` 的 `container_name`；不带项目名前缀） |
+| 本地镜像默认名 | `docker-muse-video:latest`（`docker-compose.yml:27`）；可用 `SHORTDRAMA_IMAGE` 覆盖成 GHCR 镜像 |
+| 访问地址 | `http://localhost:18080`（`docker-compose.yml:46` + `.env.example:24`） |
+| 端口映射写法 | `"${APP_PORT:-18080}:8080"`（`docker-compose.yml:46`） |
+| 找空闲端口（查 → 设 → 验证） | `ss -lntp` / `netstat` / `docker ps` 三条命令查（`docs/RUNBOOK.md` §4.7）；备选「让 Docker 自动分配」= override 里写 `- "8080"` + `docker compose port app 8080` 回读（§4.8）；外网可达分五层验证（容器内 → 宿主本机 → 宿主防火墙 → 云安全组 → 从外网 curl，§4.9） |
+| 离线单文件镜像 | `docker save -o docker-muse-video.tar docker-muse-video:latest` → 拷到服务器 → `docker load -i docker-muse-video.tar` → `docker compose up -d`（`docs/DOCKER.md` §三「8. 离线部署：把镜像打成 tar 单文件」）；CI 工件名 `docker-muse-video-tar`（`.github/workflows/docker-publish.yml:137-145`） |
 | 容器内端口 | `8080`（`Dockerfile:147`、`Dockerfile:140`） |
 | 构建阶段平台 | 两个构建阶段 `--platform=$BUILDPLATFORM`、`final` 不声明（`Dockerfile:24`、`:39`、`:69`；理由见 F21） |
-| 健康检查 | `curl -fsS http://localhost:8080/health`，30s/5s/40s/3（`docker-compose.yml:75-79`） |
-| 数据卷 | `shortdrama-data` → `/data`（`docker-compose.yml:72`、`:87-89`） |
-| 卷名规则 | `<compose 项目名>_shortdrama-data`；项目名来自**执行目录名**（两个 compose 都无顶层 `name:`、也无 `COMPOSE_PROJECT_NAME`；要固定就取消 `.env.example:67` 那行的注释或用 `-p`） |
-| 容器名规则 | `<项目名>-<服务名>-1`，服务名 `app` → `<项目名>-app-1`；两个 compose 里 `container_name:` **键** 0 个（`docker-compose.yml:23-26` 只有解释性注释）。⚠️ **边界情形（本轮已裁决、四处口径统一）**：项目名只保留 `a-z0-9_-`（其余字符**删掉**，不是换成 `-`）；**纯中文 / 纯非 ASCII 目录名**（如 `短剧聚合`）→ 项目名是**空串** → `docker compose` 报 `project name must not be empty` 并**拒绝执行**，**不会**产生「中文前缀的容器名」；含大写 / 含空格的目录名**能跑**，但项目名会被小写化 / 去掉空格；中文 + ASCII 混合名只取 ASCII 那一半。手册的稳妥写法：显式设 `COMPOSE_PROJECT_NAME`（`.env.example:67`）或 `-p shortdrama`。依据见 F1 |
-| 管理后台 | `http://localhost:18080/admin`，`admin / admin123`（`DbSeeder.cs:147,150`；`router/index.ts:64`） |
-| 默认口令 | `遵纪守法世界和平`（`docker-compose.yml:42`） |
-| 口令门开关 | `ACCESS_GATE_ENABLED` → `AccessGate__Enabled`（`docker-compose.yml:41`） |
-| 种子服务地址 | `http://host.docker.internal:8787`（`docker-compose.yml:58`）；开关 `TORRENT_ENABLED`（`:59`） |
-| PG 覆盖文件 | `app` / `postgres` **两个**服务（`docker-compose.postgres.yml:17,25`；`redis` 服务已删除，见 F13 / §2-10） |
+| 健康检查 | `curl -fsS http://localhost:8080/health`，30s/5s/40s/3（`docker-compose.yml:91-95`） |
+| 数据卷 | `shortdrama-data` → `/data`（`docker-compose.yml:88`、`:103-105`） |
+| 卷名规则 | `<compose 项目名>_shortdrama-data`；项目名来自**执行目录名**（两个 compose 都无顶层 `name:`、也无 `COMPOSE_PROJECT_NAME`；要固定就取消 `.env.example:80` 那行的注释或用 `-p`）。⚠️ **项目名现在只影响卷名**，容器名不受它影响 |
+| 容器名规则 | **本项目里 `app` 的容器名是写死的 `docker-muse-video`**（`docker-compose.yml:42` 的 `container_name:`；`Select-String -Pattern '^\s*container_name:'` 在该文件只命中这 1 行）。通用的 `<项目名>-<服务名>-1` 规则**只对没写死名字的服务生效** —— 本仓库里只有 `docker-compose.postgres.yml` 的 `postgres`（`:32`，`container_name` 实测 0 个，`:33-35` 是「刻意不设」的注释）。⚠️ **边界情形（已裁决、四处口径统一）**：项目名只保留 `a-z0-9_-`（其余字符**删掉**，不是换成 `-`）；**纯中文 / 纯非 ASCII 目录名**（如 `短剧聚合`）→ 项目名是**空串** → `docker compose` 报 `project name must not be empty` 并**拒绝执行**（此时连容器名都不会被创建）；含大写 / 含空格的目录名**能跑**，但项目名会被小写化 / 去掉空格；中文 + ASCII 混合名只取 ASCII 那一半。手册的稳妥写法：显式设 `COMPOSE_PROJECT_NAME`（`.env.example:80`）或 `-p shortdrama`。依据见 F1 |
+| 管理后台 | `http://localhost:18080/admin`，`admin / admin123`（`DbSeeder.cs:147,150`；`short-drama-web/src/router/index.ts:71`） |
+| 默认口令 | `遵纪守法世界和平`（`docker-compose.yml:58`、`.env.example:38`） |
+| 口令门开关 | `ACCESS_GATE_ENABLED` → `AccessGate__Enabled`（`docker-compose.yml:57`） |
+| 种子服务地址 | `http://host.docker.internal:8787`（`docker-compose.yml:74`）；开关 `TORRENT_ENABLED`（`:75`） |
+| PG 覆盖文件 | `app` / `postgres` **两个**服务（`docker-compose.postgres.yml:24,32`；`redis` 服务已删除，见 F13 / §2-10） |
 | 容器用户 | 镜像内置 `app`；容器以 root 启动、入口脚本 `gosu` 降权（`entrypoint.sh:17,20,27`） |
 | 入口脚本三件事 | chown `/data`（`entrypoint.sh:22`）→ `gosu app` 降权（`:27`）→ `exec "$@"`（`:35`） |
 | 镜像模式镜像 | `ghcr.io/xcool-603/muse-video:latest`（`docker-publish.yml:42,58`） |
+| CI tar 工件 | 工件名 `docker-muse-video-tar`、文件名 `docker-muse-video.tar`（`docker-publish.yml:130-145`；多平台时跳过，`:103-112`） |
 | 平台 | `linux/amd64`（`docker-publish.yml:27`） |
 | 采集源数量 | 22 个，全部 enabled（`ShortDrama.Api/apple-cms-sources.json`） |
 | 部署包装脚本 | **不存在**（两个 deploy 开头的包装脚本已在 09cdd7b 删除） |
@@ -664,12 +726,12 @@
 
 ## 4. 未实测 / 待确认（交给能跑 docker 的人）
 
-1. ✅ **compose 项目名与卷名 —— 已裁决（源码级），四处口径已统一**：原待确认项是「中文目录名 `短剧聚合` 下 `docker compose config` 会怎样」。本轮用上游官方实现（`compose-go` 的 `NormalizeProjectName()` + `loader.go` 的空项目名报错 + 两个官方单元测试 + Docker 官方文档）裁定：**纯中文 / 纯非 ASCII 目录名 → 项目名空串 → 报 `project name must not be empty` → 什么都不会被创建**。四处口径（`docs/DOCKER.md` §一「5. 容器名是怎么来的」、`docs/RUNBOOK.md` §1.5、`.env.example:46-67`、本文件 F1 与 §3）现已改成同一句话，详见 F1。
+1. ✅ **compose 项目名与卷名 —— 已裁决（源码级），四处口径已统一**：原待确认项是「中文目录名 `短剧聚合` 下 `docker compose config` 会怎样」。本轮用上游官方实现（`compose-go` 的 `NormalizeProjectName()` + `loader.go` 的空项目名报错 + 两个官方单元测试 + Docker 官方文档）裁定：**纯中文 / 纯非 ASCII 目录名 → 项目名空串 → 报 `project name must not be empty` → 什么都不会被创建**。四处口径（`docs/DOCKER.md` §一「5. 容器名是怎么来的」、`docs/RUNBOOK.md` §1.5、`.env.example:59-80`、本文件 F1 与 §3）现已改成同一句话，详见 F1。
    - ⚠️ **仍是「源码级裁决」，不是「本机实跑」**：本机**未安装 docker**。留给能跑 docker 的人的**复核**命令（不影响现有结论，只是再确认一次）：`cd` 到一个纯中文目录，跑 `docker compose config --format json`，期望**非 0 退出码**且 stderr 含 `project name must not be empty`；再加 `-p shortdrama` 重跑，期望退出码 0 且 JSON 里 `"name": "shortdrama"`。卷名前缀用 `docker volume ls | Select-String shortdrama` 看。
 2. **`app` 用户实际 UID/GID**：`docker run --rm --entrypoint sh mcr.microsoft.com/dotnet/aspnet:10.0 -c 'id app'`。
 3. **首次构建耗时与磁盘占用**：文档写 3-5 分钟 / 3-5 GB（`docs/DOCKER.md` §一「30 秒上手」→「2. 一条命令」、§九「故障排查」表内「构建很慢或卡住」那一行），仓库内无证据，属经验值。
 4. **`curl` 是否真在运行时镜像里**：`Dockerfile:85` 装了（构建期自检第 5 条 `Dockerfile:131` 也会在构建时确认它存在），但未实测镜像。健康检查完全依赖它。
-5. **PostgreSQL 覆盖模式下 `app` 是否真的能连上 `postgres`**：`depends_on: condition: service_healthy` 已配（`docker-compose.postgres.yml:21-23`），但需实测首次建库与 EF 迁移行为。
+5. **PostgreSQL 覆盖模式下 `app` 是否真的能连上 `postgres`**：`depends_on: condition: service_healthy` 已配（`docker-compose.postgres.yml:28-30`），但需实测首次建库与 EF 迁移行为。
 6. ~~**`.gitattributes:11`/`:18` 的过期注释是否会被修**~~ → **已修复**：提交 `687e7d3` 已把注释改写成「曾经还有 … 已删除」口径，`.env` 的 LF 理由也改挂到 compose 上；当前位置是 `.gitattributes:12-13` 与 `:19`（见 §2-16）。**不再是待确认项。**
 7. ✅ **已完成（本轮）：`docs/DOCKER.md` / `docs/RUNBOOK.md` / `README.md` 的引用已改成章节引用，`.gitattributes` 的行号与 F17 的字节数已刷新。** 上一版这里是一条「待专门刷新一轮」的待办，本轮已执行：
    - `docs/DOCKER.md` 实测 **36559B / 863 行**（**该轮的值**；核对期间被改过三次）—— F17 表已改；本文件里 **58 处 `docs/DOCKER.md:<行号>`** 引用已逐条**打开目标文档、按内容重新定位**，并改成**章节引用**（形如 `docs/DOCKER.md §六「数据卷、备份与恢复」`）；
@@ -677,18 +739,19 @@
    - `.gitattributes` 实测 **2022B / 38 行** —— F17 表已改，`*.sh text eol=lf` 现在在 **`:31`**，清单里其余指向它的行号引用已同步核对。
    - 三个文档的 `CR` 仍为 **0**、BOM 仍为 **False**，所以「UTF-8 无 BOM + LF」的结论不受影响。
    - 仍建议：文档之后再改时按「章节引用 + 全文搜索」核对，**不要死认行号**。
-   - **本次刷新（跨文档一致性核对轮）实测**：`docs/DOCKER.md` **38191B / 894 行**、`README.md` **48689B / 999 行**、`docs/RUNBOOK.md` **79010B / 1490 行**（后者正被另一角色改写，见 F17「本次刷新」一条与本节第 8 项）。
+   - **本次刷新（pack-and-port 轮）实测**：`docs/DOCKER.md` **61181B / 1163 行**、`README.md` **53451B / 1057 行**、`docs/RUNBOOK.md` **111309B / 1962 行**（三者都被别的角色改写，字节 / 行数只是**核对时刻**的值，见 F17 表）。
    - **第 1 轮返工后重测（当时的值，**已被下一条取代**）**：`docs/DOCKER.md` **41631B / 941 行**、`README.md` **48689B / 999 行**（未变）、`docs/RUNBOOK.md` **82252B / 1531 行**、`.env.example` **3670B / 67 行**。四个文件仍 **CR=0、BOM=False**。见 F17 的「第 1 轮返工后重测」一条。
 - **第 2 轮返工再测（当时的记录）**：`docs/RUNBOOK.md` **82280B / 1531 行**（`LastWriteTime` = **2026-10-12 11:50:19**，SHA256 前 16 位 `87AB86F53D91EAE8`）。另外三个文件当时**未再改动**：`docs/DOCKER.md` **41631B / 941 行**、`README.md` **48689B / 999 行**、`.env.example` **3670B / 67 行**（四者仍 `CR=0`、`BOM=False`、`LF` 计数 = 行数）。⚠️ **该条里的「F19 的命中行号未漂」已被推翻**：docs-detail 结构审计轮复测发现 `docs/RUNBOOK.md` 之后又被改写（**82280B / 1531 行 → 82833B / 1536 行**），12 分支模式的命中行号**整串偏移** —— 本轮已把 F19 的行号快照改成**按章节的分布 + 带时间的快照**。
 - **docs-detail 结构审计轮 + 第 2 轮返工复测（当前值，最后一次测量时刻 `2026-10-12 19:20`）**：`docs/RUNBOOK.md` **82835B / 1536 行**（`LastWriteTime` = **2026-10-12 19:17:15**，SHA256 前 16 位 `7B926E6DDDE6631E`；该文件在核对期间又被写过一次，82833B → **82835B**，行数仍 1536）、`README.md` **48970B / 995 行**（18:59:55，SHA256 前 16 位 `A344F41B51D4DE17`；上一版 48689B / 999 行，第 2 轮返工期间又由 48933B 增到 **48970B**）、`docs/DOCKER.md` **41833B / 932 行**（18:56:10，SHA256 前 16 位 `F1CFA8F32126629F`；上一版 41631B / 941 行，第 2 轮返工期间又由 41815B 增到 **41833B**）、`.env.example` **3670B / 67 行**（未变）。⚠️ 前三个文档**仍在被别的角色改写**，这些值只是**核对时刻**的。
 
 8. ✅ **已完成（第 1 / 2 轮返工 + docs-detail 结构审计轮复测）——`docs/RUNBOOK.md` 的字节 / 行数已重测**：该项原为「⏳ 需要在新节落定后重测」。沿革：**69739B / 1310 行 → 79010B / 1490 行（新增 §1.8「部署前自检」）→ 82252B / 1531 行（第 1 轮返工，`LastWriteTime` = 2026-10-12 11:38:25，SHA256 前 16 位 `BB5F4D5446F268E9`）→ 82280B / 1531 行（第 2 轮返工，11:50:19，`87AB86F53D91EAE8`）→ 82833B / 1536 行（docs-detail 结构审计轮，`LastWriteTime` = 2026-10-12 18:34:03，SHA256 前 16 位 `D9997CE86304B047`；`git diff --numstat` = +9 / -4）→ **82835B / 1536 行**（第 2 轮返工期间，`LastWriteTime` = 2026-10-12 19:17:15，SHA256 前 16 位 `7B926E6DDDE6631E`；行数仍 1536）**。各次均 `CR=0`、`BOM=False`，F17 表已同步到**最后一次复测**的值。⚠️ **该文件本轮仍在被别的角色改写**，上面的值只是**核对时刻**的，不是稳定事实；**本文件对该文档的引用一律用章节 / 内容引用**，不受行号漂移影响。重测命令：`[System.IO.File]::ReadAllBytes('C:\Work\短剧聚合\短剧聚合\docs\RUNBOOK.md').Length` 与 `(Get-Item -LiteralPath <同一绝对路径>).Length` 交叉验证，行数用 `ReadAllLines(...).Count`。
+   - **pack-and-port 轮再测（当前值）**：`docs/RUNBOOK.md` **111309B / 1962 行**（`LastWriteTime` = **2026-10-13 19:00:02**，SHA256 前 16 位 `1C43FAC0AAF313F4`）；同一时刻 `README.md` **53451B / 1057 行**（18:33:19）、`docs/DOCKER.md` **61181B / 1163 行**（18:40:51）。三个文档本轮仍**只读未写入**（本角色边界之外）。⚠️ 三者在核对期间都被写过**第二次**（`docs/DOCKER.md` 18:35:04 → **18:40:51**、工作流 18:30:06 → **18:40:21**），本表给的是**最后一次**复测值。
 
 ---
 
 ## 5. 本文件的自检（C2 / C3）
 
-**C3 —— 两条机械模式扫本文件，命中必须为 0。下面的命令与输出是第 1 轮返工的实跑记录；docs-detail 结构审计轮在**编辑完本文件之后**用同两条命令重跑，结果仍是 **0 / 0**。**
+**C3 —— 两条机械模式扫本文件，命中必须为 0。下面的命令与输出是第 1 轮返工的实跑记录；docs-detail 结构审计轮与 **pack-and-port 轮**都在**编辑完本文件之后**用同两条命令重跑，结果仍是 **0 / 0**（pack-and-port 轮首次实跑时刻 `2026-10-13 18:41`；**第 1 轮返工修完后重跑 `2026-10-13 19:09`，仍为 0 / 0**）。**
 
 ```powershell
 $f = 'C:\Work\短剧聚合\短剧聚合\docs\DEPLOY-FACTS.md'
@@ -763,8 +826,10 @@ PS> (Select-String -Path $f -Pattern $declaredParamPattern -CaseSensitive -Encod
 | F21 | 多架构构建：`--platform=$BUILDPLATFORM`（含 `final` 不加的理由） | ✅ |
 | F22 | 构建期自检的六条（逐条 文件:行 + 命令） | ✅ |
 | F23 | `.dockerignore` 排除清单（含本轮新增两条） | ✅ |
+| F24 | 镜像名统一为 `docker-muse-video`（compose 默认值 / 构建命令 / `docker save` 单文件 / CI 工件） | ✅ |
+| F25 | 对外端口：空闲端口的「查 → 设 → 验证外网可达」（含让 Docker 自动分配的备选法） | ✅ |
 
-**合计 23 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 **17 条**「文档易错点」（其中 2-1 ~ 2-4、2-9 ~ 2-11、2-14、2-16 由提交 `687e7d3` 与那批未提交改动修复、**2-10 由删除 `redis` 服务修复**、**2-17 由后续提交改对两处行号**，均已改标为「✅ 已修复」；**其余 2-5 ~ 2-8、2-12、2-13、2-15 本轮复测仍然成立**）与 §3 速查表。
+**合计 25 条事实**（≥10 条），每条均给出 `文件:行` 与实际值。另有 §2 的 **17 条**「文档易错点」（其中 2-1 ~ 2-4、2-9 ~ 2-11、2-14、2-16 由提交 `687e7d3` 与那批未提交改动修复、**2-10 由删除 `redis` 服务修复**、**2-17 由后续提交改对两处行号**，均已改标为「✅ 已修复」；**其余 2-5 ~ 2-8、2-12、2-13、2-15 本轮复测仍然成立**）与 §3 速查表。
 
 > **本文件本轮（定向返工）改动范围**：文档头的核对快照说明、§0 残留引用扫描口径、F17 编码与行尾表（新增「字节」列并刷新过期值）、F18 第 1 条的复现命令、F19 全节（计数与结论按实测重写）、§2 的 2-1 / 2-2 / 2-3 / 2-4 / 2-9 / 2-11 / 2-14 / 2-16、§4 第 6 项与第 3 项的行号、§5 的 C3 说明与 C2 表里 F19 那一行。
 > **另外**：因为 `README.md`（+5 行）与 `docs/DOCKER.md`（+9 行）在本轮核对期间被那批未提交的 cron 日志修复改过，本文件里**所有指向这两个文件的行号引用**都按新行号整体刷新过一遍（`README.md` 后半段 +5、`docs/DOCKER.md` 后半段 +9）。
@@ -821,7 +886,7 @@ PS> (Select-String -Path $f -Pattern $declaredParamPattern -CaseSensitive -Encod
 > ② **代码与配置文件引用逐条回读，一处未改**（清单见文档头「本次刷新（docs-detail 结构审计轮）」那条）；**F17 表 11 行全部按实测重填**，其中三个被别的角色改写的文档按**最后一次复测**刷新（第 2 轮返工期间又各改过一次，已同步）：`README.md` **48970B / 995 行**（`LF` = 995；该轮记的是 48933B）、`docs/DOCKER.md` **41833B / 932 行**（该轮记的是 41815B）、`docs/RUNBOOK.md` **82835B / 1536 行**（该轮记的是 82833B）。
 > ③ **F19 的计数复测**：四种口径为 **`50 / 27 / 4 / 4`**（口径 ② 追加 C 表三条分支后 **29**），分布为 **`.gitattributes` 1 / `README.md` 1 / `docs/DOCKER.md` 2 / `docs/RUNBOOK.md` 23**；本文件自身命中仍 **23 行**。（该轮记的是 `52 / 29 / 6 / 6`、`docs/DOCKER.md` 4 行 —— 差的 2 行是本轮 B1 改掉的两处标题锚点假阳性。）
 > ④ **修掉三处指向文档的裸行号**：F19 的 `docs/RUNBOOK.md` 逐行命中行号快照（与实测**整串不符**）→ 改成**按章节的分布 + 带测量时刻的快照**；§2-17 的两处 `docs/RUNBOOK.md` 行号（记录值 `:1321` / `:1419`，实测 `:1326` / `:1424`）→ 改成**章节引用 + 内容引文**；§2-10 里三个文档的 redis 核查行号 → 同样改成**章节定位**。
-> ⑤ **自检实跑（编辑完成后）**：本文件 `CR=0`、BOM=`False`、行尾 **LF**、`LF` 计数 = 行数（**836 行**，第 2 轮返工编辑后重测）；§0.1 的两条 C3 判据扫本文件 **0 / 0 命中**（命令与输出见 §5）；F19 那条更宽的 12 分支模式扫本文件 **23 行**（与声明一致）。逐条抽核结果（≥10 条「引用 / 数字 vs 实测」）见 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md`。
+> ⑤ **自检实跑（编辑完成后）**：本文件 `CR=0`、BOM=`False`、行尾 **LF**、`LF` 计数 = 行数（**911 行**，pack-and-port 轮编辑后重测）；§0.1 的两条 C3 判据扫本文件 **0 / 0 命中**（命令与输出见 §5）；F19 那条更宽的 12 分支模式扫本文件 **23 行**（与声明一致）。逐条抽核结果（≥10 条「引用 / 数字 vs 实测」）见 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md`（pack-and-port 轮的核对表在 `.dsh-team/pack-and-port/work/facts-guard/FACTS-CHECK.md`）。
 > ⑥ **本轮发现、但不改（边界之外，只报告）**：
 > - **`README.md` 末行缺结尾换行 —— 已发现并已由别人修掉**（18:42 核对时 `LF` = 994 ≠ 995 行；18:45:51 复测 `LF` = 995、末字节 `0x0A`）。修复在 `link-path-auditor` 的边界内完成，本文件只记录，见 F17 表下方的 ✅ 条；
 > - **`README.md` / `docs/DOCKER.md` / `docs/RUNBOOK.md` 本轮仍在被改**：F17 表里这三行的字节 / 行数是**核对时刻**值（最后一次测量时刻 `2026-10-12 19:16`），随时会再变 —— 本文件对这三个文档的**定位已全部改成章节引用**，所以数字再漂也不影响按图索骥；
@@ -831,6 +896,16 @@ PS> (Select-String -Path $f -Pattern $declaredParamPattern -CaseSensitive -Encod
 > ① **只写了 `docs/DEPLOY-FACTS.md` 这一个文件**（外加自己名下的核对表 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md`，该目录被 `.gitignore:49` 忽略、不进仓库）。`README.md`、`docs/DOCKER.md`、`docs/RUNBOOK.md` 由别的角色改写，本角色**只读实测、未写入**。
 > ② **B1 修复 —— F17 表两行按实测刷新**：`README.md` **48933B → 48970B**（行数仍 995）、`docs/DOCKER.md` **41815B → 41833B**（行数仍 932）。这两个数字正是本轮 B3（`README.md` 3 处改写，净 +37B）与 B1（`docs/DOCKER.md` 4 处改写，净 +18B）造成的；上一版没同步，根因是本文件落盘早于那两个文档（`LastWriteTime`：本文件 **18:46:10** < `docs/DOCKER.md` **18:56:10** < `README.md` **18:59:55**）。**其余 9 行逐项复测与表内值完全一致，一字未动。** 同一对数字在 F17 表、表下 ⚠️ 条、本轮复测条、§4 第 7 项与本节 ② 已全部同步。
 > ③ **B2 修复 —— F19 四种口径按声明的 12 分支模式重扫，改为 `50 / 27 / 4 / 4`**（口径 ② 追加 C 表三条分支后 **29**）；口径 ② 分布改为 `.gitattributes` 1 / `README.md` 1 / `docs/DOCKER.md` **2** / `docs/RUNBOOK.md` 23；口径 ③ 的 4 行清单改为 `.gitattributes:12`、`README.md` §一「快速开始」→「4. 容器化部署（推荐）」、`docs/DOCKER.md` §「平台速查」、`docs/DOCKER.md` §三「更新与自动更新」→「1. 手动更新一次」；命中快照里 `docs/DOCKER.md` 改为 **86、320**；**B 表（模式假阳性）已清空**，改标为「已随 B1 消失、不再命中」。本文件自身命中仍 **23 行**。独立复算脚本与逐条输出见核对表 §2-D。
-> ④ **B3 修复 —— 标题与锚点引文**：§0.1 的锚点说明、F13、§2-10 里 `docs/DOCKER.md` §五的标题引文一律改为「数据库：SQLite 与 PostgreSQL」（实测 `docs/DOCKER.md:563`）；§0.1 里那段「`/` 被去掉后留下双连字符、属正常 Markdown」的成因解释已按「该假阳性来源已随 B1 消失」重写；B 表里「锚点本身在 `docs/DOCKER.md` 里仍然是那个字面量」的说法已删除。实测旧字面量全仓库 **0 命中**（`git grep` 退出码 **1**）。
+> ④ **B3 修复 —— 标题与锚点引文**：§0.1 的锚点说明、F13、§2-10 里 `docs/DOCKER.md` §五的标题引文一律改为「数据库：SQLite 与 PostgreSQL」（实测 `docs/DOCKER.md` §五「数据库：SQLite 与 PostgreSQL」的标题行）；§0.1 里那段「`/` 被去掉后留下双连字符、属正常 Markdown」的成因解释已按「该假阳性来源已随 B1 消失」重写；B 表里「锚点本身在 `docs/DOCKER.md` 里仍然是那个字面量」的说法已删除。实测旧字面量全仓库 **0 命中**（`git grep` 退出码 **1**）。
 > ⑤ **自检实跑（编辑完成后）**：本文件 `CR=0`、`BOM=False`、行尾 **LF**、`LF` 计数 = 行数；§0.1 的两条 C3 判据扫本文件 **0 / 0 命中**；F19 那条更宽的 12 分支模式扫本文件 **23 行**（与声明一致）。逐条抽核结果（远超「≥10 条」）见 `.dsh-team/docs-detail/work/facts-guard/FACTS-CHECK.md`。
-> ⑥ ✅ **已闭环 —— 原「`docs/RUNBOOK.md` §7.4「PostgreSQL 模式（可选）」的提示块里仍把 `docs/DOCKER.md` 第五节引作旧标题」**：该处已由 **`runbook-detail-fixer`** 在**第 2 轮返工**中把「数据库：SQLite / PostgreSQL」改成「数据库：SQLite 与 PostgreSQL」。本角色复核实测（核对时刻行号 `docs/RUNBOOK.md:1423`，**行号只是快照、定位一律按 §7.4**）：该行现为「…（`docs/DOCKER.md` 第五节「数据库：SQLite 与 PostgreSQL」）。」，与 `docs/DOCKER.md:563` 的 `## 五、数据库：SQLite 与 PostgreSQL` 一致；该文件由别的角色改写，本角色**只读实测、未写入**。**原「只报告不改、记入 open questions」的处置至此闭环**，核对表里对应条目已一并改标为已闭环。
+> ⑥ ✅ **已闭环 —— 原「`docs/RUNBOOK.md` §7.4「PostgreSQL 模式（可选）」的提示块里仍把 `docs/DOCKER.md` 第五节引作旧标题」**：该处已由 **`runbook-detail-fixer`** 在**第 2 轮返工**中把「数据库：SQLite / PostgreSQL」改成「数据库：SQLite 与 PostgreSQL」。本角色复核实测（核对时刻行号 `docs/RUNBOOK.md:1423`，**行号只是快照、定位一律按 §7.4**）：该行现为「…（`docs/DOCKER.md` 第五节「数据库：SQLite 与 PostgreSQL」）。」，与 `docs/DOCKER.md` §五的标题 `## 五、数据库：SQLite 与 PostgreSQL` 一致；该文件由别的角色改写，本角色**只读实测、未写入**。**原「只报告不改、记入 open questions」的处置至此闭环**，核对表里对应条目已一并改标为已闭环。
+> **本次刷新（pack-and-port 轮，本角色 = facts-guard；对应验收标准 C6 与「抽查 ≥8 条引用 / 数字与实测一致」）改动范围与自检**：
+> ① **只写了 `docs/DEPLOY-FACTS.md` 这一个文件**（外加自己名下的核对表 `.dsh-team/pack-and-port/work/facts-guard/FACTS-CHECK.md`，该目录被 `.gitignore:49` 忽略、不进仓库）。`README.md`、`docs/DOCKER.md`、`docs/RUNBOOK.md`、`.env.example`、两个 compose、`Dockerfile`、工作流本轮由 `image-packager` / `port-runbook` 改写，本角色**只读实测、未写入** —— `git status --porcelain -uall` 实测 ` M` 的八个文件全部是别人的边界。
+> ② **镜像名（F24）**：`docker-compose.yml:27` 的默认值、`Dockerfile:7-8` 的示例、工作流的本地构建标签与 `docker save` / 工件名、`docs/DOCKER.md` §三「8. 离线部署」全部对齐到 `docker-muse-video`；**新增 F24** 逐条给出 文件:行。
+> ③ **容器名（F1 / F5 / F14 / §3）**：`docker-compose.yml:42` 的 `container_name: docker-muse-video` 是上一轮 `one-container` 落地的未提交改动，本文件上一版写的「两个 compose 里 `container_name:` 键 0 个」**已失效**，本轮按实测重写；`docker-compose.postgres.yml` 的 `postgres` 服务**刻意不设**该键（`:33-35`）也已如实记录。
+> ④ **端口（F25）**：`.env.example:10-24` 的新说明段、`docs/RUNBOOK.md` §4.7 / §4.8 / §4.9 三节、`docs/DOCKER.md` §一「6. 改运行端口」与 §九「端口打不开」、`README.md` §一「4. 容器化部署（推荐）」的 📌 提示块**逐处核对**后写成 **F25**；并如实记下一条容易写错的硬事实：**`APP_PORT=` 留空不会让 Docker 自动分配端口**（`:-` 对空值也取默认值）。
+> ⑤ **行号与字节数整体刷新（F17 / F13 / F14 / F2 / F4 / F5 / F6 / F10 ~ F12 / F16 / F19 / §2 / §3 / §4）**：`docker-compose.yml` 89 → **105 行**、`docker-compose.postgres.yml` 49 → **59 行**、`.env.example` 67 → **80 行**、工作流 75 → **145 行**；F17 表从 11 行扩到 **13 行**（新增工作流与本文件自身两行），`CR=0`、`BOM=False`、`LF` 计数 = 行数。
+> ⑥ **F19 计数复测**：四种口径仍为 **`50 / 27 / 4 / 4`**（口径 ② 追加 C 表三条分支后 **29**），分布仍是 `.gitattributes` 1 / `README.md` 1 / `docs/DOCKER.md` 2 / `docs/RUNBOOK.md` 23；本文件自身命中仍 **23 行**（与 F19 声明一致）。**变的只是逐行行号**（两个文档都大幅改写），已按「文档引用一律用章节引用」的约定把快照行号标注为带测量时刻的快照。
+> ⑦ **自检实跑（pack-and-port 轮首次自检 `2026-10-13 18:41`；第 1 轮返工修完后重跑 `2026-10-13 19:09`）**：本文件 **911 行 / 182766 字节**、`CR=0`、`BOM=False`、行尾 **LF**（`LF` 计数 = 行数 = 911）；§0.1 的两条 C3 判据（模式一 = 两个已删包装脚本的完整文件名；模式二 = F20 登记的全集 20 个已删参数原写法）扫本文件均 **0 命中**；F19 那条更宽的 12 分支模式扫本文件 **23 行**（与声明一致）。逐条抽核（**20 条**「引用 / 数字 vs 实测」）见 `.dsh-team/pack-and-port/work/facts-guard/FACTS-CHECK.md`。
+> ⑧ **本轮发现、但不改（边界之外，只报告）—— 四处均已在同一轮内由别的角色修掉（第 1 轮返工复测）**：① `docs/RUNBOOK.md` 的卸载示例曾写着 **`docker rmi shortdrama:latest`**（旧镜像名，与 C1「仓库里不再有 `shortdrama:latest`」冲突）—— **复测该文件搜 `shortdrama:latest` → 0 命中**，已改对；`docs/DOCKER.md` §十「卸载」的同类行一直是 `docker rmi docker-muse-video:latest`（核对时刻 `:1133`）。② `docs/RUNBOOK.md` §1.2 速查表「对外端口」行与 §4.1 / §4.5 曾把证据写成 `docker-compose.yml:45`（那是 `ports:` 键所在行，**映射字面值在 `:46`**）—— **复测该文件现一律写 `docker-compose.yml:46`，写 `:45` 的行 0 处**。③ `docs/RUNBOOK.md` §7.4 的提示块曾写 `docker-compose.postgres.yml:54-55`，按字面应为 `:53-55`（漏了 `:53` 那条说明注释）—— **复测已写 `:53-55`**。④ `.env.example:61` 曾写「容器名 = `<项目名>-<服务名>-1`，例如 `shortdrama-app-1`」（Compose 的**通用规则**，与本项目已把 `app` 的容器名写死为 `docker-muse-video` 的事实**不同口径**）—— **复测该行现为 `#   容器名 = docker-muse-video      固定，不受项目名影响`**，与本项目事实一致（同文件 `:75-76` 指向 `docs/DOCKER.md` 第一节第 5 小节）。以上四处都在别人的边界内，本角色**只报告不改**，现已闭环。
+> ⑨ **运行期行为本机一律未实测**（本机未安装 docker）：`docker save` / `docker load` 的实际输出、`docker compose port` 的分配结果、`!override` 的合并语义、外网可达与否，都仍是「文档语义级 / 命令级」结论，不写成实测结论。

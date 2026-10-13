@@ -1,5 +1,5 @@
 # ============================================================================
-# 构建镜像并推送到 GitHub Container Registry (GHCR)
+# 构建镜像、推送到 GitHub Container Registry (GHCR)，并把镜像导出成可下载的 tar 工件
 #
 # 触发：push 到 main、打 v* 标签、或在 Actions 页面手动触发。
 #
@@ -10,7 +10,7 @@
 # 首次使用：仓库 Settings → Actions → General 确认允许运行工作流；
 # 推上来的包默认是私有的，见 docs/DOCKER.md「预构建镜像」一节。
 # ============================================================================
-name: 构建并推送镜像
+name: 构建镜像、推送 GHCR 并产出 tar 工件
 
 on:
   push:
@@ -73,3 +73,73 @@ jobs:
           # 复用 Actions 缓存，依赖没变时后续构建快很多
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # ======================================================================
+      # 以下三步把镜像导出成单文件 tar 并作为可下载工件上传。
+      #
+      # 用途：部署机**没有编译能力**（装不了 Node 20 / .NET SDK，或 CPU、内存不够），
+      #       或者**拉不到 GHCR**（受限网络、私有包、镜像仓库不可达）时，
+      #       直接在 Actions 运行页面底部 Artifacts 区下载 tar → 拷到服务器
+      #       → `docker load -i docker-muse-video.tar` → `docker compose up -d`。
+      #       完整流程见 docs/DOCKER.md 第三节第 8 小节「离线部署」。
+      #
+      # 为什么"再构建一次"而不是给上面那步加 load: true：
+      #   build-push-action 的 push 与 load 是两种**互斥的输出方式**（buildx 的
+      #   `--push` / `--load`，分别对应 registry 与 docker 两种 exporter），
+      #   同一行里同时声明会互相冲突；而上面那步必须保持 push（GHCR 是既有的交付通道）。
+      #   所以这里拆成独立一步，只声明 load 这一种输出，语义明确、不改变原来的推送行为。
+      #   代价是构建跑第二遍 —— 但下面这步 `cache-from: type=gha` 复用上一步刚写进
+      #   gha 缓存的层，依赖没变时只是重放缓存，几乎不额外耗时。
+      #
+      # 为什么必须单平台：docker 格式的 tar **装不了 manifest list**（多平台清单），
+      #   `docker save` 也只能存本地 docker 里的单个镜像。所以先判断 PLATFORMS：
+      #   带逗号（多平台）时，下面三步会被 `if: steps.plat.outputs.single == 'true'` 跳过
+      #   并打印一条 warning，GHCR 推送不受影响。
+      #   守卫刻意用 **steps 上下文**（`steps.<id>.outputs`）而不是 `env` 上下文 ——
+      #   step 级 `if` 里 steps 的可用性是确定的，少一个不确定的依赖。
+      #   需要 tar 就把 PLATFORMS 改成单个平台（如 linux/arm64，给 ARM 服务器用）。
+      # ======================================================================
+
+      - name: 判断 PLATFORMS 是否为单平台（tar 只支持单平台）
+        id: plat
+        run: |
+          set -euo pipefail
+          if [[ "$PLATFORMS" == *,* ]]; then
+            echo "single=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PLATFORMS=$PLATFORMS 是多平台，docker 格式的 tar 只能装单平台镜像，已跳过 tar 工件。需要 tar 请把工作流顶部的 PLATFORMS 改成单个平台（如 linux/arm64）后重跑。"
+          else
+            echo "single=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 把镜像构建到 runner 的本地 docker（load: true）。
+      # 标签必须与 docker-compose.yml 的默认值一致：docker-muse-video:latest。
+      - name: 构建到本地（供导出 tar，不推送）
+        if: steps.plat.outputs.single == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ env.PLATFORMS }}
+          push: false
+          load: true
+          tags: docker-muse-video:latest
+          # 关掉 attestation：它会让输出变成 manifest list，docker 格式的导出（load / save）不接受
+          provenance: false
+          cache-from: type=gha
+
+      - name: 导出镜像 tar
+        if: steps.plat.outputs.single == 'true'
+        run: |
+          set -euo pipefail
+          docker save -o docker-muse-video.tar docker-muse-video:latest
+          ls -lh docker-muse-video.tar
+
+      - name: 上传镜像 tar 工件
+        if: steps.plat.outputs.single == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-muse-video-tar
+          path: docker-muse-video.tar
+          # 没产出文件就是失败（别上传一个空工件、让部署机上才发现）
+          if-no-files-found: error
+          retention-days: 14

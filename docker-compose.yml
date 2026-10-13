@@ -6,11 +6,16 @@
 # 默认使用 SQLite，数据落在命名卷 shortdrama-data，无需额外依赖。
 # 想换 PostgreSQL 见 docker-compose.postgres.yml。
 #
-# 部署模式由 .env 里的 SHORTDRAMA_IMAGE 决定：
-#   留空          源码模式：本地 docker compose build 构建（默认）
+# 部署模式由 .env 里的 SHORTDRAMA_IMAGE 决定（默认镜像名 docker-muse-video:latest）：
+#   留空          本地模式：本地已有 docker-muse-video:latest 就直接用，没有才 build（默认）
 #   填 GHCR 地址  镜像模式：直接拉预构建镜像，不在本机编译，更新只需几秒
 #
 # 访问： http://localhost:18080
+#
+# 容器数量：**只有 app 一个**（容器名与镜像名统一为 docker-muse-video，见下面 app 服务上的注释）。
+#          想用 PostgreSQL 时套上 docker-compose.postgres.yml 才会变成 2 个容器。
+# ⚠️ 固定的是**容器名**，卷名**没有固定**：仍然是 <项目名>_shortdrama-data
+#    （项目名默认取部署目录名）。改卷名 = 换卷 = 已有数据全部变成孤儿，**别动卷名**。
 # ============================================================================
 
 services:
@@ -18,12 +23,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # 默认是本地构建的标签；设了 SHORTDRAMA_IMAGE 就换成远端镜像（见 docs/DOCKER.md）
-    image: ${SHORTDRAMA_IMAGE:-shortdrama:latest}
-    # 刻意不设 container_name：固定名字会关掉 Compose 的项目名前缀，
-    # 同一台机器上从两个目录部署同一份 compose 就会撞名
-    # （报 "Conflict. The container name ... is already in use"）。
-    # 需要按名字操作容器时用服务名：docker compose exec app / docker compose cp app:/data/...
+    # 默认标签与容器同名：docker-muse-video:latest；设了 SHORTDRAMA_IMAGE 就换成远端镜像（见 docs/DOCKER.md）
+    image: ${SHORTDRAMA_IMAGE:-docker-muse-video:latest}
+
+    # 容器名固定为 docker-muse-video。
+    # 为什么这个固定名是安全的：它是**本项目专属**的名字，不会撞上别人的通用名
+    # （redis / new-api 这类名字人人都可能用，本项目一个都不占）。
+    # 代价：container_name 会**关掉 Compose 的项目名前缀**，所以同一台机器上
+    # **不能从两个目录同时部署本项目** —— 第二个会报
+    # 'Conflict. The container name "/docker-muse-video" is already in use'。
+    # 名字真被占了别急着删：先 docker inspect 看归属，再
+    # docker rename docker-muse-video docker-muse-video-old 解封（非破坏性）。
+    #
+    # ⚠️ 固定的是容器名，**卷名没有被固定**：仍然是 <项目名>_shortdrama-data
+    #    （项目名默认取部署目录名，可用 COMPOSE_PROJECT_NAME 或 -p 指定）。
+    #    改卷名 = 换卷 = 服务器上已有的 SQLite 数据、收藏、观看历史全部变成孤儿，
+    #    应用起来是空的 —— **卷名一个字都不要改**。
+    container_name: docker-muse-video
     restart: unless-stopped
 
     ports:

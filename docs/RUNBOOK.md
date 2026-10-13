@@ -19,7 +19,7 @@
 | 一、前置要求 | 环境、关键事实速查、禁令、命令标注约定、**部署前自检** | 动手之前 |
 | 二、首次部署 | 从零到能打开站点，含验证清单 | 第一次部署 |
 | 三、升级与回滚 | 源码模式 / 镜像模式升级、回滚、升级后已知坑 | 每次更新 |
-| 四、端口配置 | 端口的三层结构、改端口、只绑本机 | 换端口 / 配反代 |
+| 四、端口配置 | 端口的三层结构、**先查空闲端口**、改端口、只绑本机、**验证外网可达** | 换端口 / 配反代 / 打不开 |
 | 五、定时更新与迁移 | cron / 计划任务的原生写法，**从旧脚本时代迁移** | 想自动更新 / 老部署机 |
 | 六、种子服务（可选） | 宿主上的 torrent-search 接入与排查 | 要用种子功能 |
 | 七、备份恢复与故障排查 | 卷、备份、恢复、卸载、故障速查 | 出事时 / 定期维护 |
@@ -30,34 +30,44 @@
 
 ### 1.1 部署形态（先知道你要部署的是什么）
 
-- **单容器**：前端（Vue3 + Vite）与后端（.NET 10）打进同一个镜像，静态资源由 .NET 直接托管，
-  **不需要额外的 Nginx 容器**（`Dockerfile:1-11`）。
-- **compose 只有一个服务，服务名是 `app`**（`docker-compose.yml:17`）。
+- **默认就是 1 个容器**：前端（Vue3 + Vite）与后端（.NET 10）打进同一个镜像，静态资源由 .NET 直接托管，
+  **不需要额外的 Nginx / Redis 容器**（`Dockerfile:1-11`）。PostgreSQL 覆盖文件是**可选**的
+  2 容器路径（`app` + `postgres`），见 7.4。
+- **compose 只有一个服务，服务名是 `app`**（`docker-compose.yml:22`）。
   所有 compose 子命令都用服务名操作：`docker compose logs app`、`docker compose exec app ...`。
-- **compose 刻意不设 `container_name`**（`docker-compose.yml:23-26`），所以容器名形如
-  `<项目名>-app-1`。**不要**在命令里写死容器名，用服务名或 `docker compose ps -q app` 取 id。
-- **默认数据库是 SQLite**，数据落在命名卷里，零外部依赖（`docker-compose.yml:6-7`、`:35-37`）。
+- **容器名固定为 `docker-muse-video`**：compose 在 `app` 服务下**显式设了**
+  `container_name: docker-muse-video`（`docker-compose.yml:42`，上面 `:29-41` 是解释为什么这个固定名安全
+  以及「同机不能两处部署」的注释），
+  所以 `docker exec` / `docker logs` / `docker cp` 都可以**直接写这个名字**，不必再用
+  `docker compose ps -q app` 取 id。**代价**：这个名字在全机唯一 —— 同一台机器上
+  **不能从两个目录同时部署本项目**（第二个会报名字冲突，处理办法见 2.5）。
+- ⚠️ **容器名固定 ≠ 卷名固定**：数据卷实际名**仍然随项目名**，是 `<项目名>_shortdrama-data`
+  （项目名默认取部署目录名）。**不要为了让卷名跟容器名对齐去改卷名** —— 卷名一变就是挂一个
+  **全新的空卷**，已有的 SQLite 库、收藏、观看历史都留在旧卷里**不会跟过来**。详见 1.5 与 7.1。
+- **默认数据库是 SQLite**，数据落在命名卷里，零外部依赖（`docker-compose.yml:6-7`、`:51-53`）。
   想换 PostgreSQL 见 7.4。
 
 ### 1.2 关键事实速查（写死这些值，照着用就行）
 
 | 事项 | 值 | 证据（文件:行） |
 |---|---|---|
-| compose 服务名 | `app` | `docker-compose.yml:17` |
-| 对外端口 | `${APP_PORT:-18080}` → **默认 18080** | `docker-compose.yml:30` |
+| compose 服务名 | `app` | `docker-compose.yml:22` |
+| 对外端口 | `${APP_PORT:-18080}` → **默认 18080** | `docker-compose.yml:46` |
 | 容器内端口 | **8080**（固定，不要改） | `Dockerfile:140`、`Dockerfile:147` |
-| 数据卷逻辑名 | `shortdrama-data` | `docker-compose.yml:72`、`:87-89` |
-| 数据卷实际名 | `<项目名>_shortdrama-data`，例如 `shortdrama_shortdrama-data` | `docs/DOCKER.md` 第六节「数据卷、备份与恢复」 |
-| 容器名 | `<项目名>-app-1`，例如 `shortdrama-app-1`。**项目名默认取部署目录名**；要按自己的项目名命名，用 `.env` 的 `COMPOSE_PROJECT_NAME` 或 `docker compose -p <名字>` | `.env.example` 末尾「容器名 / 卷名的前缀」、`docs/DOCKER.md` 第一节「5. 容器名是怎么来的」 |
-| 容器内数据路径 | `/data`，SQLite 文件 `/data/shortdrama.db` | `docker-compose.yml:37`、`Dockerfile:137` |
-| `.env` 生效变量 | **7 个**：`APP_PORT`、`ACCESS_GATE_ENABLED`、`ACCESS_PASSWORD`、`JWT_KEY`、`TORRENT_BASE_URL`、`TORRENT_ENABLED`、`POSTGRES_PASSWORD` | `.env.example:11-44` |
-| `.env` 里被注释掉的变量 | `SHORTDRAMA_IMAGE`（默认注释；填了就是「镜像模式」） | `.env.example:20` |
-| 默认访问口令 | `遵纪守法世界和平` | `.env.example:25`、`docker-compose.yml:42` |
-| 健康检查 | `GET /health`，返回 `{"status":"healthy",...}` | `docker-compose.yml:75`、`Dockerfile:149-150`、`ShortDrama.Api/Program.cs:162` |
+| 数据卷逻辑名 | `shortdrama-data` | `docker-compose.yml:88`、`:103-105` |
+| 数据卷实际名 | **仍然随项目名**：`<项目名>_shortdrama-data`，例如 `shortdrama_shortdrama-data`。项目名默认取部署目录名；`.env` 的 `COMPOSE_PROJECT_NAME` 或 `docker compose -p <名字>` 现在**只影响卷名**（以及 `docker compose ls` 的 `NAME` 列） | `docs/DOCKER.md` 第六节「数据卷、备份与恢复」 |
+| 容器名 | **固定 `docker-muse-video`**：compose 在 `app` 服务下显式设了 `container_name`，**与项目名 / 目录名无关**。`docker exec` / `docker logs` / `docker cp` 都可以直接写这个名字 | `docker-compose.yml:42`（注释 `:29-41`）、`docs/DOCKER.md` 第一节「5. 容器名是怎么来的」 |
+| ⚠️ 容器名与卷名是两套规则 | **容器名固定，卷名仍随项目名**。**不要改卷名** —— 改卷名就是新建一个空卷，旧数据（SQLite 库、收藏、观看历史）留在旧卷里不会跟过来 | 1.5、7.1、`docs/DOCKER.md` 第六节 |
+| 默认容器数量 | **1 个**（SQLite 模式，服务名 `app`，容器名 `docker-muse-video`）。PostgreSQL 覆盖文件是**可选**路径，用它是 **2 个**容器（`app` + `postgres`） | `docker-compose.yml:21-22`、`docker-compose.postgres.yml:23-35`（`services:` 段）、7.4 |
+| 容器内数据路径 | `/data`，SQLite 文件 `/data/shortdrama.db` | `docker-compose.yml:53`、`Dockerfile:137` |
+| `.env` 生效变量 | **7 个**：`APP_PORT`、`ACCESS_GATE_ENABLED`、`ACCESS_PASSWORD`、`JWT_KEY`、`TORRENT_BASE_URL`、`TORRENT_ENABLED`、`POSTGRES_PASSWORD` | `.env.example:24-57` |
+| `.env` 里被注释掉的变量 | `SHORTDRAMA_IMAGE`（默认注释；填了就是「镜像模式」） | `.env.example:33` |
+| 默认访问口令 | `遵纪守法世界和平` | `.env.example:38`、`docker-compose.yml:58` |
+| 健康检查 | `GET /health`，返回 `{"status":"healthy",...}` | `docker-compose.yml:91`、`Dockerfile:149-150`、`ShortDrama.Api/Program.cs:162` |
 | 管理后台 | `/admin`，默认账号 `admin` / `admin123` | `README.md` 第一节「快速开始」→「4. 容器化部署（推荐）」、`ShortDrama.Infrastructure/Data/DbSeeder.cs:147-151` |
 | 站点首页 | `http://<宿主IP>:18080` | `docs/DOCKER.md` 第二节「跑起来之后」 |
 | 运行身份 | 镜像内置的非 root 用户 `app`：**容器仍以 root 启动**（要先给数据卷 `chown`），入口脚本再用 `gosu` 把业务进程降权到 `app`。UID/GID 以容器内实测为准（`docker compose exec app sh -c 'grep ^Uid /proc/1/status'` —— ⚠️ **不是** `docker compose exec app id`，那条输出 `0` 是正常的），**不要写死数字** | `Dockerfile:94-108`、`Dockerfile:127-133`、`docker/entrypoint.sh:17-31` |
-| 容器日志上限 | json-file，10MB × 3 个文件 | `docker-compose.yml:81-85` |
+| 容器日志上限 | json-file，10MB × 3 个文件 | `docker-compose.yml:97-101` |
 | 时区 | `Asia/Shanghai` | `Dockerfile:91` |
 
 > `/health` 与 `/openapi/*` **不受访问口令门拦截**（`ShortDrama.Api/Access/AccessGateMiddleware.cs:74`、
@@ -123,7 +133,7 @@ Windows（PowerShell，**执行位置**同上）：
 **成功判据**：与上一条相同 —— 输出 `96`。
 
 > ⚠️ Windows PowerShell 下**必须带 `-Encoding UTF8`**。实测（PowerShell 5.1，本仓库当前的 `.env.example`，
-> **67 行 / 3670 字节**）：`Get-Content .env` 不带编码参数只读出 **50 行**（正确是 **67 行**）—— 少掉的 17 行是
+> **80 行 / 4732 字节**）：`Get-Content .env` 不带编码参数只读出 **58 行**（正确是 **80 行**）—— 少掉的 22 行是
 > 被 ANSI 解码拼掉的注释行；
 > 且会把 `ACCESS_PASSWORD=遵纪守法世界和平` 里的中文读成乱码 —— 因为 5.1 的默认编码是系统 ANSI 而不是 UTF-8。
 > 上面的自检命令与 4.3 的改端口命令都已加上这个参数。
@@ -136,11 +146,11 @@ Windows（PowerShell，**执行位置**同上）：
 - 只有 1 个字符或 `0` → 上面这条 `sed` 没取到值：确认 `.env` 里是 `JWT_KEY=` 开头、
   **行首没有空格**、且这一行没有被 `#` 注释掉。
 
-> ⚠️ **别照抄 `.env.example:29` 的 Windows 命令**：那里写的是
+> ⚠️ **别照抄 `.env.example:42` 的 Windows 命令**：那里写的是
 > `-join ((1..48) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })`，
 > 循环 48 次只会得到 **48 个**十六进制字符，而同文件下一行 `:30` 的 bash 命令 `openssl rand -hex 48`
 > 得到 **96 个**字符，两条命令**长度不一致** —— 容易让人误以为生成失败而反复重试。
-> 生成 JWT 密钥时以本节为准（`1..96`）。**该长度不一致属仓库侧既存事实**（`.env.example:29` 的 pwsh 命令
+> 生成 JWT 密钥时以本节为准（`1..96`）。**该长度不一致属仓库侧既存事实**（`.env.example:42` 的 pwsh 命令
 > 与同文件 `:30` 的 bash 命令，48 vs 96 个字符）。`DEPLOY-FACTS.md` **目前未收录**这一条 ——
 > 该文件 §2-1 讲的是另一个问题（「JWT_KEY 首次运行脚本会自动替换为随机值」的那个脚本已不存在），
 > 建议提给仓库维护者。
@@ -158,14 +168,15 @@ Windows（PowerShell，**执行位置**同上）：
 
 ### 1.5 部署目录必须是 ASCII 名（很重要，且很容易踩）
 
-Compose 的**项目名默认取自你执行 `docker compose` 时所在的目录名**，而项目名又决定了卷名前缀与容器名前缀。
+Compose 的**项目名默认取自你执行 `docker compose` 时所在的目录名**。⚠️ **项目名现在只决定卷名**
+（`<项目名>_shortdrama-data`）—— 容器名已经**固定**为 `docker-muse-video`，不再跟项目名走。
 规范化只做两步：**① 全部转小写；② 只保留 `a-z`、`0-9`、`-`、`_`，其余字符一律删掉**（**不是**换成 `-`），
 最后再砍掉开头的 `-` / `_`。所以目录名直接决定结果，四种情况**完全不同**：
 
-| 目录名 | 规范化后的项目名 | 卷名 / 容器名 | 结果 |
+| 目录名 | 规范化后的项目名 | 数据卷名（容器名恒为 `docker-muse-video`） | 结果 |
 |---|---|---|---|
-| `shortdrama` | `shortdrama` | `shortdrama_shortdrama-data` / `shortdrama-app-1` | 正常 |
-| `ShortDrama`（含大写） | `shortdrama` | 同上 | 正常（但名字**不是**你写的那个） |
+| `shortdrama` | `shortdrama` | `shortdrama_shortdrama-data` | 正常 |
+| `ShortDrama`（含大写） | `shortdrama` | 同上 | 正常（但卷名**不是**你以为的那个） |
 | `short drama`（含空格） | `shortdrama` | 同上 | 正常（同上） |
 | `短剧聚合`（**纯中文 / 纯非 ASCII**） | **空串** | —— | **`docker compose` 直接拒绝执行** |
 
@@ -176,7 +187,9 @@ Compose 的**项目名默认取自你执行 `docker compose` 时所在的目录�
 project name must not be empty
 ```
 
-**一个容器、一个卷都不会被创建** —— 不存在「中文前缀的容器名」这种东西。
+**一个容器、一个卷都不会被创建**。⚠️ 这条结论**与容器名无关**：项目名为空串时 Compose 在**解析阶段**
+就拒绝执行，容器名固定成 `docker-muse-video` 也**救不了它** —— 项目名现在只影响**卷名前缀**
+（以及 `docker compose ls` 的 `NAME` 列）。
 ⚠️ **本仓库当前的工作目录就是 `C:\Work\短剧聚合\短剧聚合`（中文）**，所以在这个目录里直接敲
 `docker compose up -d` **必然报上面这个错**，必须先做下面两件事之一。
 
@@ -196,13 +209,14 @@ cd shortdrama
 
 - **已经克隆到中文目录里了**（`pwd` 里没有 ASCII 字符）→ 两条路，任选一条，**不用重新 clone**：
   - 临时：命令里加 `-p`，例如 `docker compose -p shortdrama up -d --build`；
-  - 持久：在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释（`.env.example:46-67`）。
+  - 持久：在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释（`.env.example:59-80`）。
     **从一开始就这么做**，别等跑起来有数据了再改（见下一条）。
 - **已经用中文目录部署过、并且容器正在跑** → **不要**随便改目录名或项目名：项目名一变，
-  卷名前缀跟着变，`docker compose up -d` 会去挂一个**全新的空卷**，表现就是「数据没了」。
+  **卷名前缀**跟着变，`docker compose up -d` 会去挂一个**全新的空卷**，表现就是「数据没了」。
+  （容器名不受影响 —— 它固定是 `docker-muse-video`；变的只有卷。）
   必须改的话先按第七章备份，改完再把数据恢复到新卷。
 - 目录名是**中文 + ASCII 混合**（例如 `短剧聚合-drama`）→ 不会报错，但项目名是 ASCII 那一半（`drama`），
-  换个目录名就可能与别的项目**撞前缀**，建议改成纯 ASCII。
+  换个目录名就可能与别的项目**撞卷名前缀**，建议改成纯 ASCII。
 
 > **上面这套规则怎么来的**（写文档的机器上**没装 docker**，所以是**源码级核对**、不是实跑）：
 > 规范化规则逐字来自 Compose 官方实现 `compose-go` 的 `NormalizeProjectName()`
@@ -249,17 +263,20 @@ cd shortdrama
 
 ### 1.8 部署前自检（敲任何 `docker compose` 命令之前先跑，回答三个问题）
 
-**为什么要有这一节**：**容器名和卷名不是本项目"起"的**，是 Compose 按「项目名」拼出来的；
+**为什么要有这一节**：**卷名不是本项目"起"的**，是 Compose 按「项目名」拼出来的；
 而项目名默认取**你执行 `docker compose` 时所在的目录名**（`docs/DOCKER.md` 第一节第 5 小节「容器名是怎么来的」）。
-所以在**别的项目的目录里**敲部署命令，撞上的是**别人的**容器名 —— 报错却是这样：
+（**容器名已经固定**为 `docker-muse-video`，不再跟项目名走；但项目名仍然决定**卷名前缀** ——
+卷名搞错就是挂上空卷、旧数据不跟过来，所以这一节照样必读。）
+所以在**别的项目的目录里**敲部署命令，报错长这样：
 
 ```
 Conflict. The container name "/redis" is already in use
 Conflict. The container name "/muse-api" is already in use
 ```
 
-这两个名字**都不属于本项目**：本项目两个 compose 文件里**没有任何 `container_name:` 键**（各 **0** 次；
-`docker-compose.yml:23-26` 只有一句注释在解释"为什么不设它"）。名字撞了不代表本项目写错了名字 ——
+这两个名字**都不属于本项目**：本项目 `app` 服务的容器名是**固定的 `docker-muse-video`**
+（`docker-compose.yml:42` 的 `container_name:` 键）—— 所以**除了 `docker-muse-video` 之外的
+任何容器名，都不可能是本项目起的**，一定属于别的项目。名字撞了不代表本项目写错了名字 ——
 先确认「我在哪个项目里」，再谈别的。本节 6 条自检就是干这件事。
 
 **执行位置**：宿主 shell（**项目目录**）—— 6 条全部在这里执行。
@@ -267,8 +284,8 @@ Conflict. The container name "/muse-api" is already in use
 
 | 问题 | 看哪几条 | 一眼看什么 |
 |---|---|---|
-| ① 我在部署哪个项目 | 自检 1 / 2 / 3 | `pwd` 的目录名、`name:` 打印的项目名、`CONFIG FILES` 列指向的目录 |
-| ② 容器名 / 卷名会是什么 | 自检 2 + 4 | `<项目名>-app-1`、`<项目名>_shortdrama-data`，其中 `<项目名>` 就是自检 2 打印的那一行 |
+| ① 我在部署哪个项目 | 自检 1 / 2 / 3 | `pwd` 的目录名、`name:` 打印的项目名（项目名现在只决定**卷名**）、`CONFIG FILES` 列指向的目录 |
+| ② 容器名 / 卷名会是什么 | 自检 2 + 4 | 容器名**恒为 `docker-muse-video`**（与项目名无关）；卷名是 `<项目名>_shortdrama-data`，其中 `<项目名>` 就是自检 2 打印的那一行 |
 | ③ 端口是多少 | 自检 5 / 6 | `published`（对外，默认 18080）与 `target`（容器内 8080） |
 
 > **只想用一条命令回答「我在哪个项目里」** → 自检 2：
@@ -310,8 +327,9 @@ docker compose config | grep -m1 -E '^name:'
 name: shortdrama
 ```
 
-这一行就是**容器名和卷名的前缀**。项目名 = 目录名（`docker-compose.yml:17` 的服务名 `app` 不变），
-除非 `.env` 里设了 `COMPOSE_PROJECT_NAME`（`.env.example:46-67`）或命令行加了 `-p`。
+这一行就是**卷名的前缀**（⚠️ **不是**容器名的前缀 —— 容器名已固定为 `docker-muse-video`，见 1.2）。
+项目名 = 目录名（`docker-compose.yml:22` 的服务名 `app` 不变），
+除非 `.env` 里设了 `COMPOSE_PROJECT_NAME`（`.env.example:59-80`）或命令行加了 `-p`。
 Windows：把 `grep -m1 -E '^name:'` 换成 `Select-String -Pattern '^name:' | Select-Object -First 1`。
 
 **不看 Compose 也能算出来**（纯 shell，任何 Compose 版本都成立；`name:` 打印不出来的版本用这条）：
@@ -332,14 +350,17 @@ basename "$PWD"; grep -E '^COMPOSE_PROJECT_NAME=' .env || echo "(未设置 → �
   你所在的目录名里**一个 ASCII 字符都没有**（例如 `短剧聚合`），Compose 算出来的项目名是空串，
   它会**拒绝执行任何 `docker compose` 子命令**。按 1.5 处理：要么 `cd` 到 ASCII 目录名，
   要么命令里加 `-p shortdrama`，要么在 `.env` 里取消 `COMPOSE_PROJECT_NAME=shortdrama` 那行的注释。
+  ⚠️ **容器名固定成 `docker-muse-video` 绕不过这一条**：项目名是空串时 Compose 在解析阶段就拒绝执行，
+  `container_name` 再固定也没机会生效。
   ⚠️ **本仓库当前的工作目录 `C:\Work\短剧聚合\短剧聚合` 就是中文**，所以在这台机器上直接跑
   `docker compose config` 会命中这一条；
 - **输出为空** → 你的 Compose 版本不打印 `name:`，用自检 3 代替，或
-  `docker compose ps -a --format '{{.Name}}'` 看容器名前缀；
+  `docker compose ps -a --format '{{.Name}}'` 看**容器名**（本项目应显示 `docker-muse-video`）；
 - 输出的是**中文 / 大写 / 带空格** → 你正站在一个不合规的目录名里，见 1.5：改成 ASCII 目录名，
   或在 `.env` 里写死 `COMPOSE_PROJECT_NAME=shortdrama`；
 - 输出**不是你以为的名字** → `.env` 里有 `COMPOSE_PROJECT_NAME`（用 `grep -E '^COMPOSE_PROJECT_NAME=' .env` 查）。
-  ⚠️ **改它等于换项目**：卷名跟着变，旧数据卷不会被复用（`.env.example:65-66`）。
+  ⚠️ **改它等于换卷**：卷名跟着变，旧数据卷不会被复用（`.env.example:78-79`）。
+  （容器名**不受影响** —— 它固定是 `docker-muse-video`。）
 
 #### 自检 3｜这台机器上还有哪些 compose 项目？（回答①，也回答"那个 `/redis`、`/muse-api` 是谁的"）
 
@@ -362,8 +383,20 @@ muse-api            running(2)          /opt/muse-api/docker-compose.yml
 
 **不对时怎么办**：`NAME` 列里出现 `redis`、`muse-api` 之类**在本目录 compose 里根本不存在**的服务名 →
 那是**别的项目**留下的容器，**不要去删**（删了会打断别人，还可能连带删掉匿名卷）。
+本项目默认只有 1 个容器、名字固定是 `docker-muse-video`，所以 `NAME` 列里**除了它以外的都不是本项目的**。
 真撞上同名冲突时按 2.5 的办法先判归属：`docker inspect <名字> --format '{{index .Config.Labels "com.docker.compose.project"}}'`，
 是别人的就 `docker rename <名字> <名字>-old` 解封（非破坏性）。
+
+**清理本项目自己的历史遗留容器**（早先版本里有过 `redis` 服务、后来删掉了，旧容器可能还留着）：
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+docker compose down --remove-orphans
+```
+
+**成功判据**：命令无报错；`docker compose ps -a` 里不再有已删除服务的容器。
+`--remove-orphans` **只清理带有本项目标签的容器**，不会碰别人的 `redis` / `new-api`。
 
 #### 自检 4｜容器名 / 卷名会是什么？（回答②）
 
@@ -378,20 +411,26 @@ docker volume ls | grep -E 'shortdrama(-data|-pgdata)$'
 
 - **首次部署前**：第一条只打印表头 `NAME  SERVICE  STATUS`（还没有容器），第二条**无输出**
   （`grep` 找不到东西时退出码是 1，**这是正常的**，不是报错）；
-- **已经部署过**：第一条出现 `<项目名>-app-1`（服务名 `app`），第二条出现 `<项目名>_shortdrama-data`。
+- **已经部署过**：第一条出现 **`docker-muse-video`**（服务名 `app`；容器名**固定**，与项目名无关），
+  第二条出现 `<项目名>_shortdrama-data`。
 
 > 第二条的 `grep` 模式写成 `-E 'shortdrama(-data|-pgdata)$'`，匹配的是**逻辑卷名的结尾**，
 > 这样就不依赖项目名前缀 —— 前缀由**项目名**决定（自检 2），本手册示例里才恰好是 `shortdrama`。
 > 如果你的项目名不是 `shortdrama`，写成 `grep shortdrama` 也照样能筛出来（前缀不同、结尾相同）；
-> 两种写法都只是**筛查**，最终判定归属看的是下面那条：`<项目名>` 必须与自检 2 一致。
+> 两种写法都只是**筛查**，最终判定归属看的是下面那条：卷名里的 `<项目名>` 必须与自检 2 一致。
 
-两条里的 `<项目名>` 必须**等于自检 2 打印的那个名字**。对不上 → 你之前是在**另一个目录 / 另一个项目名**
-下部署的，那个卷里的数据不在你现在这个项目手上。
+⚠️ **两条的判定口径不一样**：第一条的容器名**恒为 `docker-muse-video`**，跟你站在哪个目录、项目名叫什么
+**完全无关**；第二条的**卷名**里 `<项目名>` 才必须**等于自检 2 打印的那个名字**。
+卷名前缀对不上 → 你之前是在**另一个目录 / 另一个项目名**下部署的，那个卷里的数据不在你现在这个项目手上。
 
 **不对时怎么办**：
 
-- 看到 `<项目名>-postgres-1` / `<项目名>_shortdrama-pgdata` → 你用过 PostgreSQL 覆盖配置，见 7.4
+- 看到多出一个 PostgreSQL 容器 `<项目名>-postgres-1`（服务名 `postgres`；compose **只为 `app` 固定了容器名**，
+  `postgres` 的名字仍带项目前缀，见 `docker-compose.postgres.yml:32-35`）与
+  `<项目名>_shortdrama-pgdata` 卷 → 你用过 PostgreSQL 覆盖配置，见 7.4
   （那时 `ps` 需要带上同样的两个 `-f`）；
+- 容器名列出现 `docker-muse-video` **以外**的名字 → 那不是本项目 `app` 的容器
+  （`app` 固定用它；PostgreSQL 模式下的 `postgres` 除外）；
 - 卷名前缀和自检 2 不一致 → 那不是本项目的卷，**别 `docker volume rm`**，先按 `docs/DOCKER.md` 第六节查它属于谁。
 
 #### 自检 5｜对外端口是多少？（回答③）
@@ -428,6 +467,9 @@ ss -lntp | grep 18080        # macOS：netstat -an | grep LISTEN
 **成功判据（期望输出）**：**无输出** = 端口空闲，可以部署（同样是退出码 1，正常）。
 若已有 `LISTEN`，先用 `docker ps --format 'table {{.Names}}\t{{.Ports}}'` 看清是不是**别的项目**的容器占着 ——
 **别停别人的容器**，改自己的 `APP_PORT`（4.3）。
+
+> 📌 **要一次判定多个候选端口、并挑出一个真的空闲的** → 用 **4.7** 的循环（整段可粘贴，含 `ss` / `netstat` /
+> PowerShell 三个版本与成功判据）。本自检只回答「当前这个端口有没有被占」。
 
 > Windows：这条换成 `netstat -ano | findstr :18080`；其余几条把 `grep` 换成 `Select-String`。
 
@@ -522,8 +564,9 @@ grep -E '^(JWT_KEY|ACCESS_PASSWORD|APP_PORT)=' .env
 ### 2.5 步骤 5：构建并启动
 
 > ⚠️ **敲这条命令之前，先跑 1.8 的部署前自检（6 条，约 1 分钟）**：这条命令按**你当前所在的目录名**
-> 决定容器名与卷名，在别人的项目目录里执行就会撞上别人的容器名
-> （`Conflict. The container name "/xxx" is already in use`）。
+> 决定**卷名**（容器名恒为 `docker-muse-video`）。目录名里一个 ASCII 字符都没有时 Compose 会**直接拒绝执行**
+> （`project name must not be empty`）；而容器名已经被别的容器占着时会报
+> `Conflict. The container name "/docker-muse-video" is already in use`（解封办法见本节末尾）。
 
 **执行位置**：宿主 shell（项目目录）
 
@@ -534,20 +577,44 @@ docker compose up -d --build
 **成功判据**：结尾出现类似
 
 ```
-✔ Container shortdrama-app-1  Started
+✔ Container docker-muse-video  Started
 ```
 
 且退出码为 0（`echo $?` 输出 0）。首次构建会拉基础镜像并编译前后端，**约 3-5 分钟**属正常。
+（默认 SQLite 模式**只会创建这 1 个容器**；如果你用的是 PostgreSQL 覆盖配置，还会多一个 `postgres` 容器，见 7.4。）
 
 **不对时怎么办**：
 
 - 构建失败 → 看报错最后 20 行；若是拉包失败（Docker Hub / NuGet / npm），给 Docker 配国内镜像加速后
   `docker compose build --no-cache && docker compose up -d`；
 - `project name must not be empty` → **目录名里一个 ASCII 字符都没有**（例如中文目录名），Compose 拒绝执行，见 1.5；
+  ⚠️ 容器名固定成 `docker-muse-video` **不能**绕过这一条；
 - `port is already allocated` → 18080 被占用，见 4.3 换端口；
-- `Conflict. The container name ... is already in use` → **那个名字不一定属于你**：
-  `docker inspect <名字> --format '{{index .Config.Labels "com.docker.compose.project"}}'` 看它属于哪个项目；
-  是别人的就别删，用 `docker rename <名字> <名字>-old` 解封（非破坏性）。
+- `Conflict. The container name "/docker-muse-video" is already in use` → 本项目容器名是**固定的**，
+  所以冲突只可能来自两种情况，**先判归属**：
+
+  **执行位置**：宿主 shell（任意目录）
+
+  ```bash
+  docker inspect docker-muse-video --format '{{index .Config.Labels "com.docker.compose.project"}}'
+  ```
+
+  **成功判据**：打印出那个容器所属的 compose 项目名（空输出说明它不是 compose 起的）。
+
+  - 是**别人的项目**、或确认可以放弃的**历史遗留**容器 → 用 `docker rename` 把名字让出来（**非破坏性**，
+    容器还在，只是换了名字；**不要直接 `docker rm`**）：
+
+    **执行位置**：宿主 shell（任意目录）
+
+    ```bash
+    docker rename docker-muse-video docker-muse-video-old
+    ```
+
+    **成功判据**：`docker ps -a --filter name=docker-muse-video --format '{{.Names}}'` 输出为空（名字已让出），
+    而 `docker ps -a --filter name=docker-muse-video-old --format '{{.Names}}'` 能看到那个旧容器。
+  - 是**同一台机器上从另一个目录部署的本项目** → 这就是「同机不能两处部署」的代价，
+    先 `docker compose down` 停掉那一处（或改用别的项目名 + 别的容器名），再回来部署；
+  - 想顺手清掉本项目自己的历史遗留容器 → 在项目目录里 `docker compose down --remove-orphans`。
 
 ### 2.6 步骤 6：看状态与日志
 
@@ -563,12 +630,17 @@ docker compose logs --tail=50 app
 - `docker compose ps` 的 `STATUS` 列出现 `Up ... (healthy)`；
 - 日志里没有 `EACCES`、没有 `SQLite Error 14: unable to open database file`、没有反复重启的堆栈。
 
-**不对时怎么办**：健康检查的 `start_period` 是 40 秒（`docker-compose.yml:78`）—— 它探的 `/health` 是
+**不对时怎么办**：健康检查的 `start_period` 是 40 秒（`docker-compose.yml:94`）—— 它探的 `/health` 是
 **静态响应**（`Program.cs:162`），通过只说明进程起来了，**不代表数据源已同步、站点内容已齐**。
 首次启动要同步数据源 / 建库，**等 1-2 分钟**站点内容才完整。仍不 healthy 就 `docker compose logs -f app`
 跟日志；权限类报错见 7.6。
 
 ### 2.7 步骤 7：放行端口（外网访问必做，两处都要）
+
+> 📌 **两处**指的是：**① 云厂商控制台的安全组**（入方向）与 **② 宿主防火墙**（`ufw` / `firewall-cmd`）。
+> 只做一处，结果就是「本机 curl 通、外网打不开」。
+> **换过端口的话，把下面命令里的 `18080` 换成你的新端口**；完整的分层验证（容器内 → 本机 → 防火墙 → 安全组 → 外网）
+> 与「本机通、外网不通」的 7 步排查顺序见 **4.9**。
 
 **执行位置**：宿主 shell（任意目录），以及云厂商控制台
 
@@ -610,19 +682,20 @@ ss -lntp | grep 18080                       # macOS：netstat -an | grep LISTEN
 
 ### 2.9 首次部署后的验证清单（≥5 条，逐条复制执行）
 
-> 这是本手册的**验收清单**：8 条全过，才算「部署成功」。
+> 这是本手册的**验收清单**：9 条全过，才算「部署成功」。
 > 全部命令的**执行位置**：宿主 shell（项目目录），第 7、8 条除外。
 
 | # | 验证命令 | 成功判据 | 不对时怎么办 |
 |---|---|---|---|
 | 1 | `docker compose config \| grep -A3 'ports:'` | 输出 `published: "18080"` 与 `target: 8080`（变量插值已生效） | 端口不对 → 第四章 |
-| 2 | `docker compose ps` | `STATUS` 列是 `Up ... (healthy)` | 见 2.6 |
+| 2 | `docker compose ps` | 容器名是 **`docker-muse-video`**，`STATUS` 列是 `Up ... (healthy)` | 见 2.6 |
 | 3 | `curl -fsS http://127.0.0.1:18080/health` | 输出 `{"status":"healthy","time":"..."}` | 见 2.6 / 7.7 |
 | 4 | `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18080/admin` | 输出 `302`（口令门生效）或 `200`（已关口令门） | 输出 `000` → 应用没起来 |
 | 5 | `docker compose logs --tail=50 app` | 无 `EACCES`、无 `SQLite Error 14` | 见 7.6 |
-| 6 | `docker volume ls \| grep shortdrama-data` | 看到 `<项目名>_shortdrama-data`（默认 `shortdrama_shortdrama-data`） | 没看到 → 卷没建起来，看 `docker compose ps -a` |
+| 6 | `docker volume ls \| grep shortdrama-data` | 看到 `<项目名>_shortdrama-data`（默认 `shortdrama_shortdrama-data`）—— ⚠️ **卷名仍随项目名，不随容器名固定而固定**；**不要为了对齐容器名去改卷名** | 没看到 → 卷没建起来，看 `docker compose ps -a` |
 | 7 | `docker compose exec app curl -fsS http://localhost:8080/health` | 输出同上（**执行位置：容器内 app**，同时验证镜像里 `curl` 可用） | 报 `curl: not found` → 镜像不对，重新 `--build` |
 | 8 | `docker compose exec app sh -c 'grep ^Uid /proc/1/status'` | 第 1 列**不是 0**（例如 `Uid:` 后面是 1654）—— 也就是**业务进程 PID 1 不是 root 在跑**。（**执行位置：容器内 app**）⚠️ **别用 `docker compose exec app id` 判断**：`docker exec` 起的是**新进程**、用的是容器配置里的用户（root），**它输出 `uid=0(root)` 是正常的**，不代表降权失败 —— 本镜像刻意让入口脚本以 root 起步（先修正旧数据卷属主）再 `exec gosu app` 降权 | 第 1 列出现 `0` → 入口脚本降权失败，看容器日志里的 gosu 告警 |
+| 9 | `docker compose ps -a --format '{{.Name}}'` | 只输出**一行** `docker-muse-video` —— 默认部署**只有 1 个容器**（PostgreSQL 覆盖模式下还会多出 `<项目名>-postgres-1`，见 7.4） | 多出别的名字 → 本项目自己的历史遗留容器用 `docker compose down --remove-orphans` 清掉；别人的容器**别动** |
 
 ---
 
@@ -641,7 +714,7 @@ grep -E '^SHORTDRAMA_IMAGE=' .env || echo "SHORTDRAMA_IMAGE 未设置 → 源码
 **成功判据**：输出 `SHORTDRAMA_IMAGE=ghcr.io/...` → 镜像模式（走 3.4）；
 输出「未设置」或什么都没有 → 源码模式（走 3.3）。
 
-> `.env.example` 里这一行是**注释掉的**（`.env.example:20`），所以从模板复制出来的 `.env` 默认就是源码模式。
+> `.env.example` 里这一行是**注释掉的**（`.env.example:33`），所以从模板复制出来的 `.env` 默认就是源码模式。
 
 ### 3.2 升级前：先看有没有新版本（可选，推荐）
 
@@ -690,7 +763,7 @@ docker compose pull app && docker compose up -d
 ```
 
 **成功判据**：`pull` 输出 `Pulled` 或 `Image ... is up to date`；`up -d` 输出 `Started` / `Recreated`
-或 `Container shortdrama-app-1  Running`（镜像没变时 compose 会跳过重启）。
+或 `Container docker-muse-video  Running`（镜像没变时 compose 会跳过重启）。
 
 **不对时怎么办**：
 
@@ -756,7 +829,7 @@ docker compose up -d --build
 |---|---|---|---|
 | 应用监听端口 | `Dockerfile:140` 的 `ASPNETCORE_URLS=http://+:8080` | 容器内 `8080` | 真正决定进程听哪个端口 |
 | 容器内端口 | `Dockerfile:147` 的 `EXPOSE 8080` | `8080` | 只是文档/`-P` 的依据，**不改变实际监听** |
-| 对外映射 | `docker-compose.yml:30` 的 `"${APP_PORT:-18080}:8080"` | 宿主 `18080` → 容器 `8080` | 把容器端口发布到宿主 |
+| 对外映射 | `docker-compose.yml:46` 的 `"${APP_PORT:-18080}:8080"` | 宿主 `18080` → 容器 `8080` | 把容器端口发布到宿主 |
 
 **只改对外端口**。容器内保持 8080 —— 容器内的端口是隔离的，改它只会多改一堆地方
 （`EXPOSE`、`ASPNETCORE_URLS`、健康检查）。
@@ -773,6 +846,9 @@ docker compose config | grep -A3 'ports:'
 比看 `.env` 更可信）。
 
 ### 4.3 改端口（推荐：改 `.env`）
+
+> ⚠️ **换之前先做 4.7**（确认新端口在宿主机上真的空闲）—— 别等 `docker compose up -d` 报
+> `port is already allocated` 才发现；**换完再做 4.9**（验证外网真的可达，含云安全组 + 宿主防火墙两处）。
 
 **执行位置**：宿主 shell（项目目录）
 
@@ -796,12 +872,12 @@ docker compose config | Select-String -Pattern 'ports:' -Context 0,3
 ```
 
 > ⚠️ **不要用 `(Get-Content .env) -replace ... | Set-Content .env`**（这是最容易顺手写出的写法，**实测会损坏配置**）。
-> 在 PowerShell 5.1 上实测本仓库当前的 `.env.example`（**67 行 / 3670 字节**）：不带 `-Encoding UTF8` 的
-> `Get-Content` 只读出 **50 行**（正确 67 行）、
+> 在 PowerShell 5.1 上实测本仓库当前的 `.env.example`（**80 行 / 4732 字节**）：不带 `-Encoding UTF8` 的
+> `Get-Content` 只读出 **58 行**（正确 80 行）、
 > 中文口令读成乱码；`Set-Content` 默认编码还会把行尾从 **LF 改成 CRLF**。结果是
 > 「口令没错却一直跳 `/gate`」或「变量凭空少了几个」。
 > 上面那段用 `-Encoding UTF8` 读、用 `WriteAllText` 以**无 BOM + LF** 写，
-> 实测改完仍是 **67 行**、中文完好、行尾仍是 LF（CR 计数 0）。
+> 实测改完仍是 **80 行**、中文完好、行尾仍是 LF（CR 计数 0）。
 > **更省事的做法**：直接用记事本 / VS Code / Notepad++ 编辑 `.env`（存成 **UTF-8 无 BOM**、行尾 **LF**）。
 
 **成功判据**：
@@ -813,7 +889,8 @@ docker compose config | Select-String -Pattern 'ports:' -Context 0,3
 **不对时怎么办**：
 
 - `docker compose config` 里还是旧端口 → `.env` 没改对（注意行首不能有空格、不能是注释行）；
-- 本机通、外网不通 → **新端口要重新放行**：云安全组 + 宿主防火墙两处都放（命令见 2.7，把 18080 换成 9000）。
+- 本机通、外网不通 → **新端口要重新放行**：云安全组 + 宿主防火墙两处都放（命令见 2.7，把 18080 换成 9000）；
+  按 4.9 的顺序排查（先看绑定地址，再区分 timeout / refused）。
 
 ### 4.4 临时换一次端口（不改 `.env`）
 
@@ -847,7 +924,7 @@ APP_PORT=9000 docker compose config | grep -A3 'ports:'
 
 ### 4.5 升级不会改你的端口（`.env` 优先于 compose 默认值）
 
-`docker-compose.yml:30` 里的 `${APP_PORT:-18080}`，`:-` 后面的 `18080` 只是**没配 `.env` 时的兜底值**。
+`docker-compose.yml:46` 里的 `${APP_PORT:-18080}`，`:-` 后面的 `18080` 只是**没配 `.env` 时的兜底值**。
 
 > ⚠️ 老部署机常见误区：看到仓库把默认端口从 8080 改成 18080，就以为升级后端口会变。
 > **不会** —— 你的 `.env` 里如果还写着 `APP_PORT=8080`，升级后仍然是 8080。要改就改 `.env`。
@@ -890,6 +967,322 @@ ss -lntp | grep 18080
 
 > 📌 用了 `-f` 显式指定 compose 文件时（例如 PostgreSQL 模式），`docker-compose.override.yml`
 > **不会**被自动加载，必须再 `-f docker-compose.override.yml` 一次。
+
+### 4.7 先查后定：确认一个端口真的空闲（推荐做法）
+
+> **本节回答**：要把站点暴露到「一个空闲端口」—— 那个端口**此刻到底是不是空闲的**。
+> 端口不空闲的表现是 `docker compose up -d` 直接失败，一个容器都起不来：
+>
+> ```
+> Error response from daemon: driver failed programming external connectivity on endpoint docker-muse-video:
+> Bind for 0.0.0.0:18080 failed: port is already allocated
+> ```
+>
+> ⚠️ **不要用「随便挑一个大数字」的方式换端口**：数字大 ≠ 空闲。
+> 下面 4 步（约 1 分钟）给出确定答案；**先查、后定、再回读**。
+
+#### 步骤 1｜先看候选端口有没有被占（三条命令互相补位）
+
+**执行位置**：宿主 shell（任意目录）
+
+```bash
+ss -lntp | grep -E ':(18080|18081|19000)([^0-9]|$)'   # ① 谁在监听（Linux）
+netstat -lnt 2>/dev/null | grep -E ':(18080|18081|19000)([^0-9]|$)'   # ② 老系统 / macOS 的等价命令
+docker ps --format 'table {{.Names}}\t{{.Ports}}'     # ③ 是不是别的容器发布的端口
+```
+
+**成功判据（期望输出）**：
+
+- ①② **无输出** = 这三个端口在宿主上都没有 LISTEN；
+- ③ 的输出里**没有** `0.0.0.0:<端口>->` 这样的映射。有的话看清是**哪个容器**占的 ——
+  本项目自己的容器名固定是 `docker-muse-video`（见 1.2）。
+- ⚠️ `grep` 找不到东西时退出码是 1，**这是正常的**，不是报错。
+
+**不对时怎么办**：③ 里出现的容器**不是** `docker-muse-video` → 那是**别的项目**占的端口，
+**不要停别人的容器**，换一个候选端口（回到步骤 2）。
+
+#### 步骤 2｜对一串候选端口逐个判定（整段可直接粘贴）
+
+**执行位置**：宿主 shell（任意目录）
+
+```bash
+# 优先用 ss；没有 ss 就退回 netstat；两者都没有时直接提示改用 4.8，绝不假装「全部空闲」
+if command -v ss >/dev/null 2>&1; then
+  port_busy() { ss -lnt "sport = :$1" 2>/dev/null | tail -n +2 | grep -q .; }
+elif command -v netstat >/dev/null 2>&1; then
+  port_busy() { netstat -lnt 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$1$"; }
+else
+  echo "本机既没有 ss 也没有 netstat —— 请改用 4.8（让 Docker 自动分配空闲端口）" >&2
+  exit 1
+fi
+
+for p in 18080 18081 18082 19000 28080; do
+  if port_busy "$p"; then echo "占用: $p"; else echo "空闲: $p"; fi
+done
+```
+
+**成功判据（期望输出）**：**五行**，每行形如 `空闲: <端口>` 或 `占用: <端口>`（下面是示意）：
+
+```
+空闲: 18080
+占用: 18081
+空闲: 18082
+空闲: 19000
+空闲: 28080
+```
+
+挑**第一行写着「空闲」**的那个端口用，后面统称 `<空闲端口>`。
+
+**不对时怎么办**：
+
+- 输出里**一行都没有**、或报 `既没有 ss 也没有 netstat` → 这台机器两个工具都没有，
+  用 4.8 让 Docker 自己挑一个空闲端口；
+- 五行**全是「占用」** → 候选列表太窄，把 `for p in ...` 里的数字换成别的再跑一遍；
+- ⚠️ **Windows 上别用上面这段**：Windows 自带的 `netstat.exe` 不认 `-lnt`，会静默失败、
+  把**所有**端口都报成「空闲」（已实测：在 Git Bash 里跑 Windows 的 `netstat -lnt` 就是全「空闲」）。
+  Windows 用下面的 PowerShell 版本。
+
+Windows（PowerShell，**执行位置**：宿主 shell（任意目录，PowerShell））：
+
+```powershell
+foreach ($p in 18080,18081,18082,19000,28080) {
+  if (Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue) { "占用: $p" } else { "空闲: $p" }
+}
+```
+
+**成功判据**：与上一段相同 —— **五行** `空闲:` / `占用:`（实测本机输出五行「空闲」，退出码 0）。
+（没有 `Get-NetTCPConnection` 的老系统：`netstat -ano | Select-String ":$p\s"`，
+有输出即「占用」。）
+
+> ⚠️ **上面这段直接粘贴到 PowerShell 窗口里跑**即可。若要存成 `.ps1` 文件再执行，
+> 保存时必须选「UTF-8 **带 BOM**」或 ANSI —— Windows PowerShell 5.1 读**无 BOM** 的脚本文件时
+> 按系统 ANSI 解码，中文输出串会变成乱码（实测：无 BOM 存盘后执行，逻辑照常、打印出来是乱码）。
+> 判定只看 `空闲:` / `占用:` 的**行数与位置**也能用，但不如直接粘贴省事。
+
+#### 步骤 3｜选端口的两条经验规则
+
+| 规则 | 为什么 |
+|---|---|
+| 选 **1024–49151** 之间（本项目默认 18080 就在这一段） | 1–1023 是特权端口，非 root 绑不了；**49152 以上通常是内核的临时端口范围**（Linux 默认 `32768–60999`，用 `cat /proc/sys/net/ipv4/ip_local_port_range` 查），会被出站连接随机占用 —— 可能「今天空闲、明天被占」 |
+| 避开 80 / 443 / 3306 / 5432 / 6379 / 8080 等**有明确用途**的端口 | 80/443 在云上通常要求域名备案，且常被别的 web 服务占着；3306 / 5432 / 6379 撞上数据库、Redis 会很危险 |
+
+#### 步骤 4｜把选定的端口设进去，并**回读**确认
+
+设进去用 4.3（改 `.env` 的 `APP_PORT`）或 4.4（临时覆盖一次）。
+**设完必须回读一次** —— 确认「你以为的端口」和「Docker 实际发布的端口」是同一个：
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+docker compose up -d
+docker compose config | grep -A3 'ports:'      # ① 生效值（published）
+ss -lntp | grep <空闲端口>                      # ② 宿主真的在监听（macOS：netstat -an | grep LISTEN）
+docker compose port app 8080                   # ③ 直接问 Docker：这个映射落在宿主哪个端口
+```
+
+**成功判据**：
+
+- ① 显示 `published: "<空闲端口>"` 与 `target: 8080`；
+- ② 显示 `0.0.0.0:<空闲端口>` 或 `*:<空闲端口>`（**不是** `127.0.0.1:<空闲端口>`）；
+- ③ 输出 `0.0.0.0:<空闲端口>`，且**与 ① 一致**。
+
+**不对时怎么办**：
+
+- 报 `port is already allocated` → 步骤 2 判「空闲」和这次 `up -d` 之间被别的进程抢走了，
+  重跑步骤 2 换一个端口；
+- ① 里还是旧端口 → `.env` 没改对（行首不能有空格、不能是注释行），见 4.3；
+- ③ 输出 `127.0.0.1:<空闲端口>` → 端口映射里带了本机前缀，外网永远访问不到，见 4.6；
+- **接着做 4.9**（验证外网真的可达）—— 这一步不做完，等于没暴露成功。
+
+### 4.8 备选：让 Docker 自己分配一个空闲端口（不用手工查）
+
+不想自己挑数字时，可以让 Docker 从宿主当前的**空闲端口**里随机挑一个。
+
+**为什么不能用 `.env` 做到**：compose 里写的是 `"${APP_PORT:-18080}:8080"`，
+`:-` 的语义是「**未设置或为空**都取默认值」，所以 `APP_PORT=`（留空）得到的是 **18080**，不是随机端口。
+要让 Docker 自动分配，映射必须写成**只有容器内端口**的形式：`- "8080"`。
+
+**不要直接改 `docker-compose.yml`**（它被 git 跟踪，改脏了 `git pull --ff-only` 会失败、定时更新静默停摆，见 1.6）。
+新建 `docker-compose.override.yml` 即可（Compose 自动加载它，且它不在仓库里、不会弄脏工作区）。
+**执行位置**：宿主 shell（项目目录），把下面这段原样存成 `docker-compose.override.yml`（**这是文件内容，不是命令**）：
+
+```yaml
+services:
+  app:
+    ports: !override
+      - "8080"
+```
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+docker compose up -d
+docker compose port app 8080                       # 回读 Docker 实际分配的端口
+docker compose ps --format 'table {{.Names}}\t{{.Ports}}'
+```
+
+**成功判据（期望输出）**：`docker compose port app 8080` 打印一行 `0.0.0.0:<随机端口>`（示意）：
+
+```
+0.0.0.0:32768
+```
+
+`docker compose ps` 的 `PORTS` 列显示 `0.0.0.0:32768->8080/tcp`。
+**这个 `<随机端口>` 就是当前生效的对外端口** —— 记下它，后面的验证（4.9）用它。
+
+**不对时怎么办**：
+
+- 报 `port is already allocated` → `!override` 没生效（Compose 版本太低，`!override` 需要 ≥ 2.24），
+  退回 4.6 末尾的「独立完整文件」方案；
+- `docker compose port` 无输出 → 容器没在跑，先 `docker compose up -d`；该命令必须在**项目目录**里执行；
+- ⚠️ 这时 `docker compose config` 里**不会再出现 `published:`**（只剩 `target: 8080`；不同 Compose 版本的呈现略有差异），
+  这是正常的 —— 端口是运行时由 Docker 分配的，**以 `docker compose port` 的输出为准**。
+
+**代价（想清楚再用）**：
+
+| 代价 | 说明 |
+|---|---|
+| **端口不固定** | 每次 `docker compose up -d` 重建容器、重启 Docker、重启宿主之后，分配到的端口**都可能变**。书签、反向代理、监控、防火墙规则全都要跟着改 |
+| **防火墙 / 安全组没法提前放行** | 云安全组只能按**固定端口**放行；端口每次变，就只能整段放行或每次改 —— 所以这条路**不适合对公网长期暴露**，更适合本机 / 内网调试、或前面已经有反向代理的场景 |
+| **回读有前提** | `docker compose port app 8080` 要在**项目目录**里跑（它要读 compose 文件），且容器必须在运行 |
+
+**回滚（改回固定端口）**：
+
+**执行位置**：宿主 shell（项目目录）
+
+```bash
+rm docker-compose.override.yml
+docker compose up -d
+docker compose config | grep -A3 'ports:'      # published 又回到 .env 里的 APP_PORT
+```
+
+**成功判据**：`published:` 重新出现，且等于 `.env` 里的 `APP_PORT`。
+
+### 4.9 验证「外网真的能访问」（换完端口必做）
+
+换端口只是改了一个数字，**能不能从外网打开是另一回事**。按下面 5 层逐层验证，每层都有成功判据 ——
+**哪一层断了，问题就在哪一层**，不用猜。
+
+#### 第 1 层｜容器内：应用本身活着吗
+
+**执行位置**：宿主 shell（项目目录；命令在容器内执行）
+
+```bash
+docker compose exec app curl -fsS http://localhost:8080/health
+```
+
+**成功判据**：输出 `{"status":"healthy","time":"..."}`。
+
+**不对时怎么办**：超时或报错 → 应用没起来，先 `docker compose logs --tail=50 app`（2.6）；
+这一步不过，后面几层都不用查。
+
+#### 第 2 层｜宿主本机：端口映射生效了吗
+
+**执行位置**：宿主 shell（任意目录）
+
+```bash
+curl -fsS http://127.0.0.1:<空闲端口>/health          # ① 走回环
+curl -fsS http://<宿主内网IP>:<空闲端口>/health        # ② 走网卡（验证绑定的是所有网卡）
+ss -lntp | grep <空闲端口>                            # ③ 看绑定地址
+```
+
+**成功判据**：①② 都返回 `{"status":"healthy",...}`；③ 的绑定地址是 `0.0.0.0:<空闲端口>` 或 `*:<空闲端口>`。
+
+**不对时怎么办**：① 通、② 不通 → 绑定地址是 `127.0.0.1`（③ 能看出来），映射里带了本机前缀，见 4.6；
+③ 没有 LISTEN → 端口映射写错了（容器内必须是 8080），回 4.7 步骤 4。
+（`<宿主内网IP>` 用 `hostname -I` 或 `ip -4 addr show scope global | grep inet` 查。）
+
+#### 第 3 层｜宿主防火墙：放行了吗（**两处中的第一处**）
+
+**执行位置**：宿主 shell（任意目录）
+
+```bash
+# Ubuntu / Debian（ufw）
+sudo ufw allow <空闲端口>/tcp
+sudo ufw status | grep <空闲端口>
+
+# CentOS / RHEL / Alma（firewalld）
+sudo firewall-cmd --permanent --add-port=<空闲端口>/tcp && sudo firewall-cmd --reload
+sudo firewall-cmd --list-ports | tr ' ' '\n' | grep <空闲端口>
+
+# 两者都没装（纯 iptables / nftables）：直接看有没有 DROP / REJECT
+sudo iptables -S INPUT | grep -E 'DROP|REJECT'
+```
+
+**成功判据**：`ufw status` 出现 `<空闲端口>/tcp   ALLOW   Anywhere`；
+或 `firewall-cmd --list-ports` 里出现 `<空闲端口>/tcp`；
+或 `iptables -S INPUT` 里**没有**针对该端口的 DROP / REJECT 规则。
+
+> ⚠️ **Docker 发布端口走的是 NAT 表**（`docker-proxy` + `DOCKER` 链），**不经过 ufw 的 INPUT 规则**。
+> 所以有两种反直觉现象：**① ufw 里没放行，外网照样能连**（Docker 把规则插在 ufw 前面）；
+> **② ufw 里放行了，外网仍然不通**（拦你的是**云安全组**，不是宿主防火墙）。
+> 「到底是谁拦的」用第 5 层的排查表判定。
+
+#### 第 4 层｜云安全组：放行了吗（**两处中的第二处**，最容易漏）
+
+这一步**没有统一命令行**，在云厂商控制台里放行**入方向**规则：
+
+| 云 | 在哪放行 |
+|---|---|
+| 阿里云 ECS | 实例 → 安全组 → 配置规则 → **入方向** → 手动添加：协议 `TCP`、端口范围 `<空闲端口>/<空闲端口>`、授权对象 `0.0.0.0/0`（或只填你自己的出口 IP） |
+| 腾讯云 CVM | 实例 → 安全组 → **入站规则** → 添加规则：类型「自定义」、来源 `0.0.0.0/0`、协议端口 `TCP:<空闲端口>` |
+| 华为云 | 弹性云服务器 → 安全组 → **入方向规则** → 添加：优先级 1、协议 `TCP`、端口 `<空闲端口>`、源 `0.0.0.0/0` |
+| 甲骨文 OCI | VCN → 安全列表（Security List）**入方向**添加该 TCP 端口；若子网用了 NSG，NSG 里也要加 |
+| 其它 | 关键词：**安全组 / 防火墙 / 入方向 / inbound / ingress** |
+
+**成功判据**：控制台的入方向规则列表里能看到「TCP + `<空闲端口>` + 源 `0.0.0.0/0`（或你的 IP）」。
+**改动立即生效，不用重启实例。**
+
+> 📌 **换端口之后必须在这里重新放行一次** —— 老规则放的是 18080，新端口不在里面，外网照样打不开。
+> 这是「本机 curl 通、外网就是打不开」的**头号原因**。
+
+#### 第 5 层｜从外网验证（**唯一可信的判据**）
+
+⚠️ **不要在部署机上 `curl` 自己的公网 IP 来当「外网可达」的证据**：很多云 / 家用 NAT 不支持
+「NAT 回环（hairpin）」，从内部访问自己的公网 IP 会失败，而外网其实是通的 —— 白折腾半天。
+
+正确做法：**换一台不在同一个网络的机器**（手机开 4G/5G、关掉 WiFi 最省事）执行：
+
+**执行位置**：**外部的另一台机器 / 手机**（不是部署机）
+
+```bash
+curl -fsS http://<公网IP>:<空闲端口>/health
+curl -s -o /dev/null -w '%{http_code}\n' http://<公网IP>:<空闲端口>/admin
+```
+
+**成功判据**：第一条输出 `{"status":"healthy","time":"..."}`；第二条输出 `302`（口令门生效）或 `200`。
+用手机浏览器打开 `http://<公网IP>:<空闲端口>` 能看到口令页 / 首页，即为**外网可达**。
+
+> 不方便敲 `curl` 时用手机浏览器也行；在线「端口检测」服务可以用，但**探测点在云厂商网络内时结论同样不可信**
+> —— 优先用你自己的手机流量。
+
+#### 「本机通、外网不通」的排查顺序（从上往下走，不要跳步）
+
+**执行位置**：除第 2 步要在**外网机器**上复核、第 3 / 5 步在**云厂商控制台**里看之外，其余各步都在宿主 shell（任意目录）。
+
+| # | 查什么 | 命令 / 位置 | 结论 |
+|---|---|---|---|
+| 1 | 绑定地址是不是 `0.0.0.0` | `ss -lntp \| grep <端口>` | 显示 `127.0.0.1:<端口>` → **就是它**，映射带了本机前缀（4.6）；显示 `0.0.0.0:<端口>` → 往下走 |
+| 2 | 你测的到底是不是「外网」 | 换手机 4G / 另一台机器重试 | 换完就通 → 之前是 NAT 回环造成的**假故障**，问题不存在 |
+| 3 | **云安全组** | 控制台 → 安全组 → 入方向 | 没有这条规则 → **最常见原因**，按第 4 层加；有规则但源不是 `0.0.0.0/0` → 确认你的出口 IP 在允许范围内 |
+| 4 | 宿主防火墙 | `sudo ufw status` / `sudo firewall-cmd --list-ports` | 没放行 → 按第 3 层加（注意上面那条「Docker 绕过 ufw」：ufw 明明放行了还不通，**优先怀疑安全组**） |
+| 5 | 云厂商的其它层 | 控制台：**网络 ACL / 子网 / 云防火墙** | 有额外 ACL → 同样要放行该端口；**无状态 ACL（AWS / OCI）入方向放行后，出方向也要放行** |
+| 6 | 运营商 / 家用宽带 | 现象：换任何端口都不通，外部探测一律 **timeout** | 部分运营商与家宽对**入方向**连接有限制（未备案的 80/443 更常被拦）；换 10000 以上的端口再试，或改用云服务器 |
+| 7 | 端口映射本身 | 现象：外部探测是 **Connection refused**（不是 timeout） | 说明**能路由到这台机器**，只是这个端口没人监听 → 回 4.7 步骤 4，核对映射与 `ss` 输出是否一致 |
+
+> **怎么区分 timeout 和 refused**（能省一半排查时间）：
+>
+> **执行位置**：外部的另一台机器 / 手机
+>
+> ```bash
+> curl -v --max-time 5 http://<公网IP>:<空闲端口>/health
+> ```
+>
+> **成功判据**：卡住到超时 = 被防火墙 / 安全组**丢包**（规则问题，查第 3–6 步）；
+> 秒回 `Connection refused` = 包到了机器但**没有进程在听**（映射问题，查第 7 步）。
+
+> 📌 换端口**不需要重建镜像**（端口只是宿主上的映射），`docker compose up -d` 即可（见 4.3）；
+> 数据卷、容器名、容器内 8080 都不受影响。
 
 ---
 
@@ -1221,7 +1614,7 @@ grep -rn -e deploy -e shortdrama /etc/cron.d/ /etc/crontab /etc/cron.daily/ /etc
 | 部署机上改过代码，`git pull` 失败 | 定时任务只跟随远端。改动请 `git stash`，或写进 `docker-compose.override.yml` |
 | 想用面板的「更新容器」代替 | **不要**。用 `docker compose up -d`（见 1.6） |
 | 磁盘越来越大 | 旧镜像堆积：`docker image prune -a`（会删掉所有未被使用的镜像，正在用的不受影响） |
-| 日志文件无限增长 | 容器日志已限制为 10MB × 3（`docker-compose.yml:81-85`）；`logs/auto-update.log` 需要自己轮转，例如在 crontab 里加一行每月清空 |
+| 日志文件无限增长 | 容器日志已限制为 10MB × 3（`docker-compose.yml:97-101`）；`logs/auto-update.log` 需要自己轮转，例如在 crontab 里加一行每月清空 |
 
 ---
 
@@ -1234,7 +1627,7 @@ grep -rn -e deploy -e shortdrama /etc/cron.d/ /etc/crontab /etc/cron.daily/ /etc
 ### 6.1 核心坑：容器里的 `127.0.0.1` 不是宿主机
 
 容器里的 `127.0.0.1` 指**容器自己**。种子服务跑在宿主机上，所以必须用 `host.docker.internal`。
-compose 已经处理好（`docker-compose.yml:58` 传 `Torrent__BaseUrl`，`:67-68` 加 `extra_hosts: host.docker.internal:host-gateway`
+compose 已经处理好（`docker-compose.yml:74` 传 `Torrent__BaseUrl`，`:83-84` 加 `extra_hosts: host.docker.internal:host-gateway`
 让 Linux 也能解析；Docker Desktop 原生支持）。**不要**把它改成 `127.0.0.1`，否则「种子」页会一直显示
 「连不上本地种子服务」，而服务其实好好地在宿主机上跑着。
 
@@ -1280,7 +1673,7 @@ docker compose exec app curl -fsS http://host.docker.internal:8787/api/health
 **不对时怎么办**：
 
 - `Could not resolve host: host.docker.internal` → compose 的 `extra_hosts` 没生效，
-  确认 `docker-compose.yml:67-68` 没被改动，并 `docker compose up -d` 重建；
+  确认 `docker-compose.yml:83-84` 没被改动，并 `docker compose up -d` 重建；
 - `Connection refused` → 宿主上的种子服务没在跑，或它监听的不是 8787；
 - 容器内通、网页里仍提示「种子服务没在运行」→ 打开浏览器开发者工具看 `/api/...` 的实际请求地址，
   确认 `.env` 的改动已通过 `docker compose up -d` 生效。
@@ -1320,10 +1713,18 @@ sed -i 's/^TORRENT_ENABLED=.*/TORRENT_ENABLED=false/' .env && docker compose up 
 
 ### 7.1 数据卷与「卷名前缀」（备份前必须看懂）
 
+> ⚠️ **容器名与卷名是两套命名规则，别混**：
+> **容器名已固定**为 `docker-muse-video`（见 1.1 / 1.2），**与卷名无关**；
+> **卷名仍然由「项目名」决定**，实际形如 `<项目名>_shortdrama-data`。
+> **不要为了让卷名跟容器名对齐去改卷名 / 改项目名** —— 卷名一变，`docker compose up -d`
+> 会挂一个**全新的空卷**，已有的 SQLite 库、收藏、观看历史都留在旧卷里**不会跟过来**
+> （这也是 1.5 反复强调目录名要 ASCII 的原因）。
+> 想改的只有容器名的话：**什么都不用做，它本来就是固定的**。
+
 | 卷逻辑名 | 内容 | 何时存在 | 证据 |
 |---|---|---|---|
-| `shortdrama-data` | SQLite 库文件、运行时数据 | 默认模式 | `docker-compose.yml:72`、`:87-89` |
-| `shortdrama-pgdata` | PostgreSQL 数据目录 | 用了 PostgreSQL 覆盖配置 | `docker-compose.postgres.yml:36`（卷挂载）、`:48`（顶层 volumes 声明） |
+| `shortdrama-data` | SQLite 库文件、运行时数据 | 默认（SQLite 单容器）模式 | `docker-compose.yml:88`、`:103-105` |
+| `shortdrama-pgdata` | PostgreSQL 数据目录 | 用了 PostgreSQL 覆盖配置（可选，2 容器） | `docker-compose.postgres.yml:46`（卷挂载）、`:58`（顶层 volumes 声明） |
 
 > ⚠️ **Compose 会给卷名加项目前缀**：实际名字形如 `shortdrama_shortdrama-data`（`docs/DOCKER.md` 第六节「数据卷、备份与恢复」）。
 > 写裸名 `-v shortdrama-data:/data` 会**新建一个空卷** —— 你以为在改旧卷，其实什么都没改
@@ -1357,8 +1758,14 @@ ls -l backup/
 报找不到 `/data/shortdrama.db` → 你的库不在默认路径，用
 `docker compose exec app ls -l /data` 确认实际文件名。
 
-> 这里刻意用 `docker compose ps -aq app` 取容器 id，而不是写死容器名 —— compose 没设 `container_name`，
-> 写死名字在换目录、改项目名之后就会失效。
+> 这里用 `docker compose ps -aq app` 取容器 id，好处是**换项目名、改 compose 里的容器名之后照样有效**。
+> 也可以直接用**固定的容器名**（见 1.2），少一层嵌套：
+>
+> ```bash
+> docker cp docker-muse-video:/data/shortdrama.db "./backup/shortdrama-$(date +%F).db"
+> ```
+>
+> 两种写法拷的是**同一个容器**，选一种即可。
 
 ### 7.3 恢复 SQLite
 
@@ -1376,6 +1783,8 @@ docker compose logs --tail=30 app
 
 **不对时怎么办**：报权限错误 → 入口脚本会在启动时修正 `/data` 属主，先看日志里有没有
 `警告：/data 属主修正失败`；仍不行按 7.6 的「升级后写不进数据卷」处理。
+报 `No such container` → 容器没在跑，先 `docker compose up -d`（容器名固定是 `docker-muse-video`，
+也可以用 `docker cp <备份文件> docker-muse-video:/data/shortdrama.db` 直接写名字，见 1.2）。
 
 ### 7.4 PostgreSQL 模式（可选）
 
@@ -1421,20 +1830,25 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
 **成功判据**：命令无报错，退出码 0；`docker compose ... ps` 仍全部 `Up`。
 
 > **切换数据库不会自动迁移数据**：SQLite 里的旧数据需要另行导出导入（`docs/DOCKER.md` 第五节「数据库：SQLite 与 PostgreSQL」）。
-> PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml:43-45`），需要直连调试时取消 `ports` 的注释。
+> PostgreSQL 默认**不对外暴露端口**（`docker-compose.postgres.yml:53-55`），需要直连调试时取消 `ports` 的注释。
 
 ### 7.5 卸载
 
 **执行位置**：宿主 shell（项目目录）
 
 ```bash
-docker compose down             # 停止并移除容器，保留数据卷
-docker compose down -v          # 同时删除数据卷（不可恢复！）
-docker rmi shortdrama:latest    # 删除本地构建的镜像
+docker compose down                    # 停止并移除容器，保留数据卷
+docker compose down --remove-orphans   # 顺带清掉早先版本留下的、已不在 compose 里的服务容器（只动本项目）
+docker compose down -v                 # 同时删除数据卷（不可恢复！）
+docker rmi docker-muse-video:latest    # 删除镜像（离线 tar 导入的也是这个名字）
 ```
 
 **成功判据**：`docker compose ps` 无容器；`docker volume ls | grep shortdrama` 在 `down` 后仍有卷，
 在 `down -v` 后为空。
+
+> 📌 **卷不会被 `down` 删掉**（只有 `-v` 会）—— 这正是「卷名不能乱改」的另一面：
+> 卷是数据的载体，容器名只是容器的标签。`--remove-orphans` **只清理带本项目标签的容器**，
+> 不会碰别人的 `redis` / `new-api`。
 
 彻底清理残留卷：
 
@@ -1464,13 +1878,13 @@ docker volume rm <上面列出的卷名>
 | 日志报 `SQLite Error 14: unable to open database file` | 数据卷属主不对（老卷是 root 属主）。入口脚本本应自动修好；仍出现就手动修（见下方「升级后写不进数据卷」） |
 | 日志报 `EACCES` / `permission denied` | 同上（数据卷属主不对）。**特例**：如果你按 `Dockerfile:152-154` 的说明在 compose 里设了 `user: "app"`（容器直接以 `app` 身份启动，入口脚本的降权分支被跳过），那么启动时**不会**再有那次 `chown`，必须先把卷属主改成 `app` —— 见下方「升级后写不进数据卷」 |
 | 容器起来就退出，日志报 `exec format error` | 镜像架构与本机不符（ARM 机器拉了 amd64）。改工作流 `PLATFORMS` 后重新构建（见 3.4） |
-| `Conflict. The container name "/xxx" is already in use` | 那个名字**不一定属于你**：`docker inspect xxx --format '{{index .Config.Labels "com.docker.compose.project"}}'` 看归属；是别人的就 `docker rename xxx xxx-old` 解封，**别删** |
+| `Conflict. The container name "/docker-muse-video" is already in use` | 本项目容器名是**固定的** `docker-muse-video`，所以冲突只可能来自**历史遗留容器**或**同机从另一个目录部署的本项目**。先判归属：`docker inspect docker-muse-video --format '{{index .Config.Labels "com.docker.compose.project"}}'`；确认可以放弃的就 `docker rename docker-muse-video docker-muse-video-old` 解封（**非破坏性**，容器还在，只是换了名字 —— **别直接 `docker rm`**）。清理本项目自己的遗留容器用 `docker compose down --remove-orphans`（见 2.5、7.8） |
 | 面板「更新容器」报 `user specified IP address is supported only when connecting to networks with user configured subnets` | 面板把动态 IP 固化成静态 IP。改用 `docker compose down && docker compose up -d`；或在面板里把静态 IP 留空 |
 | 定时更新没跑 | 先确认 `logs/` 目录存在（5.1）；再看 `logs/auto-update.log`；`crontab -l \| grep shortdrama`（Linux）或 `Get-ScheduledTask -TaskName ShortDramaAutoUpdate`（Windows）确认任务在 |
 | 定时更新一直失败 | 多半是 cron 的 `PATH` 里没有 `docker`/`git`（5.2），或工作区有未提交改动 |
 | 定时任务里跑的脚本找不到了 | 老部署机的历史遗留，按 5.5 迁移 |
 | `镜像拉取失败` / `unauthorized`（镜像模式） | 包是私有的但没登录：`docker login ghcr.io`；或把包设为公开 |
-| 端口被占用 | `APP_PORT=18081 docker compose up -d` 换个端口；或用 `ss -lntp \| grep 18080` 找出占用者 |
+| 端口被占用 | 先用 4.7 的循环找一个**真的空闲**的端口（别随便挑数字），再 `APP_PORT=<空闲端口> docker compose up -d`；或 `ss -lntp \| grep 18080` 找出占用者 |
 | 磁盘占用越来越大 | `docker image prune -a`（删掉未被使用的镜像）；容器日志已限制为 10MB × 3 |
 | 后端接口 401 且 `code=4010` | 访问口令门拦截。正常行为：先在页面输入口令 |
 
@@ -1506,21 +1920,30 @@ curl -fsS http://127.0.0.1:18080/health              # ③ 本机通吗
 | ② 没有 LISTEN | 端口映射写错，或容器内应用没起来 | 确认 compose 里是 `"<对外端口>:8080"`（容器内是 8080，别写反），见第四章 |
 | ② 显示 `127.0.0.1:18080` 而不是 `0.0.0.0:18080` | 映射里加了本机前缀 | 见 4.6（配反代时才这么做；否则外网访问不到） |
 | ③ 本机 curl 不通 | 应用启动失败或还在初始化 | 等 1-2 分钟；仍不行看日志 |
-| ③ 通、④ 外网不通 | **云安全组 / 宿主防火墙没放行** | 两处都要放：控制台安全组 + `ufw` / `firewall-cmd`，见 2.7 |
+| ③ 通、④ 外网不通 | **云安全组 / 宿主防火墙没放行** | 两处都要放：控制台安全组 + `ufw` / `firewall-cmd`，见 2.7；**完整排查顺序（含 timeout vs refused 的区分）见 4.9** |
 
 ### 7.8 日常运维命令速查
 
 | 目的 | 命令 | 执行位置 | 成功判据 |
 |---|---|---|---|
-| 看容器状态 | `docker compose ps` | 宿主 shell（项目目录） | 列出 `app`，`STATUS` 为 `Up ... (healthy)` |
+| 看容器状态 | `docker compose ps` | 宿主 shell（项目目录） | 列出容器名 **`docker-muse-video`**（服务名 `app`），`STATUS` 为 `Up ... (healthy)` |
 | 跟实时日志 | `docker compose logs -f app` | 宿主 shell（项目目录） | 持续输出日志行 |
+| 跟实时日志（用固定容器名，不必取 id） | `docker logs -f docker-muse-video` | 宿主 shell（任意目录） | 持续输出日志行（与上一条是同一个容器） |
 | 看最近 200 行 | `docker compose logs --tail 200 app` | 宿主 shell（项目目录） | 输出日志，无 `EACCES` / `SQLite Error` |
 | 重启应用 | `docker compose restart app` | 宿主 shell（项目目录） | 随后 `ps` 回到 healthy |
 | 停止应用 | `docker compose stop app` | 宿主 shell（项目目录） | `docker compose ps` 不再列出该容器（卷保留） |
 | 应用 `.env` 改动 | `docker compose up -d` | 宿主 shell（项目目录） | 输出 `Recreated`/`Started` |
 | 进容器 | `docker compose exec app sh` | 宿主 shell（项目目录） | 进入容器 shell，提示符变化 |
+| 进容器（用固定容器名） | `docker exec -it docker-muse-video sh` | 宿主 shell（任意目录） | 进入容器 shell，提示符变化 |
 | 看资源占用 | `docker stats $(docker compose ps -q app)` | 宿主 shell（项目目录） | 实时打印 CPU / 内存 |
 | 看健康状态字段 | `docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"` | 宿主 shell（项目目录） | 输出 `healthy` |
+| **清理历史遗留容器**（本项目自己的） | `docker compose down --remove-orphans` | 宿主 shell（项目目录） | `docker compose ps -a` 里不再有已删除服务的容器；**别人的容器不受影响** |
+| **容器名被占时解封** | `docker rename docker-muse-video docker-muse-video-old` | 宿主 shell（任意目录） | 名字让出：`docker ps -a --filter name=docker-muse-video --format '{{.Names}}'` 输出为空（非破坏性，旧容器改名为 `-old`） |
+| 查某个容器属于哪个项目 | `docker inspect <名字> --format '{{index .Config.Labels "com.docker.compose.project"}}'` | 宿主 shell（任意目录） | 打印 compose 项目名（空输出 = 不是 compose 起的） |
+| 只列本项目的容器 | `docker compose ps -a --format '{{.Name}}'` | 宿主 shell（项目目录） | 默认只输出一行 `docker-muse-video` |
+
+> ⚠️ **容器名固定，卷名不固定**：上面所有命令里的 `docker-muse-video` 是**容器名**（可直接写死）；
+> 但**卷名**仍然是 `<项目名>_shortdrama-data`，**不要**把两者混着改 —— 见 1.2 与 7.1。
 
 ---
 
@@ -1532,5 +1955,8 @@ curl -fsS http://127.0.0.1:18080/health              # ③ 本机通吗
   `.github/workflows/docker-publish.yml`。
 - **采集源、播放、去广告等业务功能**：见 `README.md`。
 - 本手册的每一条事实都可在 `DEPLOY-FACTS.md` 中按 `文件:行` 逐条核对；
-  **唯一例外**是 1.3 末尾指出的「`.env.example:29` 与 `:30` 两条生成命令长度不一致（48 vs 96 个字符）」这一点，
+  **唯一例外**是 1.3 末尾指出的「`.env.example:42` 与 `:43` 两条生成命令长度不一致（48 vs 96 个字符）」这一点，
   该文件目前尚未收录（原因与建议见 1.3 末尾），其余条目均可对上。
+- ⚠️ **另一处例外（本轮）**：`DEPLOY-FACTS.md` 里关于**容器名**的那几条是在「固定容器名」之前写的，
+  本轮**未同步**（该文件不在本轮改动范围内）。核对容器名时请以 `docker-compose.yml` 的 `app` 服务
+  与 `docs/DOCKER.md` 第一节第 5 小节为准 —— **容器名固定为 `docker-muse-video`，卷名仍随项目名**。

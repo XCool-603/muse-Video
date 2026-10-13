@@ -10,7 +10,14 @@
 #    根本不连接 Redis —— 起一个没人连的容器只会多一个故障面：
 #    它曾经让部署机上的 `redis` 这个名字被反复申请，撞上别的项目留下的同名容器
 #    （报错 `Conflict. The container name "/redis" is already in use`，而那个容器压根不是本项目的）。
-#    将来真要上分布式缓存再加，届时也**不要写 `container_name`**，让 Compose 自己加项目前缀。
+#    将来真要上分布式缓存再加，届时也**不要写 `container_name`**：通用名人人都可能用，
+#    固定它只会跨项目撞名。本项目只有 app 那一个名字是专属的，所以只固定了它。
+#
+# 容器数量：默认（只用 docker-compose.yml）是 **1 个**容器 —— 名字固定为 `docker-muse-video`。
+#    套上本文件后变成 **2 个**：`docker-muse-video`（app）+ `<项目名>-postgres-1`（postgres）。
+#    ⚠️ postgres 服务**刻意不设 `container_name`**，它的名字继续带项目名前缀，跨项目不会撞名。
+#    ⚠️ 卷名同样**没有被固定**：`<项目名>_shortdrama-data`、`<项目名>_shortdrama-pgdata`
+#       —— **不要改卷名**（改卷名 = 换卷 = 已有数据全部变成孤儿）。
 # ============================================================================
 
 services:
@@ -23,6 +30,9 @@ services:
         condition: service_healthy
 
   postgres:
+    # 刻意不设 container_name：容器名仍是 <项目名>-postgres-1（带项目名前缀），
+    # 这样即使机器上还有别的项目的 postgres 也不会撞名。
+    # 被固定成 docker-muse-video 的只有 app（见 docker-compose.yml）。
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
