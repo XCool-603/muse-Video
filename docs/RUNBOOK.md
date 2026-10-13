@@ -255,7 +255,7 @@ cd shortdrama
 
 ```
 Conflict. The container name "/redis" is already in use
-Conflict. The container name "/new-api" is already in use
+Conflict. The container name "/muse-api" is already in use
 ```
 
 这两个名字**都不属于本项目**：本项目两个 compose 文件里**没有任何 `container_name:` 键**（各 **0** 次；
@@ -341,7 +341,7 @@ basename "$PWD"; grep -E '^COMPOSE_PROJECT_NAME=' .env || echo "(未设置 → �
 - 输出**不是你以为的名字** → `.env` 里有 `COMPOSE_PROJECT_NAME`（用 `grep -E '^COMPOSE_PROJECT_NAME=' .env` 查）。
   ⚠️ **改它等于换项目**：卷名跟着变，旧数据卷不会被复用（`.env.example:65-66`）。
 
-#### 自检 3｜这台机器上还有哪些 compose 项目？（回答①，也回答"那个 `/redis`、`/new-api` 是谁的"）
+#### 自检 3｜这台机器上还有哪些 compose 项目？（回答①，也回答"那个 `/redis`、`/muse-api` 是谁的"）
 
 **执行位置**：宿主 shell（任意目录）
 
@@ -354,13 +354,13 @@ docker compose ls -a
 ```
 NAME                STATUS              CONFIG FILES
 shortdrama          running(1)          /opt/shortdrama/docker-compose.yml
-new-api             running(2)          /opt/new-api/docker-compose.yml
+muse-api            running(2)          /opt/muse-api/docker-compose.yml
 ```
 
 **对着 `CONFIG FILES` 列看一眼你当前目录**：指向**别人目录**的那几行不是你的项目。
 `docker compose ls` 只列运行中的，加 `-a` 连停止的一起列；在**没部署过的机器上无输出也是正常的**。
 
-**不对时怎么办**：`NAME` 列里出现 `redis`、`new-api` 之类**在本目录 compose 里根本不存在**的服务名 →
+**不对时怎么办**：`NAME` 列里出现 `redis`、`muse-api` 之类**在本目录 compose 里根本不存在**的服务名 →
 那是**别的项目**留下的容器，**不要去删**（删了会打断别人，还可能连带删掉匿名卷）。
 真撞上同名冲突时按 2.5 的办法先判归属：`docker inspect <名字> --format '{{index .Config.Labels "com.docker.compose.project"}}'`，
 是别人的就 `docker rename <名字> <名字>-old` 解封（非破坏性）。
