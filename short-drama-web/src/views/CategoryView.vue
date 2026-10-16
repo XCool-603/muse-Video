@@ -97,6 +97,7 @@ async function load(reset = true) {
   loading.value = true
   if (reset) page.value = 1
   // reset 时不清空旧列表：等新数据到了原地替换，避免网格塌下去再弹回来
+  // （首页 / 分类 / 搜索三处统一策略，搜索页见 SearchView.doSearch 的 reset 分支）
 
   try {
     const result = await browse.loadCatalog(

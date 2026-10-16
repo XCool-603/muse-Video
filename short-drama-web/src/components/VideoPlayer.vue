@@ -19,7 +19,14 @@
       @click="togglePlay"
     />
 
-    <!-- 加载中 -->
+    <!--
+      加载中。这里同时覆盖两段等待期：
+      ① 动态 import('hls.js') 本身（约 580KB，首次进播放页要现拉）——
+         在 attachSource() 里 loading.value 一进入就置 true，所以这段下载期间
+         遮罩已经在转，用户不会看到黑屏；
+      ② m3u8 拉清单 / 首片分片（MANIFEST_PARSED 之前）。
+      两者共用同一个遮罩，起播感知为「一次连续的加载」而不是两次闪白。
+    -->
     <div v-if="loading" class="center-mask">
       <a-spin size="large" />
     </div>
@@ -220,6 +227,9 @@ async function attachSource(url: string, streamType: 'hls' | 'mp4' = 'hls') {
 
   // 只有真的要播 HLS 才把这 580KB 拉下来。放在这里而不是模块顶层，
   // 是为了让 MP4 源（红果、黄果）完全不下载它。
+  // 起播顺序：loading 已在上方置 true（遮罩已出现）→ 这里 await 下载 hls chunk
+  //          → MANIFEST_PARSED 时才置 false。所以 580KB 的下载全程用户看到的都是
+  //            「转圈 + 海报」，不存在黑屏等待（首屏也没有为它付一分钱）。
   // 动态加载本身可能失败（例如浏览器缓存了旧 index.html、chunk 名已变 → 404），
   // 这时必须给出提示，不能让播放器静默卡在 loading。
   let Hls: typeof import('hls.js').default

@@ -1,12 +1,10 @@
 <template>
-  <div class="gate-view cy-grid-bg">
-    <!-- 扫描线铺满视口；pointer-events: none，不影响表单交互 -->
-    <div class="cy-scanline cy-scanline--fixed" aria-hidden="true"></div>
-
-    <div class="gate-card cy-panel cy-panel--glow">
+  <!-- 无背景装饰：页面底就是 body 的 --mn-bg，层次全部由卡片自己建立 -->
+  <div class="gate-view">
+    <div class="gate-card mn-panel">
       <div class="brand">
         <span class="logo-mark">剧</span>
-        <h1 class="cy-title gate-title">短剧聚合</h1>
+        <h1 class="gate-title">短剧聚合</h1>
       </div>
 
       <p class="notice">本站为个人自用实例，请先输入访问口令</p>
@@ -26,10 +24,10 @@
 
         <!-- 原生 submit 按钮：a-form 在 <form> 上绑了 onSubmit -> validate -> emit('finish')，
              所以原生按钮一样能触发 @finish（见 ant-design-vue/es/form/Form.js handleSubmit）。
-             这样就能直接套主题契约里的 .cy-btn / .cy-btn--primary，不必和 antd 按钮样式打架。 -->
+             这样就能直接套主题契约里的 .mn-btn / .mn-btn--primary，不必和 antd 按钮样式打架。 -->
         <button
           type="submit"
-          class="cy-btn cy-btn--primary gate-submit"
+          class="mn-btn mn-btn--primary gate-submit"
           :disabled="loading || !form.password"
         >
           {{ loading ? '验证中…' : '进入' }}
@@ -48,7 +46,9 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LockOutlined, SafetyCertificateOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+// 按需引入：message 的传递闭包有 351KB 源码（含 antd 全量 locale 表），
+// 见 src/utils/toast.ts。首屏静态依赖里没有它。
+import { toast } from '@/utils/toast'
 import { accessApi } from '@/api/access'
 
 const route = useRoute()
@@ -68,7 +68,7 @@ async function handleSubmit() {
 
   try {
     await accessApi.verify(form.password)
-    message.success('验证通过')
+    toast('success', '验证通过')
 
     const redirect = (route.query.redirect as string) || '/'
     // 用整页跳转，确保后端签发的 Cookie 立即生效
@@ -83,26 +83,18 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-/* 口令门页换皮：颜色一律取 cyberpunk.css 的 --cy-* 令牌，本文件不写死颜色。
-   卡片 / 标题 / 按钮复用主题契约类 .cy-panel .cy-panel--glow .cy-title .cy-btn--primary。 */
+/* 口令门页换皮：颜色一律取 minimal.css 的 --mn-* 令牌，本文件不写死颜色。
+   卡片 / 按钮复用主题契约类 .mn-panel / .mn-btn--primary；
+   没有网格背景、没有扫描线、没有 ::before 辉光 —— 页面底就是 body 的白底。 */
 .gate-view {
   position: relative;
   display: grid;
   place-items: center;
   min-height: 100vh;
   padding: 24px;
-  background-color: var(--cy-bg);
-}
-
-/* 顶部青光 + 底部品红辉光，压在网格之上、卡片之下 */
-.gate-view::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: radial-gradient(760px 420px at 50% 0%, var(--cy-cyan-dim), transparent 70%),
-    radial-gradient(620px 380px at 50% 100%, var(--cy-magenta-dim), transparent 72%);
+  background-color: var(--mn-bg);
+  font-family: var(--mn-font-ui);
+  color: var(--mn-text);
 }
 
 .gate-card {
@@ -110,43 +102,46 @@ async function handleSubmit() {
   z-index: 1;
   width: 100%;
   max-width: 380px;
-  padding: 32px 28px;
+  padding: var(--mn-space-6) var(--mn-space-5);
+  box-shadow: var(--mn-shadow-md);
 }
 
 .brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--mn-space-3);
+  margin-bottom: var(--mn-space-4);
 }
 
+/* logo：纯主色方块，无渐变、无切角、无发光 */
 .logo-mark {
   display: grid;
   place-items: center;
   width: 48px;
   height: 48px;
-  background-image: linear-gradient(135deg, var(--cy-cyan), var(--cy-magenta));
-  clip-path: var(--cy-clip);
-  color: var(--cy-bg);
-  font-family: var(--cy-font-mono);
-  font-weight: 700;
+  background-color: var(--mn-primary);
+  border-radius: var(--mn-radius);
+  color: var(--mn-on-primary);
+  font-family: var(--mn-font-ui);
+  font-weight: 600;
   font-size: 23px;
-  filter: drop-shadow(0 0 8px var(--cy-cyan-glow-soft));
 }
 
-/* .cy-title 默认是页面级大标题（clamp 到 38px），门页卡片里收小 */
 .gate-title {
+  margin: 0;
   font-size: 19px;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0;
   text-align: center;
+  color: var(--mn-text);
 }
 
 .notice {
-  margin: 0 0 20px;
+  margin: 0 0 var(--mn-space-5);
   text-align: center;
   font-size: 13px;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 .gate-submit {
@@ -157,11 +152,11 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid var(--cy-border);
+  gap: var(--mn-space-2);
+  margin-top: var(--mn-space-5);
+  padding-top: var(--mn-space-4);
+  border-top: 1px solid var(--mn-border);
   font-size: 12px;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-muted);
 }
 </style>

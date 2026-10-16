@@ -175,7 +175,9 @@ import {
   SafetyCertificateOutlined,
   ShareAltOutlined
 } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+// 按需引入：message 的传递闭包有 351KB 源码（含 antd 全量 locale 表），
+// 见 src/utils/toast.ts。播放页静态依赖里没有它。
+import { toast } from '@/utils/toast'
 import { dramaApi, playApi } from '@/api/drama'
 import { userApi } from '@/api/user'
 import type { DramaDetail, PlayInfo } from '@/api/types'
@@ -229,7 +231,7 @@ async function loadDrama() {
       loadFavoriteStatus()
     }
   } catch (error) {
-    message.error((error as Error).message || '加载失败')
+    toast('error', (error as Error).message || '加载失败')
     drama.value = null
   } finally {
     loading.value = false
@@ -276,17 +278,17 @@ async function switchEpisode(episode: number, updateRoute = true) {
       playUrl.value = ''
       return
     }
-    message.error((error as Error).message || '获取播放地址失败')
+    toast('error', (error as Error).message || '获取播放地址失败')
   }
 }
 
 function onEpisodeEnded() {
   const total = drama.value?.totalEpisodes ?? 0
   if (currentEpisode.value < total) {
-    message.success('即将播放下一集')
+    toast('success', '即将播放下一集')
     switchEpisode(currentEpisode.value + 1)
   } else {
-    message.info('已观看完最后一集')
+    toast('info', '已观看完最后一集')
   }
 }
 
@@ -333,19 +335,20 @@ function onPlayError(msg: string) {
   // 这样默认「零带宽直连」对绝大多数源都成立，少数需要代理的源也不会播不了。
   if (!triedProxyFallback.value && streamType.value === 'hls' && playUrl.value) {
     triedProxyFallback.value = true
-    message.warning('直连播放源失败，改用服务器代理重试…')
+    toast('warning', '直连播放源失败，改用服务器代理重试…')
     const sep = playUrl.value.includes('?') ? '&' : '?'
     // 必须写 true 而不是 1：.NET 的 bool 查询参数只接受 true/false
     playUrl.value = `${playUrl.value}${sep}proxy=true`
     return
   }
 
-  message.error(msg)
+  toast('error', msg)
 }
 
 function onPlatformChange(code: string) {
   const target = drama.value?.recommends?.find((d) => d.platformCode === code)
-  message.info(
+  toast(
+    'info',
     target
       ? `已切换至 ${code} 播放源（对应《${target.title}》）`
       : `已切换至 ${code} 播放源`
@@ -354,7 +357,7 @@ function onPlatformChange(code: string) {
 
 async function toggleFavorite() {
   if (!userStore.isLoggedIn) {
-    message.warning('请先登录')
+    toast('warning', '请先登录')
     router.push({ name: 'login', query: { redirect: route.fullPath } })
     return
   }
@@ -364,14 +367,14 @@ async function toggleFavorite() {
     if (isFavorite.value) {
       await userApi.removeFavorite(dramaId.value)
       isFavorite.value = false
-      message.success('已取消收藏')
+      toast('success', '已取消收藏')
     } else {
       await userApi.addFavorite(dramaId.value)
       isFavorite.value = true
-      message.success('收藏成功')
+      toast('success', '收藏成功')
     }
   } catch (error) {
-    message.error((error as Error).message || '操作失败')
+    toast('error', (error as Error).message || '操作失败')
   } finally {
     favLoading.value = false
   }
@@ -381,11 +384,11 @@ function shareDrama() {
   const url = window.location.href
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(
-      () => message.success('播放链接已复制'),
-      () => message.info(url)
+      () => toast('success', '播放链接已复制'),
+      () => toast('info', url)
     )
   } else {
-    message.info(url)
+    toast('info', url)
   }
 }
 
@@ -571,9 +574,10 @@ onBeforeUnmount(() => {
   width: 74px;
   height: 98px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--mn-radius-sm);
   flex-shrink: 0;
-  background: #242430;
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
 }
 
 .info-text {
@@ -602,7 +606,7 @@ onBeforeUnmount(() => {
 
 .score {
   font-size: 12px;
-  color: #ffd666;
+  color: #b45309;
   font-weight: 600;
 }
 
@@ -685,16 +689,17 @@ onBeforeUnmount(() => {
 }
 
 .recommend-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--mn-surface-2);
 }
 
 .recommend-cover {
   width: 46px;
   height: 62px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--mn-radius-sm);
   flex-shrink: 0;
-  background: #242430;
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
 }
 
 .recommend-info {

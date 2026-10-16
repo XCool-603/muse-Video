@@ -1,32 +1,29 @@
 <template>
   <div class="portal">
-    <div class="cy-grid-bg portal-bg" aria-hidden="true"></div>
-    <div class="cy-scanline" aria-hidden="true"></div>
-
     <div class="portal-inner">
       <!-- ---------- HERO ---------- -->
       <section class="hero">
-        <p class="cy-tag hero-kicker">OPEN SOURCE · SELF-HOSTED · DOCKER</p>
+        <p class="mn-tag hero-kicker">OPEN SOURCE · SELF-HOSTED · DOCKER</p>
 
-        <h1 class="cy-title hero-title">短剧聚合平台</h1>
+        <h1 class="hero-title">短剧聚合平台</h1>
 
         <p class="hero-sub">
           把 25 个平台的短剧聚到一处：统一搜索、按平台浏览、竖屏播放与去广告，一个
-          <code class="cy-code hero-inline">docker compose up</code> 就能跑在自己机器上。
+          <code class="mn-code hero-inline">docker compose up</code> 就能跑在自己机器上。
         </p>
 
         <div class="hero-cta">
-          <button type="button" class="cy-btn cy-btn--primary" @click="goDeploy">
+          <button type="button" class="mn-btn mn-btn--primary" @click="goDeploy">
             {{ deployHint || '一键复制部署命令' }}
           </button>
-          <button type="button" class="cy-btn cy-btn--ghost" @click="scrollToEntries">
+          <button type="button" class="mn-btn mn-btn--ghost" @click="scrollToEntries">
             查看下载入口
           </button>
         </div>
 
         <ul class="hero-stats">
           <li v-for="s in heroStats" :key="s.label" class="stat">
-            <span class="stat-value cy-glow">{{ s.value }}</span>
+            <span class="stat-value">{{ s.value }}</span>
             <span class="stat-label">{{ s.label }}</span>
           </li>
         </ul>
@@ -43,7 +40,7 @@
           <article
             v-for="(entry, i) in entries"
             :key="entry.key"
-            class="cy-panel cy-panel--glow entry"
+            class="mn-panel entry"
           >
             <div class="entry-head">
               <span class="entry-index">{{ String(i + 1).padStart(2, '0') }}</span>
@@ -54,10 +51,10 @@
             </div>
 
             <div class="entry-cmd">
-              <code class="cy-code entry-code">{{ entry.command }}</code>
+              <code class="mn-code entry-code">{{ entry.command }}</code>
               <button
                 type="button"
-                class="cy-copy-btn portal-copy"
+                class="mn-copy-btn portal-copy"
                 :class="{ 'is-copied': copiedKey === entry.key }"
                 :aria-label="`复制：${entry.title}`"
                 @click="copy(entry)"
@@ -86,7 +83,7 @@
         </header>
 
         <div class="features">
-          <article v-for="f in features" :key="f.title" class="cy-panel feature">
+          <article v-for="f in features" :key="f.title" class="mn-panel feature">
             <span class="feature-icon"><component :is="f.icon" /></span>
             <h3 class="feature-title">{{ f.title }}</h3>
             <p class="feature-desc">{{ f.desc }}</p>
@@ -340,7 +337,7 @@ onUnmounted(() => {
 
 <style scoped>
 /*
- * 配色一律走 --cy- 令牌，不写死任何颜色。
+ * 配色一律走 --mn- 令牌，不写死任何颜色。
  * 需要半透明的叠加色时用 color-mix() 从令牌现算，
  * 这样主题换色时门户页跟着一起变。
  */
@@ -348,19 +345,11 @@ onUnmounted(() => {
   position: relative;
   isolation: isolate;
   min-height: 100%;
-  padding-bottom: 40px;
-  background: var(--cy-bg);
-  color: var(--cy-text);
-  font-family: var(--cy-font-ui);
+  padding-bottom: var(--mn-space-7);
+  background: var(--mn-bg);
+  color: var(--mn-text);
+  font-family: var(--mn-font-ui);
   overflow: hidden;
-}
-
-.portal-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  opacity: 0.55;
-  pointer-events: none;
 }
 
 .portal-inner {
@@ -387,7 +376,9 @@ onUnmounted(() => {
   margin: 0 0 18px;
   font-size: clamp(30px, 6vw, 54px);
   line-height: 1.1;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--mn-text);
 }
 
 .hero-sub {
@@ -395,11 +386,11 @@ onUnmounted(() => {
   margin: 0 auto;
   font-size: 15px;
   line-height: 1.85;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 .hero-inline {
-  /* 主题的 .cy-code 是 display:block；这里要嵌在段落里，改回行内块 */
+  /* 主题的 .mn-code 是 display:block；这里要嵌在段落里，改回行内块 */
   display: inline-block;
   padding: 2px 8px;
   font-size: 13px;
@@ -433,17 +424,17 @@ onUnmounted(() => {
 }
 
 .stat-value {
-  font-family: var(--cy-font-mono);
+  font-family: var(--mn-font-ui);
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
-  color: var(--cy-cyan);
+  color: var(--mn-text);
 }
 
 .stat-label {
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-muted);
 }
 
 /* ---------- 区块 ---------- */
@@ -453,21 +444,19 @@ onUnmounted(() => {
 
 .section-head {
   margin-bottom: 22px;
-  border-left: 3px solid var(--cy-cyan);
-  padding-left: 14px;
 }
 
 .section-title {
   margin: 0 0 6px;
   font-size: 20px;
-  letter-spacing: 0.06em;
-  color: var(--cy-text);
+  font-weight: 600;
+  color: var(--mn-text);
 }
 
 .section-sub {
   margin: 0;
   font-size: 13px;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 /* ---------- 四个入口 ---------- */
@@ -500,11 +489,11 @@ onUnmounted(() => {
 
 .entry-index {
   flex-shrink: 0;
-  font-family: var(--cy-font-mono);
+  font-family: var(--mn-font-ui);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.1;
-  color: var(--cy-magenta);
+  color: var(--mn-text-muted);
 }
 
 .entry-head-text {
@@ -514,15 +503,15 @@ onUnmounted(() => {
 .entry-title {
   margin: 0 0 6px;
   font-size: 17px;
-  letter-spacing: 0.04em;
-  color: var(--cy-text);
+  font-weight: 600;
+  color: var(--mn-text);
 }
 
 .entry-desc {
   margin: 0;
   font-size: 13px;
   line-height: 1.7;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 /*
@@ -548,7 +537,7 @@ onUnmounted(() => {
   overflow-x: auto;
   /*
    * 换行策略：只在**空格**处折行，单个超长 URL 才由
-   * 主题 .cy-code 的 overflow-wrap: anywhere 断词。
+   * 主题 .mn-code 的 overflow-wrap: anywhere 断词。
    * 这里给 word-break 用的是 normal —— 千万不能用「按任意字符断行」那个取值，
    * 它会把 git clone https://...muse-Video.git 断成 ...muse-Video.g / it，
    * 肉眼看就是「命令被裁掉了」。
@@ -558,7 +547,7 @@ onUnmounted(() => {
 }
 
 /*
- * 复制按钮的配色/成功态全部交给主题的 .cy-copy-btn 与 .cy-copy-btn.is-copied，
+ * 复制按钮的配色/成功态全部交给主题的 .mn-copy-btn 与 .mn-copy-btn.is-copied，
  * 这里只补布局。注意别在这里写 color/background —— 本组件是 scoped，
  * 选择器带 [data-v-*] 权重更高，会把主题的成功态盖掉。
  */
@@ -578,15 +567,15 @@ onUnmounted(() => {
   margin: 0;
   font-size: 12px;
   line-height: 1.7;
-  color: var(--cy-text-dim);
-  border-top: 1px dashed var(--cy-border);
+  color: var(--mn-text-muted);
+  border-top: 1px dashed var(--mn-border);
   padding-top: 10px;
 }
 
 .entries-hint {
   margin: 16px 0 0;
   font-size: 12px;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-muted);
 }
 
 /* ---------- 功能亮点 ---------- */
@@ -598,13 +587,13 @@ onUnmounted(() => {
 
 .feature {
   padding: 20px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* 悬停反馈：边框转主色 + 轻阴影。没有发光，也没有位移（极简风的克制做法） */
 .feature:hover {
-  transform: translateY(-3px);
-  border-color: var(--cy-cyan);
-  box-shadow: 0 0 0 1px var(--cy-cyan), var(--cy-glow-cyan);
+  border-color: var(--mn-primary-border);
+  box-shadow: var(--mn-shadow-md);
 }
 
 .feature-icon {
@@ -614,31 +603,31 @@ onUnmounted(() => {
   height: 38px;
   margin-bottom: 14px;
   font-size: 19px;
-  color: var(--cy-cyan);
-  border: 1px solid var(--cy-cyan);
-  border-radius: var(--cy-radius);
-  background: color-mix(in srgb, var(--cy-cyan) 12%, transparent);
+  color: var(--mn-primary);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius-sm);
+  background: var(--mn-primary-soft);
 }
 
 .feature-title {
   margin: 0 0 8px;
   font-size: 15px;
-  letter-spacing: 0.03em;
-  color: var(--cy-text);
+  font-weight: 600;
+  color: var(--mn-text);
 }
 
 .feature-desc {
   margin: 0;
   font-size: 13px;
   line-height: 1.75;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 /* 弹窗里的说明文字 */
 .manual-tip {
   margin: 0 0 10px;
   font-size: 13px;
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 @media (max-width: 640px) {
@@ -662,7 +651,7 @@ onUnmounted(() => {
 }
 
 /*
- * 极窄屏（iPhone SE 的 320px）：.cy-tag 是 white-space: nowrap 的胶囊，
+ * 极窄屏（iPhone SE 的 320px）：.mn-tag 是 white-space: nowrap 的胶囊，
  * 默认 11px + 0.18em 字距时宽 308px，加上 20px 内边距就是 328px ——
  * 在 320px 视口下会被 .portal 的 overflow: hidden 裁掉右端 8px。
  * 这里收字号与字距，让整颗胶囊在 320px 里完整放下。
@@ -671,13 +660,6 @@ onUnmounted(() => {
   .hero-kicker {
     font-size: 10px;
     letter-spacing: 0.06em;
-  }
-}
-
-/* 少一点动态效果：关掉悬停位移 */
-@media (prefers-reduced-motion: reduce) {
-  .feature:hover {
-    transform: none;
   }
 }
 </style>

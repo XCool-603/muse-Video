@@ -4,7 +4,7 @@
       <a-row :gutter="[16, 16]">
         <a-col v-for="card in statCards" :key="card.title" :xs="12" :sm="12" :md="8" :lg="4">
           <div class="stat-card">
-            <div class="stat-icon" :style="{ background: card.bg, color: card.color }">
+            <div class="stat-icon">
               <component :is="card.icon" />
             </div>
             <div class="stat-body">
@@ -106,37 +106,27 @@ const statCards = computed(() => [
   {
     title: '短剧总数',
     value: data.value?.dramaCount ?? 0,
-    icon: h(VideoCameraOutlined),
-    bg: 'rgba(255,77,109,0.16)',
-    color: '#ff4d6d'
+    icon: h(VideoCameraOutlined)
   },
   {
     title: '剧集总数',
     value: data.value?.episodeCount ?? 0,
-    icon: h(PlaySquareOutlined),
-    bg: 'rgba(250,173,20,0.16)',
-    color: '#faad14'
+    icon: h(PlaySquareOutlined)
   },
   {
     title: '用户数',
     value: data.value?.userCount ?? 0,
-    icon: h(TeamOutlined),
-    bg: 'rgba(19,194,194,0.16)',
-    color: '#13c2c2'
+    icon: h(TeamOutlined)
   },
   {
     title: '总播放量',
     value: data.value?.totalPlayCount ?? 0,
-    icon: h(EyeOutlined),
-    bg: 'rgba(82,196,26,0.16)',
-    color: '#52c41a'
+    icon: h(EyeOutlined)
   },
   {
     title: '接入平台',
     value: data.value?.platformCount ?? 0,
-    icon: h(ApiOutlined),
-    bg: 'rgba(114,46,209,0.16)',
-    color: '#722ed1'
+    icon: h(ApiOutlined)
   }
 ])
 
@@ -162,9 +152,9 @@ onMounted(load)
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: var(--sd-bg-elevated);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-radius);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
 }
 
 .stat-icon {
@@ -175,6 +165,9 @@ onMounted(load)
   border-radius: 10px;
   font-size: 18px;
   flex-shrink: 0;
+  /* 极简：KPI 图标统一淡主色底 + 主色字，不再每个指标一个语义色 */
+  background: var(--mn-primary-soft);
+  color: var(--mn-primary);
 }
 
 .stat-body {
@@ -187,12 +180,12 @@ onMounted(load)
   font-size: 20px;
   font-weight: 700;
   line-height: 1.2;
-  color: var(--sd-text);
+  color: var(--mn-text);
 }
 
 .stat-title {
   font-size: 12px;
-  color: var(--sd-text-secondary);
+  color: var(--mn-text-secondary);
 }
 
 .chart-row {
@@ -214,7 +207,7 @@ onMounted(load)
 .bar-label {
   width: 76px;
   font-size: 12.5px;
-  color: var(--sd-text-secondary);
+  color: var(--mn-text-secondary);
   flex-shrink: 0;
   text-align: right;
 }
@@ -223,25 +216,25 @@ onMounted(load)
   flex: 1;
   height: 10px;
   border-radius: 5px;
-  background: #26262e;
+  background: var(--mn-surface-2);
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
   border-radius: 5px;
-  background: linear-gradient(90deg, #ff4d6d, #ff8a5b);
+  background: var(--mn-primary);
   transition: width 0.4s ease;
 }
 
 .bar-fill-alt {
-  background: linear-gradient(90deg, #722ed1, #13c2c2);
+  background: var(--mn-primary-hover);
 }
 
 .bar-value {
   width: 40px;
   font-size: 12.5px;
-  color: var(--sd-text);
+  color: var(--mn-text);
   text-align: right;
   flex-shrink: 0;
 }

@@ -58,7 +58,9 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+// 按需引入：message 的传递闭包有 351KB 源码（含 antd 全量 locale 表），
+// 见 src/utils/toast.ts。首屏静态依赖里没有它。
+import { toast } from '@/utils/toast'
 import { playApi } from '@/api/drama'
 import { userApi } from '@/api/user'
 import type { Drama, PlayProgress } from '@/api/types'
@@ -109,7 +111,7 @@ async function loadHistory() {
 
 function handleLogout() {
   userStore.logout()
-  message.success('已退出登录')
+  toast('success', '已退出登录')
   router.push('/')
 }
 

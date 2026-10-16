@@ -46,7 +46,9 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { LoadingOutlined, PlayCircleFilled } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+// 按需引入：message 的传递闭包有 351KB 源码（含 antd 全量 locale 表 192.8KB），
+// 见 src/utils/toast.ts。首屏静态依赖里一条 message 都不弹，这份体积不该跟着走。
+import { toast } from '@/utils/toast'
 import { dramaApi } from '@/api/drama'
 import type { Drama } from '@/api/types'
 import { usePlatformStore } from '@/stores/platform'
@@ -63,8 +65,8 @@ const FALLBACK_COVER =
   'data:image/svg+xml;charset=utf-8,' +
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400">
-      <rect width="300" height="400" fill="#242430"/>
-      <text x="150" y="205" font-size="18" fill="#6b6b78" text-anchor="middle">暂无封面</text>
+      <rect width="300" height="400" fill="#f2f2f4"/>
+      <text x="150" y="205" font-size="18" fill="#8a8a93" text-anchor="middle">暂无封面</text>
     </svg>`
   )
 
@@ -116,10 +118,10 @@ async function resolveAndPlay() {
     if (id > 0) {
       router.push(`/play/${id}`)
     } else {
-      message.error('该剧暂时无法入库')
+      toast('error', '该剧暂时无法入库')
     }
   } catch (e) {
-    message.error((e as Error).message || '该平台暂时无法播放这部剧')
+    toast('error', (e as Error).message || '该平台暂时无法播放这部剧')
   } finally {
     resolving.value = false
   }
@@ -129,29 +131,29 @@ async function resolveAndPlay() {
 <style scoped>
 .drama-card {
   cursor: pointer;
-  transition: transform 0.22s ease;
   /*
     长列表渲染优化：「加载更多」堆到上百张卡片后，屏幕外的卡片不必参与布局与绘制。
     contain-intrinsic-size 的 auto 关键字很关键 —— 首次渲染后浏览器会记住真实尺寸，
     滚动条不会因为占位高度估算不准而跳动（这里 300px 只是首次的估算值）。
     卡片高度 = 栅格宽度 × 4/3（封面 3/4）+ 约 66px 信息区，150~200px 栅格下约 266~333px。
+
+    注意：这里**不写 transform transition**。整卡位移（translateY(-4px)）在
+    长列表下会让每张 hover 的卡片都新建合成层并重绘，是「卡卡的」来源之一；
+    反馈全部交给封面（见 .drama-card:hover .cover-wrap）。
   */
   content-visibility: auto;
   contain-intrinsic-size: auto 300px;
-}
-
-.drama-card:hover {
-  transform: translateY(-4px);
 }
 
 .cover-wrap {
   position: relative;
   width: 100%;
   aspect-ratio: 3 / 4;
-  border-radius: var(--sd-radius);
+  border-radius: var(--mn-radius);
   overflow: hidden;
-  background: #242430;
-  border: 1px solid var(--sd-border);
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .cover {
@@ -162,8 +164,18 @@ async function resolveAndPlay() {
   transition: transform 0.3s ease;
 }
 
+/*
+ * hover 反馈只落在封面上：边框转主色 + 轻阴影 + 图极轻微 scale。
+ * 刻意**不位移整卡** —— 长列表几百张卡片一起 translateY 会触发合成层重排，
+ * 正是用户说的「卡卡的」来源之一；极简风的层次也靠克制而非位移。
+ */
+.drama-card:hover .cover-wrap {
+  border-color: var(--mn-primary-border);
+  box-shadow: var(--mn-shadow-md);
+}
+
 .drama-card:hover .cover {
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 .badges {
@@ -179,13 +191,13 @@ async function resolveAndPlay() {
   border-radius: 4px;
   font-size: 11px;
   line-height: 16px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  color: var(--mn-on-primary);
+  background: var(--mn-on-image-bg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .badge-done {
-  background: rgba(82, 196, 26, 0.85);
+  background: rgba(21, 128, 61, 0.85);
 }
 
 .rating {
@@ -196,8 +208,8 @@ async function resolveAndPlay() {
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
-  color: #ffd666;
-  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  background: var(--mn-on-image-bg);
 }
 
 .multi-source {
@@ -243,7 +255,7 @@ async function resolveAndPlay() {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
-  color: var(--sd-text);
+  color: var(--mn-text);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -268,7 +280,7 @@ async function resolveAndPlay() {
 
 .platform {
   font-size: 11px;
-  color: var(--sd-text-secondary);
+  color: var(--mn-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

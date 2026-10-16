@@ -77,9 +77,9 @@ function handleSelect(episode: Episode) {
 
 <style scoped>
 .episode-list {
-  background: var(--sd-bg-elevated);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-radius);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
   padding: 14px;
 }
 
@@ -109,29 +109,29 @@ function handleSelect(episode: Episode) {
   margin: 4px 0;
   font-size: 12px;
   line-height: 1.7;
-  color: var(--sd-text-secondary);
+  color: var(--mn-text-secondary);
 }
 
 .episode-btn {
   position: relative;
   height: 38px;
   border-radius: 8px;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--mn-border);
   background: #23232b;
-  color: var(--sd-text);
+  color: var(--mn-text);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.18s;
 }
 
 .episode-btn:hover {
-  border-color: var(--sd-primary);
-  color: var(--sd-primary);
+  border-color: var(--mn-primary);
+  color: var(--mn-primary);
 }
 
 .episode-btn.active {
-  background: var(--sd-primary);
-  border-color: var(--sd-primary);
+  background: var(--mn-primary);
+  border-color: var(--mn-primary);
   color: #fff;
   font-weight: 600;
 }
@@ -151,7 +151,7 @@ function handleSelect(episode: Episode) {
 .current-info {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--sd-border);
+  border-top: 1px solid var(--mn-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -160,6 +160,6 @@ function handleSelect(episode: Episode) {
 
 .current-title {
   font-size: 13px;
-  color: var(--sd-text);
+  color: var(--mn-text);
 }
 </style>

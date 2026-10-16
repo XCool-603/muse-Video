@@ -1,27 +1,35 @@
 /* ==========================================================================
-   全局样式（基底）
+   全局样式（布局骨架 + 令牌别名 + Ant Design Vue 覆盖）
    --------------------------------------------------------------------------
-   赛博朋克主题的令牌与通用类在 ./cyberpunk.css（由 main.ts 在本文件之后引入）。
-   本文件只保留「布局骨架 + 旧令牌别名 + Ant Design Vue 深色覆盖」。
+   主题令牌与通用组件类在 ./minimal.css（由 main.ts 在本文件之后引入）。
 
-   旧令牌 --sd-* 原样保留，但全部指向 --cy-* ——
-   这样 src/views/**、src/components/** 里已有的 var(--sd-*) 一行不改就能跟着换皮。
+   别名层：--sd-* 是本项目老代码里已经写了几十处的令牌名（views/**、components/**）。
+   它们现在全部指向极简主题的 --mn-*，这样业务代码一行不改就跟着换肤，
+    也不需要「颜色写在两处」。
    ========================================================================== */
 
 :root {
-  /* ---------- 旧令牌 → 赛博朋克令牌（别名层） ---------- */
-  --sd-bg: var(--cy-bg);
-  --sd-bg-elevated: var(--cy-panel);
-  --sd-border: var(--cy-border);
-  --sd-text: var(--cy-text);
-  --sd-text-secondary: var(--cy-text-dim);
+  /* ---------- 旧令牌 → 极简令牌（别名层） ---------- */
+  --sd-bg: var(--mn-bg);
+  --sd-bg-elevated: var(--mn-surface);
+  --sd-border: var(--mn-border);
+  --sd-border-strong: var(--mn-border-strong);
+  --sd-text: var(--mn-text);
+  --sd-text-secondary: var(--mn-text-secondary);
   /* 这两个以前没定义过（只靠 fallback 值生效），现在正式指向令牌 */
-  --sd-text-muted: var(--cy-text-dim);
-  --sd-surface: var(--cy-panel-2);
-  --sd-primary: var(--cy-cyan);
-  --sd-primary-hover: var(--cy-cyan-hover);
-  --sd-radius: var(--cy-radius);
+  --sd-text-muted: var(--mn-text-muted);
+  --sd-surface: var(--mn-surface-2);
+  --sd-primary: var(--mn-primary);
+  --sd-primary-hover: var(--mn-primary-hover);
+  /* 选中态用到的两个「淡」变体：全站唯一彩色的浅化版，避免各处再写一遍 rgba */
+  --sd-primary-border: var(--mn-primary-border);
+  --sd-primary-soft: var(--mn-primary-soft);
+  --sd-radius: var(--mn-radius);
   --sd-max-width: 1200px;
+  /* 播放器等「必须压在画面上的浮层」用：深色玻璃底 + 透明白字 */
+  --sd-on-image-scrim: rgba(255, 255, 255, 0.92);
+  --sd-on-image-scrim-strong: rgba(255, 255, 255, 0.7);
+  --sd-on-image-bg: rgba(24, 24, 27, 0.72);
 }
 
 * {
@@ -37,9 +45,9 @@ body,
 }
 
 body {
-  background-color: var(--cy-bg);
-  color: var(--cy-text);
-  font-family: var(--cy-font-ui);
+  background-color: var(--sd-bg);
+  color: var(--sd-text);
+  font-family: var(--sd-font-ui, var(--mn-font-ui));
   -webkit-font-smoothing: antialiased;
 }
 
@@ -51,43 +59,43 @@ a {
 .sd-container {
   max-width: var(--sd-max-width);
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0 20px;
 }
 
-/* ---------- 短剧网格 ---------- */
+/* ---------- 短剧网格（内容优先：封面是主体，间距交给留白） ---------- */
 .drama-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
+  gap: var(--mn-space-5) var(--mn-space-4);
 }
 
 @media (max-width: 640px) {
   .drama-grid {
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 10px;
+    gap: var(--mn-space-4) var(--mn-space-2);
   }
 }
 
-/* ---------- 滚动条 ---------- */
+/* ---------- 滚动条（弱化到几乎看不见） ---------- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--cy-border);
+  background: var(--sd-border-strong);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--cy-cyan-line);
+  background: var(--mn-text-muted);
 }
 
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* ---------- 暗色主题覆盖 Ant Design Vue ---------- */
+/* ---------- Ant Design Vue：跟着极简令牌走，不再叠暗色皮肤 ---------- */
 .ant-layout,
 .ant-layout-content,
 .ant-layout-header,
@@ -96,55 +104,56 @@ a {
 }
 
 .ant-card {
-  background-color: var(--cy-panel);
-  border-color: var(--cy-border);
+  background-color: var(--mn-surface);
+  border-color: var(--mn-border);
 }
 
 .ant-card-head {
-  color: var(--cy-text);
-  border-bottom-color: var(--cy-border);
+  color: var(--mn-text);
+  border-bottom-color: var(--mn-border);
 }
 
 .ant-card-body {
-  color: var(--cy-text);
+  color: var(--mn-text);
 }
 
 .ant-empty-description {
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 .ant-btn-primary {
-  color: var(--cy-bg);
-  background-color: var(--cy-cyan);
-  border-color: var(--cy-cyan);
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary);
+  border-color: var(--mn-primary);
 }
 
 .ant-btn-primary:not(:disabled):hover {
-  color: var(--cy-bg);
-  background-color: var(--cy-cyan-hover);
-  border-color: var(--cy-cyan-hover);
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary-hover);
+  border-color: var(--mn-primary-hover);
 }
 
 .ant-btn-default {
   background-color: transparent;
-  border-color: var(--cy-border);
+  border-color: var(--mn-border-strong);
 }
 
 .ant-btn-default:not(:disabled):hover {
-  color: var(--cy-cyan);
-  border-color: var(--cy-cyan);
+  color: var(--mn-primary);
+  border-color: var(--mn-primary-border);
+  background-color: var(--mn-primary-soft);
 }
 
 .ant-tabs-tab {
-  color: var(--cy-text-dim);
+  color: var(--mn-text-secondary);
 }
 
 .ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--cy-cyan) !important;
+  color: var(--mn-primary) !important;
 }
 
 .ant-tabs-ink-bar {
-  background-color: var(--cy-cyan);
+  background-color: var(--mn-primary);
 }
 
 .ant-input,
@@ -152,68 +161,57 @@ a {
 .ant-select-selector,
 .ant-input-number,
 .ant-picker {
-  background-color: var(--cy-bg-soft) !important;
-  border-color: var(--cy-border) !important;
-  color: var(--cy-text);
+  background-color: var(--mn-bg) !important;
+  border-color: var(--mn-border-strong) !important;
+  color: var(--mn-text);
 }
 
 .ant-input::placeholder,
 .ant-select-selection-placeholder {
-  color: var(--cy-text-dim);
+  color: var(--mn-text-muted);
 }
 
 .ant-modal-content,
 .ant-modal-header,
 .ant-drawer-content,
 .ant-dropdown-menu {
-  background-color: var(--cy-panel);
-  border-color: var(--cy-border);
+  background-color: var(--mn-surface);
+  border-color: var(--mn-border);
 }
 
 .ant-table,
 .ant-table-thead > tr > th {
-  background-color: var(--cy-panel-2);
-  color: var(--cy-text);
-  border-color: var(--cy-border);
+  background-color: var(--mn-surface-2);
+  color: var(--mn-text);
+  border-color: var(--mn-border);
 }
 
 .ant-table-tbody > tr > td {
   background-color: transparent;
-  border-color: var(--cy-border);
+  border-color: var(--mn-border);
 }
 
 .ant-divider {
-  border-color: var(--cy-border);
+  border-color: var(--mn-border);
 }
 
-/* ---------- 页面标题 ---------- */
+/* ---------- 区块标题：靠字号与留白分层，不再用霓虹条 + 文字发光 ---------- */
 .sd-section-title {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin: 24px 0 14px;
+  gap: var(--mn-space-4);
+  margin: var(--mn-space-7) 0 var(--mn-space-4);
 }
 
 .sd-section-title h2 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   margin: 0;
-  color: var(--cy-text);
-  text-shadow: 0 0 12px var(--cy-cyan-glow-soft);
-}
-
-.sd-section-title h2::before {
-  content: '';
-  display: inline-block;
-  width: 3px;
-  height: 16px;
-  background-color: var(--cy-cyan);
-  border-radius: 2px;
-  margin-right: 8px;
-  vertical-align: -2px;
+  color: var(--mn-text);
 }
 
 .sd-muted {
-  color: var(--cy-text-dim);
+  color: var(--mn-text-muted);
   font-size: 12px;
 }

@@ -232,6 +232,7 @@ async function loadList(reset = true) {
   if (reset) page.value = 1
   // 注意：reset 时不清空旧列表 —— 先留着，等新数据到了原地替换，
   // 否则切平台/切分类时网格会先塌掉再弹回来，视觉上就是一卡。
+  // 首页 / 分类 / 搜索三处的「换筛选条件」都用同一个策略（搜索页见 SearchView.doSearch）。
 
   try {
     const result = await browse.loadCatalog(
@@ -294,13 +295,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 首页 hero：极简风的「大留白」—— 白底 + 1px 极淡下边框，没有径向辉光也没有渐变 */
 .hero {
-  padding: 40px 0 28px;
-  background:
-    radial-gradient(1200px 320px at 50% -80px, rgba(255, 77, 109, 0.22), transparent),
-    linear-gradient(180deg, #16161c, var(--sd-bg));
+  padding: 48px 0 32px;
   border-bottom: 1px solid var(--sd-border);
-  margin-bottom: 8px;
+  margin-bottom: var(--mn-space-5);
 }
 
 .hero-inner {
@@ -309,16 +308,14 @@ onMounted(async () => {
 
 .hero-title {
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   margin: 0 0 10px;
-  background: linear-gradient(90deg, #fff, #ffb3c1);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--sd-text);
 }
 
 .hero-sub {
-  margin: 0 0 22px;
+  margin: 0 0 var(--mn-space-5);
   font-size: 13px;
   color: var(--sd-text-secondary);
 }
@@ -349,24 +346,25 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--sd-border);
-  background: var(--sd-bg-elevated);
+  border-radius: var(--mn-radius-pill);
+  border: 1px solid var(--sd-border-strong);
+  background: var(--mn-bg);
   color: var(--sd-text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .platform-tab:hover {
   color: var(--sd-text);
-  border-color: #3d3d48;
+  border-color: var(--sd-primary-border);
 }
 
+/* 选中态：主色实底。这是页面上唯一抢眼的彩色块，用来标出「当前平台」 */
 .platform-tab.active {
-  color: #fff;
-  background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
-  border-color: transparent;
+  color: var(--mn-on-primary);
+  background: var(--mn-primary);
+  border-color: var(--mn-primary);
 }
 
 /* 该源 CDN 拒绝本部署机访问（403/404），点进去大概率播不了 —— 半透明加删除线提示 */
@@ -382,37 +380,38 @@ onMounted(async () => {
 
 .category-chips {
   display: flex;
-  gap: 10px;
+  gap: var(--mn-space-2);
   flex-wrap: wrap;
-  margin-top: 22px;
+  margin-top: var(--mn-space-5);
 }
 
 .chip {
   padding: 6px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--sd-border);
-  background: var(--sd-bg-elevated);
+  border-radius: var(--mn-radius-pill);
+  border: 1px solid var(--sd-border-strong);
+  background: var(--mn-bg);
   color: var(--sd-text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .chip:hover {
-  color: var(--sd-text);
-  border-color: #3d3d48;
+  color: var(--sd-primary);
+  border-color: var(--sd-primary-border);
+  background-color: var(--mn-primary-soft);
 }
 
 .chip.active {
-  color: #fff;
-  background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
-  border-color: transparent;
+  color: var(--mn-on-primary);
+  background: var(--mn-primary);
+  border-color: var(--mn-primary);
 }
 
-/* 源站分类名里带「短剧」等词的，描边highlight一下，方便一眼找到 */
+/* 源站分类名里带「短剧」等词的，用主色描边 highlight 一下，方便一眼找到 */
 .chip.short:not(.active) {
-  color: #ffb3c1;
-  border-color: rgba(255, 77, 109, 0.5);
+  color: var(--sd-primary);
+  border-color: var(--sd-primary-border);
 }
 
 .chip-more {

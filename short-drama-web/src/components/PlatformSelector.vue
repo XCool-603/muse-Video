@@ -75,22 +75,22 @@ function select(platform: { code: string; available: boolean }) {
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--sd-border);
-  background: #23232b;
+  border-radius: var(--mn-radius-pill);
+  border: 1px solid var(--sd-border-strong);
+  background: var(--mn-bg);
   color: var(--sd-text);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .platform-btn:hover:not(.disabled) {
-  border-color: var(--sd-primary);
+  border-color: var(--sd-primary-border);
 }
 
 .platform-btn.active {
   border-color: var(--sd-primary);
-  background: rgba(255, 77, 109, 0.16);
+  background: var(--mn-primary-soft);
   color: var(--sd-primary);
 }
 

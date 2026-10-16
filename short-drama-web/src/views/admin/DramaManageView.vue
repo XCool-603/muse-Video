@@ -157,7 +157,9 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+// 按需引入：message 的传递闭包有 351KB 源码（含 antd 全量 locale 表），
+// 见 src/utils/toast.ts。管理后台是独立 chunk，更不能为它拖累首屏。
+import { toast } from '@/utils/toast'
 import { adminApi, type DramaSaveRequest } from '@/api/admin'
 import { dramaApi } from '@/api/drama'
 import type { Drama, PlatformSource } from '@/api/types'
@@ -265,7 +267,7 @@ function openEdit(record: Drama) {
 
 async function handleSave() {
   if (!form.title.trim()) {
-    message.warning('请填写标题')
+    toast('warning', '请填写标题')
     return
   }
 
@@ -273,15 +275,15 @@ async function handleSave() {
   try {
     if (editingId.value) {
       await adminApi.updateDrama(editingId.value, { ...form })
-      message.success('更新成功')
+      toast('success', '更新成功')
     } else {
       await adminApi.createDrama({ ...form })
-      message.success('创建成功')
+      toast('success', '创建成功')
     }
     modalOpen.value = false
     load()
   } catch (error) {
-    message.error((error as Error).message || '保存失败')
+    toast('error', (error as Error).message || '保存失败')
   } finally {
     saving.value = false
   }
@@ -290,10 +292,10 @@ async function handleSave() {
 async function handleDelete(record: Drama) {
   try {
     await adminApi.deleteDrama(record.id)
-    message.success('已删除')
+    toast('success', '已删除')
     load()
   } catch (error) {
-    message.error((error as Error).message || '删除失败')
+    toast('error', (error as Error).message || '删除失败')
   }
 }
 
@@ -339,8 +341,8 @@ onMounted(async () => {
   width: 38px;
   height: 50px;
   object-fit: cover;
-  border-radius: 6px;
-  background: #242430;
+  border-radius: var(--mn-radius-sm);
+  background: var(--mn-surface-2);
   flex-shrink: 0;
 }
 
@@ -353,7 +355,7 @@ onMounted(async () => {
 
 .t-title {
   font-size: 13.5px;
-  color: var(--sd-text);
+  color: var(--mn-text);
 }
 
 .t-desc {

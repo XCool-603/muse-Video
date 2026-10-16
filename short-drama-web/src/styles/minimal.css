@@ -1,0 +1,289 @@
+/* ==========================================================================
+   极简主题 · 设计令牌（design tokens）+ 通用组件类
+   --------------------------------------------------------------------------
+   由 src/main.ts 在 `import './styles/main.css'` **之后**引入，
+   因此本文件覆盖在布局骨架之上。
+
+   设计语言：中性色阶 + 单一主色。无背景装饰、无发光、无扫描线、无切角。
+   层次靠「留白 + 1px 极淡边框 + 轻微阴影」建立，封面图是页面的视觉主体。
+
+   契约（令牌名 / 类名是本文件对外承诺）：
+     令牌：--mn-bg --mn-bg-soft --mn-surface --mn-surface-2 --mn-border
+            --mn-border-strong
+            --mn-primary --mn-primary-hover --mn-primary-soft --mn-primary-border
+            --mn-text --mn-text-secondary --mn-text-muted
+            --mn-font-sans --mn-font-mono --mn-font-ui
+            --mn-radius --mn-radius-sm --mn-radius-pill
+            --mn-shadow-sm --mn-shadow-md
+            --mn-space-*
+      类：  .mn-panel .mn-panel--quiet
+            .mn-btn .mn-btn--primary .mn-btn--ghost
+            .mn-title .mn-tag .mn-code .mn-copy-btn
+   ========================================================================== */
+
+:root {
+  /* ---------- 底色（中性色阶：不偏冷也不偏暖的灰） ---------- */
+  --mn-bg: #ffffff;
+  --mn-bg-soft: #f7f7f8;
+  --mn-surface: #ffffff;
+  --mn-surface-2: #f2f2f4;
+  --mn-border: #ebebee;
+  --mn-border-strong: #dcdce0;
+
+  /* ---------- 单一主色（唯一彩色，只用于「当前态 / 可点击」） ---------- */
+  --mn-primary: #4f46e5;
+  --mn-primary-hover: #4338ca;
+  --mn-primary-soft: rgba(79, 70, 229, 0.08);
+  --mn-primary-border: rgba(79, 70, 229, 0.32);
+
+  /* ---------- 文字 ---------- */
+  --mn-text: #18181b;
+  --mn-text-secondary: #52525b;
+  --mn-text-muted: #8a8a93;
+
+  /* ---------- 字体 ---------- */
+  --mn-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mn-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  --mn-font-ui: var(--mn-font-sans);
+
+  /* ---------- 形状（无切角：--mn-clip 只留作 no-op 兼容占位，任何地方都不该再用它切角） ---------- */
+  --mn-radius: 10px;
+  --mn-radius-sm: 6px;
+  --mn-radius-pill: 999px;
+  --mn-clip: none;
+
+  /* ---------- 层次：只允许「轻」，禁止发光 ---------- */
+  --mn-shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06);
+  --mn-shadow-md: 0 4px 12px -4px rgba(24, 24, 27, 0.1);
+
+  /* ---------- 留白节奏（间距刻度，避免各处随手写数） ---------- */
+  --mn-space-1: 4px;
+  --mn-space-2: 8px;
+  --mn-space-3: 12px;
+  --mn-space-4: 16px;
+  --mn-space-5: 24px;
+  --mn-space-6: 32px;
+  --mn-space-7: 48px;
+
+  /* ---------- 派生令牌 ---------- */
+  --mn-primary-strong: #3730a3;
+  --mn-on-primary: #ffffff;
+}
+
+/* ==========================================================================
+   全局基底
+   ========================================================================== */
+
+body {
+  background-color: var(--mn-bg);
+  color: var(--mn-text);
+  font-family: var(--mn-font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--mn-primary-soft);
+  color: var(--mn-primary-strong);
+}
+
+/* 焦点可见：极简风的唯一「描边」反馈也走主色 */
+:focus-visible {
+  outline: 2px solid var(--mn-primary);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   面板
+   ========================================================================== */
+
+/* 默认「有边框的浅面板」：靠 1px 极淡边框 + 轻阴影分层，没有渐变也没有发光 */
+.mn-panel {
+  position: relative;
+  padding: var(--mn-space-5);
+  background-color: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
+  color: var(--mn-text);
+}
+
+/* 纯留白分隔的「无框面板」：卡片之间的分隔交给父级 gap 与留白 */
+.mn-panel--quiet {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* ==========================================================================
+   按钮
+   ========================================================================== */
+
+.mn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mn-space-2);
+  padding: 9px 18px;
+  appearance: none;
+  font-family: var(--mn-font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  text-align: center;
+  color: var(--mn-text);
+  background: transparent;
+  border: 1px solid var(--mn-border-strong);
+  border-radius: var(--mn-radius-sm);
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.mn-btn:hover {
+  color: var(--mn-primary);
+  border-color: var(--mn-primary-border);
+  background-color: var(--mn-primary-soft);
+}
+
+.mn-btn:active {
+  background-color: var(--mn-surface-2);
+}
+
+.mn-btn--primary {
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary);
+  border-color: transparent;
+}
+
+.mn-btn--primary:hover {
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary-hover);
+  border-color: transparent;
+}
+
+.mn-btn--primary:active {
+  background-color: var(--mn-primary-strong);
+}
+
+.mn-btn--ghost {
+  color: var(--mn-primary);
+  background: transparent;
+  border-color: var(--mn-primary-border);
+}
+
+.mn-btn--ghost:hover {
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary);
+  border-color: var(--mn-primary);
+}
+
+.mn-btn:disabled,
+.mn-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mn-btn:disabled:hover,
+.mn-btn[disabled]:hover {
+  color: var(--mn-text);
+  background: transparent;
+  border-color: var(--mn-border-strong);
+}
+
+.mn-btn--primary:disabled:hover,
+.mn-btn--primary[disabled]:hover {
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary);
+}
+
+/* ==========================================================================
+   文字
+   ========================================================================== */
+
+.mn-title {
+  margin: 0;
+  font-family: var(--mn-font-ui);
+  font-size: clamp(22px, 3.6vw, 34px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--mn-text);
+}
+
+/* ==========================================================================
+   小件
+   ========================================================================== */
+
+.mn-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  font-family: var(--mn-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.7;
+  white-space: nowrap;
+  color: var(--mn-text-secondary);
+  background-color: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius-pill);
+}
+
+.mn-code {
+  display: block;
+  margin: 0;
+  padding: 12px 14px;
+  font-family: var(--mn-font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--mn-text);
+  background-color: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mn-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  appearance: none;
+  font-family: var(--mn-font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  color: var(--mn-text);
+  background-color: var(--mn-surface);
+  border: 1px solid var(--mn-border-strong);
+  border-radius: var(--mn-radius-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.mn-copy-btn:hover {
+  color: var(--mn-primary);
+  border-color: var(--mn-primary-border);
+  background-color: var(--mn-primary-soft);
+}
+
+.mn-copy-btn:active {
+  background-color: var(--mn-surface-2);
+}
+
+/* 复制成功态：两种写法都支持，调用方用哪个都行 */
+.mn-copy-btn.is-copied,
+.mn-copy-btn--done {
+  color: var(--mn-on-primary);
+  background-color: var(--mn-primary);
+  border-color: var(--mn-primary);
+}

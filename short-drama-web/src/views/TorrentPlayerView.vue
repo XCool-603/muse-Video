@@ -209,9 +209,9 @@ onUnmounted(stopPolling)
 }
 
 .file-side {
-  background: var(--sd-surface, #1b1b24);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-radius);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
   padding: 14px;
   height: fit-content;
 }

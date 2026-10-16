@@ -145,9 +145,9 @@ onMounted(load)
 }
 
 .platform-card {
-  background: var(--sd-bg-elevated);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-radius);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
   padding: 16px;
   height: 100%;
   display: flex;
@@ -191,12 +191,12 @@ onMounted(load)
 }
 
 .label {
-  color: var(--sd-text-secondary);
+  color: var(--mn-text-secondary);
   flex-shrink: 0;
 }
 
 .value {
-  color: var(--sd-text);
+  color: var(--mn-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   min-width: 0;
@@ -214,6 +214,6 @@ onMounted(load)
   justify-content: space-between;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid var(--sd-border);
+  border-top: 1px solid var(--mn-border);
 }
 </style>

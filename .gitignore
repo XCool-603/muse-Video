@@ -15,6 +15,18 @@ dist-ssr/
 *.local
 .vite/
 
+# 前端子目录的构建产物。gitignore 的 `dist/` 只匹配**仓库根**下的 dist/，
+# 匹配不到 short-drama-web/dist/ —— 不写这条，前端构建产物会整包进 git。
+# （docs/DEPLOY-FACTS.md §5 的 C6 判据就是被这一点绊倒的。）
+short-drama-web/dist/
+# 同上：实验/对比用的构建输出目录
+short-drama-web/dist-*/
+
+# 编辑器的备份文件与临时探针（Agent 实验残留，不入库）
+*.bak
+*_probe-tmp*
+vite.x*.config.ts
+
 ## 日志
 logs/
 *.log

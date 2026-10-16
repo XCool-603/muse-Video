@@ -337,10 +337,11 @@ onUnmounted(stopPolling)
   display: inline-block;
   margin-top: 6px;
   padding: 4px 8px;
-  background: #1b1b24;
-  border: 1px solid var(--sd-border);
-  border-radius: 6px;
+  background: var(--mn-surface-2);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius-sm);
   font-size: 12px;
+  font-family: var(--mn-font-mono);
 }
 
 .search-header {
@@ -357,7 +358,7 @@ onUnmounted(stopPolling)
 
 .source-error {
   font-size: 12px;
-  color: var(--sd-text-muted, #9a9aa8);
+  color: var(--mn-text-muted);
 }
 
 .source-chip {
@@ -365,12 +366,12 @@ onUnmounted(stopPolling)
   margin-right: 8px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--mn-surface-2);
   font-size: 12px;
 }
 
 .source-chip.bad {
-  color: #ff7875;
+  color: #b42318;
 }
 
 .torrent-list {
@@ -385,9 +386,16 @@ onUnmounted(stopPolling)
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: var(--sd-surface, #1b1b24);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-radius);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+/* hover 反馈：边框转主色 + 轻阴影（纯留白分隔的列表里，这一处需要可感知的行态） */
+.torrent-item:hover {
+  border-color: var(--mn-primary-border);
+  box-shadow: var(--mn-shadow-sm);
 }
 
 .torrent-main {
@@ -410,30 +418,30 @@ onUnmounted(stopPolling)
   flex-wrap: wrap;
   font-size: 12px;
   line-height: 1.3;
-  color: var(--sd-text-muted, #9a9aa8);
+  color: var(--mn-text-muted);
 }
 
 .seed-good {
-  color: #52c41a;
+  color: #15803d;
 }
 
 .seed-bad {
-  color: #ff4d4f;
+  color: #b42318;
 }
 
 .hint {
   padding: 32px 0;
   text-align: center;
-  color: var(--sd-text-muted, #9a9aa8);
+  color: var(--mn-text-muted);
   font-size: 13px;
 }
 
 .task-panel {
   margin-top: 24px;
   padding: 16px;
-  background: var(--sd-surface, #1b1b24);
-  border: 1px solid var(--sd-border);
-  border-radius: var(--sd-radius);
+  background: var(--mn-surface);
+  border: 1px solid var(--mn-border);
+  border-radius: var(--mn-radius);
 }
 
 .task-head {
@@ -453,7 +461,7 @@ onUnmounted(stopPolling)
 
 .error-text {
   margin-top: 8px;
-  color: #ff7875;
+  color: #b42318;
   font-size: 13px;
 }
 
@@ -469,8 +477,8 @@ onUnmounted(stopPolling)
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--mn-radius-sm);
+  background: var(--mn-surface-2);
 }
 
 .file-name {

@@ -1,11 +1,6 @@
 <template>
   <a-config-provider :locale="zhCN" :theme="themeConfig">
     <div class="app-shell">
-      <!-- 赛博朋克背景层：网格 + 扫描线。
-           沉浸式播放页不叠加，免得糊在画面上（两者都是 pointer-events: none，不影响点击）。 -->
-      <div v-if="showAppBackdrop" class="cy-grid-bg app-grid-layer" aria-hidden="true"></div>
-      <div v-if="showAppBackdrop" class="cy-scanline cy-scanline--fixed" aria-hidden="true"></div>
-
       <header v-if="!isImmersive" class="app-header">
         <div class="sd-container header-inner">
           <RouterLink to="/" class="logo">
@@ -70,10 +65,13 @@
 import { computed } from 'vue'
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router'
 import { SearchOutlined } from '@ant-design/icons-vue'
+// antd 只取需要的三个子模块。**不要**写 from 'ant-design-vue' —— 那是桶导入，
+// rollup 必须把整个组件库的模块图都读进来解析，实测会把 40+ 个组件模块拖进首屏 entry chunk。
+// 这三个深路径与模板里的 <a-config-provider :locale :theme> 一一对应。
+import antdTheme from 'ant-design-vue/es/theme'
+import ConfigProvider from 'ant-design-vue/es/config-provider'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
-import { theme as antdTheme } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
-
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
@@ -94,32 +92,26 @@ const isImmersive = computed(
   () => route.name === 'play' || route.name === 'torrent-play' || route.name === 'gate'
 )
 
-// 外壳背景层（网格 + 扫描线）是否叠加。
-// 门户页 PortalView 自带背景层（.portal-bg + .cy-scanline），再叠一层会因 56px 头部偏移
-// 错位成摩尔纹，所以门户页交给页面自己画。
-// 注意：这里只是背景层的开关，**不是**沉浸式布局判断 —— 门户页照常显示导航与页脚。
-const showAppBackdrop = computed(() => !isImmersive.value && route.name !== 'portal')
-
 /* --------------------------------------------------------------------------
    Ant Design Vue 主题覆盖
-   颜色不写死第二遍：从 cyberpunk.css 的 --cy-* 令牌读出来（读不到才用兜底值），
+   颜色不写死第二遍：从 minimal.css 的 --mn-* 令牌读出来（读不到才用兜底值），
    保证「设计令牌」是唯一真源，改令牌就能整体换色。
    -------------------------------------------------------------------------- */
 
-const CY_FALLBACK = {
-  bg: '#05070e',
-  bgSoft: '#0a0f1c',
-  panel: '#0d1424',
-  panel2: '#121c33',
-  border: '#1e2c4a',
-  cyan: '#00f0ff',
-  magenta: '#ff2bd6',
-  yellow: '#ffe14d',
-  lime: '#9dff3c',
-  text: '#e3f6ff',
-  textDim: '#7c93b8',
-  radius: '10px',
-  fontMono: "'JetBrains Mono', ui-monospace, monospace"
+const MN_FALLBACK = {
+  bg: '#ffffff',
+  bgSoft: '#f7f7f8',
+  surface: '#ffffff',
+  surface2: '#f2f2f4',
+  border: '#ebebee',
+  borderStrong: '#dcdce0',
+  primary: '#4f46e5',
+  primaryHover: '#4338ca',
+  text: '#18181b',
+  textSecondary: '#52525b',
+  textMuted: '#8a8a93',
+  radius: '10',
+  fontUi: "-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif"
 }
 
 function readToken(name: string, fallback: string): string {
@@ -128,99 +120,113 @@ function readToken(name: string, fallback: string): string {
   return value || fallback
 }
 
-const cy = {
-  bg: readToken('--cy-bg', CY_FALLBACK.bg),
-  bgSoft: readToken('--cy-bg-soft', CY_FALLBACK.bgSoft),
-  panel: readToken('--cy-panel', CY_FALLBACK.panel),
-  panel2: readToken('--cy-panel-2', CY_FALLBACK.panel2),
-  border: readToken('--cy-border', CY_FALLBACK.border),
-  cyan: readToken('--cy-cyan', CY_FALLBACK.cyan),
-  magenta: readToken('--cy-magenta', CY_FALLBACK.magenta),
-  yellow: readToken('--cy-yellow', CY_FALLBACK.yellow),
-  lime: readToken('--cy-lime', CY_FALLBACK.lime),
-  text: readToken('--cy-text', CY_FALLBACK.text),
-  textDim: readToken('--cy-text-dim', CY_FALLBACK.textDim),
-  fontMono: readToken('--cy-font-mono', CY_FALLBACK.fontMono)
+const mn = {
+  bg: readToken('--mn-bg', MN_FALLBACK.bg),
+  bgSoft: readToken('--mn-bg-soft', MN_FALLBACK.bgSoft),
+  surface: readToken('--mn-surface', MN_FALLBACK.surface),
+  surface2: readToken('--mn-surface-2', MN_FALLBACK.surface2),
+  border: readToken('--mn-border', MN_FALLBACK.border),
+  borderStrong: readToken('--mn-border-strong', MN_FALLBACK.borderStrong),
+  primary: readToken('--mn-primary', MN_FALLBACK.primary),
+  primaryHover: readToken('--mn-primary-hover', MN_FALLBACK.primaryHover),
+  text: readToken('--mn-text', MN_FALLBACK.text),
+  textSecondary: readToken('--mn-text-secondary', MN_FALLBACK.textSecondary),
+  textMuted: readToken('--mn-text-muted', MN_FALLBACK.textMuted),
+  onPrimary: readToken('--mn-on-primary', '#ffffff')
 }
 
-const cyRadius = Number.parseInt(readToken('--cy-radius', CY_FALLBACK.radius), 10)
+const mnRadius = Number.parseInt(readToken('--mn-radius', MN_FALLBACK.radius), 10)
 
 const themeConfig = {
-  algorithm: antdTheme.darkAlgorithm,
+  algorithm: antdTheme.defaultAlgorithm,
   token: {
-    colorPrimary: cy.cyan,
-    colorInfo: cy.cyan,
-    colorLink: cy.cyan,
-    colorSuccess: cy.lime,
-    colorWarning: cy.yellow,
-    colorError: cy.magenta,
-    colorBgBase: cy.bg,
-    colorBgLayout: cy.bg,
-    colorBgContainer: cy.panel,
-    colorBgElevated: cy.panel2,
-    colorBorder: cy.border,
-    colorBorderSecondary: cy.border,
-    colorText: cy.text,
-    colorTextSecondary: cy.textDim,
-    colorTextDescription: cy.textDim,
-    fontFamily: readToken('--cy-font-ui', CY_FALLBACK.fontMono),
-    fontFamilyCode: cy.fontMono,
-    borderRadius: Number.isFinite(cyRadius) ? cyRadius : 8,
+    colorPrimary: mn.primary,
+    colorInfo: mn.primary,
+    colorLink: mn.primary,
+    colorSuccess: '#15803d',
+    colorWarning: '#b45309',
+    colorError: '#b42318',
+    colorBgBase: '#ffffff',
+    colorBgLayout: mn.bg,
+    colorBgContainer: mn.surface,
+    colorBgElevated: mn.surface,
+    colorBorder: mn.border,
+    colorBorderSecondary: mn.border,
+    colorText: mn.text,
+    colorTextSecondary: mn.textSecondary,
+    colorTextDescription: mn.textSecondary,
+    fontFamily: readToken('--mn-font-ui', MN_FALLBACK.fontUi),
+    fontSize: 14,
+    borderRadius: Number.isFinite(mnRadius) ? mnRadius : 8,
+    borderRadiusSM: 6,
     wireframe: false
   },
   components: {
     Layout: { bodyBg: 'transparent', headerBg: 'transparent', footerBg: 'transparent' },
     Card: {
-      colorBgContainer: cy.panel,
-      borderColor: cy.border,
+      colorBgContainer: mn.surface,
+      borderColor: mn.border,
       headerBg: 'transparent',
       actionsBg: 'transparent'
     },
     Button: {
       primaryShadow: 'none',
       defaultBg: 'transparent',
-      defaultColor: cy.text,
-      defaultBorderColor: cy.border,
-      defaultHoverColor: cy.cyan,
-      defaultHoverBorderColor: cy.cyan,
-      fontWeight: 600
+      defaultColor: mn.text,
+      defaultBorderColor: mn.borderStrong,
+      defaultHoverColor: mn.primary,
+      defaultHoverBorderColor: mn.borderStrong,
+      fontWeight: 500
     },
     Menu: {
-      itemBg: cy.panel,
-      itemColor: cy.text,
-      itemHoverBg: cy.panel2,
-      itemHoverColor: cy.cyan,
-      itemSelectedBg: cy.panel2,
-      itemSelectedColor: cy.cyan,
-      popupBg: cy.panel2,
-      darkItemBg: cy.panel,
-      darkItemColor: cy.text
+      itemBg: 'transparent',
+      itemColor: mn.text,
+      itemHoverBg: mn.surface2,
+      itemHoverColor: mn.text,
+      itemSelectedBg: mn.surface2,
+      itemSelectedColor: mn.primary,
+      popupBg: mn.surface,
+      darkItemBg: 'transparent',
+      darkItemColor: mn.text
     },
-    Dropdown: { colorBgElevated: cy.panel2, controlItemBgHover: cy.panel },
+    Dropdown: { colorBgElevated: mn.surface, controlItemBgHover: mn.surface2 },
     Input: {
-      colorBgContainer: cy.bgSoft,
-      activeBorderColor: cy.cyan,
-      hoverBorderColor: cy.cyan,
+      colorBgContainer: mn.bg,
+      activeBorderColor: mn.primary,
+      hoverBorderColor: mn.primary,
       activeShadow: 'none'
     },
-    InputNumber: { colorBgContainer: cy.bgSoft, activeBorderColor: cy.cyan, hoverBorderColor: cy.cyan },
-    Select: { colorBgContainer: cy.bgSoft, optionSelectedBg: cy.panel2, optionActiveBg: cy.panel2 },
-    Tabs: { itemColor: cy.textDim, itemHoverColor: cy.cyan, itemSelectedColor: cy.cyan, inkBarColor: cy.cyan },
-    Table: {
-      headerBg: cy.panel2,
-      colorBgContainer: cy.panel,
-      borderColor: cy.border,
-      rowHoverBg: cy.panel2,
-      headerColor: cy.text
+    InputNumber: {
+      colorBgContainer: mn.bg,
+      activeBorderColor: mn.primary,
+      hoverBorderColor: mn.primary
     },
-    Modal: { contentBg: cy.panel, headerBg: cy.panel, titleColor: cy.text },
-    Drawer: { colorBgElevated: cy.panel },
-    Pagination: { itemActiveBg: cy.panel2, colorPrimary: cy.cyan },
-    Empty: { colorTextDescription: cy.textDim },
-    Tag: { defaultBg: cy.panel2, defaultColor: cy.text },
-    Divider: { colorSplit: cy.border },
-    Message: { contentBg: cy.panel2 },
-    Tooltip: { colorBgSpotlight: cy.panel2 }
+    Select: {
+      colorBgContainer: mn.bg,
+      optionSelectedBg: mn.surface2,
+      optionActiveBg: mn.surface2
+    },
+    Tabs: {
+      itemColor: mn.textSecondary,
+      itemHoverColor: mn.text,
+      itemSelectedColor: mn.primary,
+      inkBarColor: mn.primary
+    },
+    Table: {
+      headerBg: mn.surface2,
+      colorBgContainer: mn.surface,
+      borderColor: mn.border,
+      rowHoverBg: mn.surface2,
+      headerColor: mn.text
+    },
+    Modal: { contentBg: mn.surface, headerBg: mn.surface, titleColor: mn.text },
+    Drawer: { colorBgElevated: mn.surface },
+    Pagination: { itemActiveBg: mn.surface2, colorPrimary: mn.primary },
+    Empty: { colorTextDescription: mn.textSecondary },
+    Tag: { defaultBg: mn.surface2, defaultColor: mn.textSecondary },
+    Divider: { colorSplit: mn.border },
+    Message: { contentBg: mn.surface },
+    Tooltip: { colorBgSpotlight: mn.surface }
   }
 }
 
@@ -235,7 +241,8 @@ function handleLogout() {
 </script>
 
 <style scoped>
-/* 外壳换皮：颜色一律取 cyberpunk.css 的 --cy-* 令牌，本文件不写死颜色。 */
+/* 外壳：颜色一律取 minimal.css 的 --mn-* 令牌，本文件不写死颜色。
+   这里没有任何 fixed 装饰层 —— 层次全部由内容自己建立。 */
 .app-shell {
   position: relative;
   display: flex;
@@ -243,41 +250,18 @@ function handleLogout() {
   min-height: 100vh;
 }
 
-/* 全屏网格背景层：垫在所有内容下面 */
-.app-grid-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
+/* 吸顶头部：不透明底色 + 1px 极淡下边框，不用 backdrop-filter（滚动时会持续重绘） */
 .app-header {
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(12px);
-  background-color: var(--cy-panel-glass);
-  border-bottom: 1px solid var(--cy-border);
-  box-shadow: 0 10px 30px -22px var(--cy-cyan);
+  background-color: var(--mn-bg);
+  border-bottom: 1px solid var(--mn-border);
 }
 
-/* 头部底边的霓虹渐变线 */
+/* 当前路由：文字加重 + 主色，不加底色块（极简风的「选中态」） */
 .app-header::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background-image: linear-gradient(
-    90deg,
-    transparent,
-    var(--cy-cyan),
-    var(--cy-magenta),
-    transparent
-  );
-  opacity: 0.75;
-  pointer-events: none;
+  content: none;
 }
 
 .header-inner {
@@ -297,27 +281,26 @@ function handleLogout() {
   flex-shrink: 0;
 }
 
+/* 品牌方块：中性底色 + 主色文字，无渐变、无切角、无发光 */
 .logo-mark {
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
-  background-image: linear-gradient(135deg, var(--cy-cyan), var(--cy-magenta));
-  clip-path: var(--cy-clip);
-  color: var(--cy-bg);
-  font-family: var(--cy-font-mono);
-  font-weight: 700;
+  background-color: var(--mn-primary);
+  color: var(--mn-on-primary);
+  font-family: var(--mn-font-ui);
+  font-weight: 600;
   font-size: 15px;
-  filter: drop-shadow(0 0 6px var(--cy-cyan-glow-soft));
+  border-radius: var(--mn-radius-sm);
 }
 
 .logo-text {
-  font-family: var(--cy-font-mono);
+  font-family: var(--mn-font-ui);
   font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--cy-text);
-  text-shadow: 0 0 10px var(--cy-cyan-glow-soft);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--mn-text);
 }
 
 /* 导航条：宽屏铺满中间，窄屏放不下时在**自身内部**横向滚动，
@@ -347,27 +330,23 @@ function handleLogout() {
   flex: 0 0 auto;
   /* 关键：没有它，窄屏下中文会被逐字竖排 */
   white-space: nowrap;
-  padding: 6px 14px;
-  font-family: var(--cy-font-mono);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  color: var(--cy-text-dim);
-  border: 1px solid transparent;
-  clip-path: var(--cy-clip);
-  transition: color 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  padding: 6px 12px;
+  font-family: var(--mn-font-ui);
+  font-size: 14px;
+  color: var(--mn-text-secondary);
+  border-radius: var(--mn-radius-sm);
+  transition: color 0.16s ease, background-color 0.16s ease;
 }
 
 .nav-link:hover {
-  color: var(--cy-text);
-  background-color: var(--cy-hairline);
-  border-color: var(--cy-border);
+  color: var(--mn-text);
+  background-color: var(--mn-surface-2);
 }
 
+/* 选中态：主色文字 + 极淡主色底，不用霓虹内发光 */
 .nav-link.router-link-exact-active {
-  color: var(--cy-cyan);
-  background-color: var(--cy-cyan-dim);
-  border-color: var(--cy-cyan-line);
-  box-shadow: inset 0 0 12px var(--cy-cyan-dim);
+  color: var(--mn-primary);
+  background-color: var(--mn-primary-soft);
 }
 
 .header-actions {
@@ -380,8 +359,8 @@ function handleLogout() {
 
 .user-avatar {
   cursor: pointer;
-  background-color: var(--cy-magenta);
-  color: var(--cy-bg);
+  background-color: var(--mn-surface-2);
+  color: var(--mn-text-secondary);
 }
 
 .app-main {
@@ -394,10 +373,10 @@ function handleLogout() {
 .app-footer {
   position: relative;
   z-index: 1;
-  margin-top: 40px;
-  padding: 20px 0;
-  background-color: var(--cy-bg-soft);
-  border-top: 1px solid var(--cy-border);
+  margin-top: var(--mn-space-7);
+  padding: var(--mn-space-5) 0;
+  background-color: var(--mn-bg-soft);
+  border-top: 1px solid var(--mn-border);
 }
 
 .app-footer p {

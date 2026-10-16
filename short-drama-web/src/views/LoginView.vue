@@ -69,7 +69,9 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LockOutlined, MailOutlined, PhoneOutlined, UserOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+// 按需引入：message 的传递闭包有 351KB 源码（含 antd 全量 locale 表），
+// 见 src/utils/toast.ts。首屏静态依赖里没有它。
+import { toast } from '@/utils/toast'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -91,7 +93,7 @@ async function handleSubmit() {
   try {
     if (mode.value === 'login') {
       await userStore.login(form.username, form.password)
-      message.success('登录成功')
+      toast('success', '登录成功')
     } else {
       await userStore.register({
         username: form.username,
@@ -99,13 +101,13 @@ async function handleSubmit() {
         email: form.email,
         phone: form.phone
       })
-      message.success('注册成功，已自动登录')
+      toast('success', '注册成功，已自动登录')
     }
 
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
   } catch (error) {
-    message.error((error as Error).message || '操作失败，请检查输入')
+    toast('error', (error as Error).message || '操作失败，请检查输入')
   } finally {
     loading.value = false
   }
@@ -149,10 +151,10 @@ async function handleSubmit() {
   place-items: center;
   width: 46px;
   height: 46px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
-  color: #fff;
-  font-weight: 700;
+  border-radius: var(--mn-radius);
+  background: var(--mn-primary);
+  color: var(--mn-on-primary);
+  font-weight: 600;
   font-size: 22px;
 }
 

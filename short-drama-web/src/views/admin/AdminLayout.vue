@@ -102,8 +102,8 @@ function onMenuClick({ key }: { key: string | number }) {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--sd-bg-elevated);
-  border-right: 1px solid var(--sd-border);
+  background: var(--mn-surface);
+  border-right: 1px solid var(--mn-border);
 }
 
 .sider-brand {
@@ -113,7 +113,7 @@ function onMenuClick({ key }: { key: string | number }) {
   padding: 16px;
   font-size: 15px;
   font-weight: 600;
-  border-bottom: 1px solid var(--sd-border);
+  border-bottom: 1px solid var(--mn-border);
 }
 
 .logo-mark {
@@ -121,10 +121,10 @@ function onMenuClick({ key }: { key: string | number }) {
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #ff4d6d, #ff8a5b);
-  color: #fff;
-  font-weight: 700;
+  border-radius: var(--mn-radius-sm);
+  background: var(--mn-primary);
+  color: var(--mn-on-primary);
+  font-weight: 600;
   font-size: 14px;
 }
 
@@ -136,7 +136,7 @@ function onMenuClick({ key }: { key: string | number }) {
 
 .sider-footer {
   padding: 12px;
-  border-top: 1px solid var(--sd-border);
+  border-top: 1px solid var(--mn-border);
 }
 
 .admin-body {
@@ -151,7 +151,7 @@ function onMenuClick({ key }: { key: string | number }) {
   align-items: center;
   justify-content: space-between;
   padding: 16px 22px;
-  border-bottom: 1px solid var(--sd-border);
+  border-bottom: 1px solid var(--mn-border);
 }
 
 .admin-header h1 {
@@ -180,7 +180,7 @@ function onMenuClick({ key }: { key: string | number }) {
   .admin-sider {
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid var(--sd-border);
+    border-bottom: 1px solid var(--mn-border);
   }
 
   .admin-content {

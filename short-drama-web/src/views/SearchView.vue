@@ -25,6 +25,11 @@
       </span>
     </div>
 
+    <!--
+      换关键词 / 切平台时旧结果**留在屏上**（见 doSearch 里 reset 分支的注释）：
+      a-spin 的 spinning 在这段时间为 true，会给整块列表盖一层遮罩，
+      用户看到的是「旧内容 + 转圈」，而不是「白掉再弹开」。
+    -->
     <a-spin :spinning="loading">
       <div v-if="results.length" class="drama-grid">
         <DramaCard v-for="item in results" :key="`${item.platformCode}-${item.platformDramaId}`" :drama="item" />
@@ -94,7 +99,9 @@ async function doSearch(reset = true) {
 
   if (reset) {
     page.value = 1
-    results.value = []
+    // 换关键词时**不清空**旧结果：先留着旧卡片，等新结果到了原地替换。
+    // 若在这里清空，网格会先塌成一块空白再弹开 —— 这就是「搜索一卡」的来源。
+    // 配合 results.length 的 key（platformCode-platformDramaId），Vue 会就地复用 DOM。
   }
 
   try {
@@ -110,6 +117,8 @@ async function doSearch(reset = true) {
     hasMore.value = results.value.length < result.total
   } catch {
     hasMore.value = false
+    // 请求失败也把旧结果留下：清空只会让页面从「有内容」突变到「空白」，
+    // 用户感知是页面塌了一下。旧的还在，用户在 <a-spin> 遮罩上能看到加载态。
   } finally {
     loading.value = false
   }
